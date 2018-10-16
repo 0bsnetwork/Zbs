@@ -39,7 +39,7 @@ name := "zbs"
 normalizedName := s"${name.value}${network.value.packageSuffix}"
 
 git.useGitDescribe := true
-git.uncommittedSignifier := None //Some("DIRTY")
+git.uncommittedSignifier := Some("1")
 logBuffered := false
 
 inThisBuild(

@@ -67,20 +67,20 @@ object FunctionalitySettings {
   )
 
   val TESTNET = apply(
-    featureCheckBlocksPeriod = 3000,
-    blocksForFeatureActivation = 2700,
-    allowTemporaryNegativeUntil = 1477958400000L,
-    requireSortedTransactionsAfter = 1477958400000L,
+    featureCheckBlocksPeriod = 30,
+    blocksForFeatureActivation = 25,
+    allowTemporaryNegativeUntil = 0,
+    requireSortedTransactionsAfter = 0,
     generationBalanceDepthFrom50To1000AfterHeight = 0,
     minimalGeneratingBalanceAfter = 0,
-    allowTransactionsFromFutureUntil = 1478100000000L,
-    allowUnissuedAssetsUntil = 1479416400000L,
-    allowInvalidReissueInSameBlockUntilTimestamp = 1492560000000L,
-    allowMultipleLeaseCancelTransactionUntilTimestamp = 1492560000000L,
-    resetEffectiveBalancesAtHeight = 51500,
-    blockVersion3AfterHeight = 161700,
-    preActivatedFeatures = Map.empty,
-    doubleFeaturesPeriodsAfterHeight = Int.MaxValue
+    allowTransactionsFromFutureUntil = 0,
+    allowUnissuedAssetsUntil = 0,
+    allowInvalidReissueInSameBlockUntilTimestamp = 0,
+    allowMultipleLeaseCancelTransactionUntilTimestamp = 0,
+    resetEffectiveBalancesAtHeight = 1,
+    blockVersion3AfterHeight = 0,
+    preActivatedFeatures = Map[Short, Int]((1, 0), (2, 0), (3, 0), (4, 0), (5, 0), (6, 0), (7, 0), (8, 0), (9, 0)),
+    doubleFeaturesPeriodsAfterHeight = 0
   )
 
   val configPath = "zbs.blockchain.custom.functionality"
