@@ -1,4 +1,5 @@
-# Zbs [![Build Status](https://travis-ci.org/0bsnetwork/Zbs.svg?branch=master)](https://travis-ci.org/0bsnetwork/Zbs) [![](https://images.microbadger.com/badges/version/0bsnetwork/zbs-testnet.svg)]
+# Zbs [![Build Status](https://travis-ci.org/0bsnetwork/Zbs.svg?branch=master)](https://travis-ci.org/0bsnetwork/Zbs) 
+
 
 In the master branch there is a code with functions that is under development. The latest release for each network can be found in the [Releases section](https://github.com/0bsnetwork/Zbs/releases), you can switch to the corresponding tag and build the application.
 

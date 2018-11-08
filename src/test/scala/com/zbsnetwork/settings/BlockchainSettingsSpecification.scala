@@ -124,7 +124,7 @@ class BlockchainSettingsSpecification extends FlatSpec with Matchers {
     val settings = BlockchainSettings.fromConfig(config)
 
     settings.addressSchemeCharacter should be('W')
-    settings.functionalitySettings.allowTemporaryNegativeUntil should be(1479168000000L)
+    settings.functionalitySettings.allowTemporaryNegativeUntil should be(0L)
     settings.functionalitySettings.requireSortedTransactionsAfter should be(1479168000000L)
     settings.functionalitySettings.generationBalanceDepthFrom50To1000AfterHeight should be(232000L)
     settings.functionalitySettings.minimalGeneratingBalanceAfter should be(1479168000000L)
@@ -133,7 +133,7 @@ class BlockchainSettingsSpecification extends FlatSpec with Matchers {
     settings.functionalitySettings.allowInvalidReissueInSameBlockUntilTimestamp should be(1492768800000L)
     settings.functionalitySettings.allowMultipleLeaseCancelTransactionUntilTimestamp should be(1492768800000L)
     settings.functionalitySettings.resetEffectiveBalancesAtHeight should be(462000)
-    settings.genesisSettings.blockTimestamp should be(1460678400000L)
+    settings.genesisSettings.blockTimestamp should be(1538689931932L)
     settings.genesisSettings.timestamp should be(1465742577614L)
     settings.genesisSettings.signature should be(
       ByteStr.decodeBase58("FSH8eAAzZNqnG8xgTZtz5xuLqXySsXgAjmFEC25hXMbEufiGjqWPnGCZFt6gLiVLJny16ipxRNAkkzjjhqTjBE2").toOption)
