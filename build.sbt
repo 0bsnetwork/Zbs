@@ -139,8 +139,8 @@ inConfig(Universal)(
       // -J prefix is required by the bash script
       "-J-server",
       // JVM memory tuning for 2g ram
-      "-J-Xms1024m",
-      "-J-Xmx2g",
+      "-J-Xms2048m",
+      "-J-Xmx3g",
       "-J-XX:+ExitOnOutOfMemoryError",
       // Java 9 support
       "-J-XX:+IgnoreUnrecognizedVMOptions",

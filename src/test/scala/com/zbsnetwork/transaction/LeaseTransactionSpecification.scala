@@ -96,7 +96,7 @@ class LeaseTransactionSpecification extends PropSpec with PropertyChecks with Ma
     js shouldEqual tx.json()
   }
 
-  property("forbid assetId in LeaseTransactionV2") {
+  ignore("forbid assetId in LeaseTransactionV2") {
     val leaseV2Gen      = leaseGen.filter(_.version == 2)
     val assetIdBytesGen = assetIdGen.filter(_.nonEmpty).map(_.get.arr)
     forAll(leaseV2Gen, assetIdBytesGen) { (tx, assetId) =>

@@ -32,7 +32,7 @@ class RollbackSpec extends FreeSpec with Matchers with WithState with Transactio
   )
 
   private def transfer(sender: PrivateKeyAccount, recipient: Address, amount: Long) =
-    TransferTransactionV1.selfSigned(None, sender, recipient, amount, nextTs, None, 10000, Array.empty[Byte]).explicitGet()
+    TransferTransactionV1.selfSigned(None, sender, recipient, amount, nextTs, None, 100000, Array.empty[Byte]).explicitGet()
 
   private def randomOp(sender: PrivateKeyAccount, recipient: Address, amount: Long, op: Int) = {
     import com.zbsplatform.transaction.transfer.MassTransferTransaction.ParsedTransfer
@@ -137,7 +137,7 @@ class RollbackSpec extends FreeSpec with Matchers with WithState with Transactio
           }
 
           d.portfolio(recipient).balance shouldBe (transferAmount * totalTxCount)
-          d.portfolio(sender).balance shouldBe (initialBalance - (transferAmount + 1) * totalTxCount)
+          d.portfolio(sender).balance shouldBe (initialBalance - (transferAmount + 100000) * totalTxCount)
 
           d.removeAfter(genesisSignature)
 

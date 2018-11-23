@@ -35,3 +35,10 @@ Option 2: Run as a Java file
 ```
 java -jar zbs-all-0.*.jar zbs-testnet.conf
 ```
+
+
+# Tests & Coverage
+
+```
+ sbt -J-XX:MaxMetaspaceSize=512M -J-XX:MetaspaceSize=512M -J-Xms2048M -J-Xmx2048M -J-Xss6M -J-XX:MaxPermSize=512M ";coverage;checkPR;coverageReport"
+```
