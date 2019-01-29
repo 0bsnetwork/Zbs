@@ -1,18 +1,19 @@
-package com.zbsplatform.history
+package com.zbsnetwork.history
 
-import com.zbsplatform.TransactionGen
-import com.zbsplatform.features.BlockchainFeatures
-import com.zbsplatform.settings.{BlockchainSettings, ZbsSettings}
-import com.zbsplatform.state._
-import com.zbsplatform.state.diffs._
+import com.zbsnetwork.TransactionGen
+import com.zbsnetwork.account.PrivateKeyAccount
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.crypto._
+import com.zbsnetwork.features.BlockchainFeatures
+import com.zbsnetwork.settings.{BlockchainSettings, ZbsSettings}
+import com.zbsnetwork.state._
+import com.zbsnetwork.state.diffs._
+import com.zbsnetwork.transaction.GenesisTransaction
+import com.zbsnetwork.transaction.assets.{IssueTransaction, SponsorFeeTransaction}
+import com.zbsnetwork.transaction.transfer._
 import org.scalacheck.Gen
 import org.scalatest._
 import org.scalatest.prop.PropertyChecks
-import com.zbsplatform.account.PrivateKeyAccount
-import com.zbsplatform.transaction.GenesisTransaction
-import com.zbsplatform.transaction.assets.{IssueTransaction, SponsorFeeTransaction}
-import com.zbsplatform.transaction.transfer._
-import scorex.crypto.signatures.Curve25519._
 
 class BlockchainUpdaterSponsoredFeeBlockTest
     extends PropSpec
@@ -36,12 +37,12 @@ class BlockchainUpdaterSponsoredFeeBlockTest
 
     master                      <- accountGen
     ts                          <- timestampGen
-    transferAssetZbsFee         <- smallFeeGen
+    transferAssetZbsFee       <- smallFeeGen
     sponsor                     <- accountGen
     alice                       <- accountGen
     bob                         <- accountGen
     (feeAsset, sponsorTx, _, _) <- sponsorFeeCancelSponsorFeeGen(alice)
-    zbsFee                      = Sponsorship.toZbs(sponsorTx.minSponsoredAssetFee.get, sponsorTx.minSponsoredAssetFee.get)
+    zbsFee                    = Sponsorship.toZbs(sponsorTx.minSponsoredAssetFee.get, sponsorTx.minSponsoredAssetFee.get)
     genesis: GenesisTransaction = GenesisTransaction.create(master, ENOUGH_AMT, ts).explicitGet()
     masterToAlice: TransferTransactionV1 = TransferTransactionV1
       .selfSigned(None,

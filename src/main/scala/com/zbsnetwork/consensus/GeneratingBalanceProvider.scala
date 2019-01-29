@@ -1,10 +1,10 @@
-package com.zbsplatform.consensus
+package com.zbsnetwork.consensus
 
-import com.zbsplatform.features.BlockchainFeatures
-import com.zbsplatform.settings.FunctionalitySettings
-import com.zbsplatform.state.Blockchain
-import com.zbsplatform.account.Address
-import com.zbsplatform.block.Block
+import com.zbsnetwork.features.BlockchainFeatures
+import com.zbsnetwork.settings.FunctionalitySettings
+import com.zbsnetwork.state.Blockchain
+import com.zbsnetwork.account.Address
+import com.zbsnetwork.block.Block
 
 object GeneratingBalanceProvider {
   private val MinimalEffectiveBalanceForGenerator1: Long = 1000000000000L

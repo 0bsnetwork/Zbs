@@ -1,10 +1,9 @@
-package com.zbsplatform.matcher.util
+package com.zbsnetwork.matcher.util
 
 import java.nio.ByteBuffer
 
-import com.zbsplatform.state.ByteStr
-import com.zbsplatform.transaction.AssetId
-import com.zbsplatform.transaction.assets.exchange.AssetPair
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.transaction.AssetId
 
 object Codecs {
   def len(assetId: Option[AssetId]): Int = assetId.fold(1)(1 + _.arr.length)
@@ -24,7 +23,5 @@ object Codecs {
         b.get(arr)
         Some(ByteStr(arr))
     }
-
-    def getAssetPair: AssetPair = AssetPair(getAssetId, getAssetId)
   }
 }

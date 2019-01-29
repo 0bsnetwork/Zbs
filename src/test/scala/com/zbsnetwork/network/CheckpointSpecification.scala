@@ -1,8 +1,8 @@
-package com.zbsplatform.network
+package com.zbsnetwork.network
 
 import org.scalamock.scalatest.MockFactory
 import org.scalatest.{FreeSpec, Matchers, OneInstancePerTest}
-import scorex.crypto.signatures.Curve25519._
+import com.zbsnetwork.crypto._
 
 class CheckpointSpecification extends FreeSpec with Matchers with MockFactory with OneInstancePerTest {
 

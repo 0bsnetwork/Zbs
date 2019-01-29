@@ -1,15 +1,15 @@
-package com.zbsplatform.network
+package com.zbsnetwork.network
 
 import java.nio.charset.StandardCharsets
 
-import com.zbsplatform.TransactionGen
+import com.zbsnetwork.TransactionGen
 import io.netty.channel.ChannelHandlerContext
 import io.netty.channel.embedded.EmbeddedChannel
 import org.scalamock.scalatest.MockFactory
 import org.scalatest.prop.PropertyChecks
 import org.scalatest.{FreeSpec, Matchers}
-import com.zbsplatform.transaction.assets.IssueTransactionV1
-import com.zbsplatform.transaction.{SignedTransaction, Transaction}
+import com.zbsnetwork.transaction.assets.IssueTransactionV1
+import com.zbsnetwork.transaction.{ProvenTransaction, Transaction}
 
 class MessageCodecSpec extends FreeSpec with Matchers with MockFactory with PropertyChecks with TransactionGen {
 
@@ -23,7 +23,7 @@ class MessageCodecSpec extends FreeSpec with Matchers with MockFactory with Prop
     codec.blockCalls shouldBe 1
   }
 
-  "should not block a sender of valid messages" in forAll(randomTransactionGen) { origTx: SignedTransaction =>
+  "should not block a sender of valid messages" in forAll(randomTransactionGen) { origTx: ProvenTransaction =>
     val codec = new SpiedMessageCodec
     val ch    = new EmbeddedChannel(codec)
 

@@ -1,6 +1,6 @@
-package com.zbsplatform.transaction
+package com.zbsnetwork.transaction
 
-import com.zbsplatform.account.PublicKeyAccount
+import com.zbsnetwork.account.PublicKeyAccount
 
 trait Authorized {
   val sender: PublicKeyAccount

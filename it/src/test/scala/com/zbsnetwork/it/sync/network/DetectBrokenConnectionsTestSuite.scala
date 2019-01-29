@@ -1,10 +1,10 @@
-package com.zbsplatform.it.sync.network
+package com.zbsnetwork.it.sync.network
 
 import com.typesafe.config.{Config, ConfigFactory}
-import com.zbsplatform.it.NodeConfigs.Default
-import com.zbsplatform.it.ReportingTestName
-import com.zbsplatform.it.api.SyncHttpApi._
-import com.zbsplatform.it.transactions.NodesFromDocker
+import com.zbsnetwork.it.NodeConfigs.Default
+import com.zbsnetwork.it.ReportingTestName
+import com.zbsnetwork.it.api.SyncHttpApi._
+import com.zbsnetwork.it.transactions.NodesFromDocker
 import org.scalatest.{FreeSpec, Matchers}
 
 import scala.concurrent.duration._

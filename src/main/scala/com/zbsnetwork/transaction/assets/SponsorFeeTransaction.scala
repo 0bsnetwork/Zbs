@@ -1,13 +1,15 @@
-package com.zbsplatform.transaction.assets
+package com.zbsnetwork.transaction.assets
 
 import com.google.common.primitives.{Bytes, Longs}
-import com.zbsplatform.crypto
-import com.zbsplatform.state._
+import com.zbsnetwork.account.{PrivateKeyAccount, PublicKeyAccount}
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.crypto
+import com.zbsnetwork.crypto._
+import com.zbsnetwork.transaction._
 import monix.eval.Coeval
 import play.api.libs.json.{JsObject, Json}
-import com.zbsplatform.account.{PrivateKeyAccount, PublicKeyAccount}
-import com.zbsplatform.transaction._
-import scorex.crypto.signatures.Curve25519._
+
 import scala.util.{Failure, Success, Try}
 
 case class SponsorFeeTransaction private (version: Byte,
@@ -44,6 +46,8 @@ case class SponsorFeeTransaction private (version: Byte,
   override val assetFee: (Option[AssetId], Long) = (None, fee)
 
   override val bytes: Coeval[Array[Byte]] = Coeval.evalOnce(Bytes.concat(Array(0: Byte, builder.typeId, version), bodyBytes(), proofs.bytes()))
+
+  override def checkedAssets(): Seq[AssetId] = Seq(assetId)
 }
 
 object SponsorFeeTransaction extends TransactionParserFor[SponsorFeeTransaction] with TransactionParser.MultipleVersions {

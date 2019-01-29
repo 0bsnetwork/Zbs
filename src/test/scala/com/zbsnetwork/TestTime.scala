@@ -1,6 +1,6 @@
-package com.zbsplatform
+package com.zbsnetwork
 
-import com.zbsplatform.utils.Time
+import com.zbsnetwork.utils.Time
 
 import scala.concurrent.duration.FiniteDuration
 

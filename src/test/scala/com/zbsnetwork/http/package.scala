@@ -1,15 +1,16 @@
-package com.zbsplatform
+package com.zbsnetwork
 
 import java.nio.charset.StandardCharsets
 
-import com.zbsplatform.state.ByteStr
 import org.scalatest.matchers.{HavePropertyMatchResult, HavePropertyMatcher}
 import play.api.libs.json._
 import play.api.libs.functional.syntax._
-import com.zbsplatform.account.{AddressOrAlias, PublicKeyAccount}
-import com.zbsplatform.utils.Base58
-import com.zbsplatform.transaction.{AssetId, Proofs}
-import com.zbsplatform.transaction.transfer._
+import com.zbsnetwork.account.{AddressOrAlias, PublicKeyAccount}
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.Base58
+import com.zbsnetwork.common.utils.Base58
+import com.zbsnetwork.transaction.{AssetId, Proofs}
+import com.zbsnetwork.transaction.transfer._
 import shapeless.{:+:, CNil, Coproduct}
 
 import scala.reflect.ClassTag
@@ -17,7 +18,7 @@ import scala.util.{Failure, Success}
 
 package object http {
 
-  val Zbs: Long    = 100000000L
+  val Zbs: Long  = 100000000L
   val ApiKeyHeader = api_key("ridethezbs!")
 
   def sameSignature(target: Array[Byte])(actual: Array[Byte]): Boolean = target sameElements actual

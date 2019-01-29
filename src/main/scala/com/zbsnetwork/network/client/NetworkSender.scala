@@ -1,12 +1,12 @@
-package com.zbsplatform.network.client
+package com.zbsnetwork.network.client
 
 import java.io.IOException
 import java.net.InetSocketAddress
 import java.nio.channels.ClosedChannelException
 import java.util.concurrent.atomic.AtomicLong
 
-import com.zbsplatform.network.RawBytes
-import com.zbsplatform.utils.ScorexLogging
+import com.zbsnetwork.network.RawBytes
+import com.zbsnetwork.utils.ScorexLogging
 import io.netty.channel.Channel
 import io.netty.channel.group.DefaultChannelGroup
 import io.netty.util.concurrent.GlobalEventExecutor

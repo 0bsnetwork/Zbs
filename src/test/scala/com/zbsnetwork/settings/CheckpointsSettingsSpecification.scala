@@ -1,7 +1,7 @@
-package com.zbsplatform.settings
+package com.zbsnetwork.settings
 
 import com.typesafe.config.ConfigFactory
-import com.zbsplatform.state.ByteStr
+import com.zbsnetwork.common.state.ByteStr
 import org.scalatest.{FlatSpec, Matchers}
 
 class CheckpointsSettingsSpecification extends FlatSpec with Matchers {

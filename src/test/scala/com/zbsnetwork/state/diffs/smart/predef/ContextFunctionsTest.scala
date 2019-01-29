@@ -1,23 +1,24 @@
-package com.zbsplatform.state.diffs.smart.predef
+package com.zbsnetwork.state.diffs.smart.predef
 
-import com.zbsplatform.account.PrivateKeyAccount
-import com.zbsplatform.lang.Global
-import com.zbsplatform.lang.v1.compiler.CompilerV1
-import com.zbsplatform.lang.v1.parser.Parser
-import com.zbsplatform.state._
-import com.zbsplatform.state.diffs.smart.smartEnabledFS
-import com.zbsplatform.state.diffs.{ENOUGH_AMT, assertDiffAndState}
-import com.zbsplatform.transaction.GenesisTransaction
-import com.zbsplatform.transaction.smart.SetScriptTransaction
-import com.zbsplatform.transaction.smart.script.v1.ScriptV1
-import com.zbsplatform.utils.{Base58, dummyCompilerContext}
-import com.zbsplatform.{NoShrink, TransactionGen}
+import com.zbsnetwork.account.PrivateKeyAccount
+import com.zbsnetwork.common.utils.{Base58, EitherExt2}
+import com.zbsnetwork.lang.Global
+import com.zbsnetwork.lang.Testing._
+import com.zbsnetwork.lang.Version.ExprV1
+import com.zbsnetwork.lang.v1.compiler.ExpressionCompilerV1
+import com.zbsnetwork.lang.v1.parser.Parser
+import com.zbsnetwork.state._
+import com.zbsnetwork.state.diffs.smart.smartEnabledFS
+import com.zbsnetwork.state.diffs.{ENOUGH_AMT, assertDiffAndState}
+import com.zbsnetwork.transaction.GenesisTransaction
+import com.zbsnetwork.transaction.smart.SetScriptTransaction
+import com.zbsnetwork.transaction.smart.script.v1.ExprScript
+import com.zbsnetwork.utils.compilerContext
+import com.zbsnetwork.{NoShrink, TransactionGen}
+import org.scalacheck.Gen
 import org.scalatest.prop.PropertyChecks
 import org.scalatest.{Matchers, PropSpec}
-import com.zbsplatform.transaction.smart.SetScriptTransaction
-import com.zbsplatform.transaction.smart.script.v1.ScriptV1
-import com.zbsplatform.transaction.GenesisTransaction
-import org.scalacheck.Gen
+import shapeless.Coproduct
 
 class ContextFunctionsTest extends PropSpec with PropertyChecks with Matchers with TransactionGen with NoShrink {
 
@@ -46,11 +47,11 @@ class ContextFunctionsTest extends PropSpec with PropertyChecks with Matchers wi
         case 2 => scriptWithZbsFunctions(dataTransaction, transfer)
         case 3 => scriptWithCryptoFunctions
       }
-      .map(x => Parser(x).get.value)
+      .map(x => Parser.parseScript(x).get.value)
 
     typedScript = {
-      val compilerScript = CompilerV1(dummyCompilerContext, untypedScript).explicitGet()._1
-      ScriptV1(compilerScript).explicitGet()
+      val compilerScript = ExpressionCompilerV1(compilerContext(ExprV1, isAssetScript = false), untypedScript).explicitGet()._1
+      ExprScript(compilerScript).explicitGet()
     }
     setScriptTransaction: SetScriptTransaction = SetScriptTransaction.selfSigned(1, recipient, Some(typedScript), 100000000L, ts).explicitGet()
 
@@ -74,7 +75,7 @@ class ContextFunctionsTest extends PropSpec with PropertyChecks with Matchers wi
         val bool = tx.data(1)
         val bin  = tx.data(2)
         val str  = tx.data(3)
-        val result = runScript[Boolean](
+        val result = runScript(
           s"""
                |match tx {
                | case tx: DataTransaction => {
@@ -104,9 +105,9 @@ class ContextFunctionsTest extends PropSpec with PropertyChecks with Matchers wi
                | case _ => throw()
                |}
                |""".stripMargin,
-          tx
+          Coproduct(tx)
         )
-        result shouldBe Right(true)
+        result shouldBe evaluated(true)
     }
   }
 
@@ -117,7 +118,7 @@ class ContextFunctionsTest extends PropSpec with PropertyChecks with Matchers wi
         val bool = tx.data(1)
         val bin  = tx.data(2)
         val str  = tx.data(3)
-        val ok = runScript[Boolean](
+        val ok = runScript(
           s"""
                |match tx {
                | case tx: DataTransaction => {
@@ -145,18 +146,18 @@ class ContextFunctionsTest extends PropSpec with PropertyChecks with Matchers wi
                | case _ => throw()
                |}
                |""".stripMargin,
-          tx
+          Coproduct(tx)
         )
-        ok shouldBe Right(true)
+        ok shouldBe evaluated(true)
 
-        val outOfBounds = runScript[Boolean](
+        val outOfBounds = runScript(
           s"""
              |match tx {
              | case d: DataTransaction => isDefined(getInteger(d.data, $badIndex))
              | case _ => false
              |}
              |""".stripMargin,
-          tx
+          Coproduct(tx)
         )
         outOfBounds shouldBe Left(s"java.lang.IndexOutOfBoundsException: $badIndex")
     }
@@ -242,6 +243,6 @@ class ContextFunctionsTest extends PropSpec with PropertyChecks with Matchers wi
         |let dd = toBase64String( dc ); let de = toBytes( dd )
         |sha256( de ) != base58'123'
       """.stripMargin
-    runScript[Boolean](script) shouldBe Left(s"base64Encode input exceeds ${Global.MaxBase64Bytes}")
+    runScript(script) shouldBe Left(s"base64Encode input exceeds ${Global.MaxBase64Bytes}")
   }
 }

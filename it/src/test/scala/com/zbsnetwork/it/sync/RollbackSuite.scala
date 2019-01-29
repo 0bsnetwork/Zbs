@@ -1,10 +1,10 @@
-package com.zbsplatform.it.sync
+package com.zbsnetwork.it.sync
 
 import com.typesafe.config.Config
-import com.zbsplatform.it.api.SyncHttpApi._
-import com.zbsplatform.it.transactions.NodesFromDocker
-import com.zbsplatform.it.{NodeConfigs, TransferSending}
-import com.zbsplatform.state.{BooleanDataEntry, IntegerDataEntry}
+import com.zbsnetwork.it.api.SyncHttpApi._
+import com.zbsnetwork.it.transactions.NodesFromDocker
+import com.zbsnetwork.it.{NodeConfigs, TransferSending}
+import com.zbsnetwork.state.{BooleanDataEntry, IntegerDataEntry}
 import org.scalatest.{CancelAfterFailure, FunSuite, Matchers}
 
 import scala.concurrent.Await

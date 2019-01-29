@@ -1,17 +1,17 @@
-package com.zbsplatform.it
+package com.zbsnetwork.it
 
 import java.util.concurrent.ThreadLocalRandom
 
 import com.typesafe.config.Config
-import com.zbsplatform.it.TransferSending.Req
-import com.zbsplatform.it.api.AsyncHttpApi._
-import com.zbsplatform.it.api.Transaction
-import com.zbsplatform.state.EitherExt2
-import com.zbsplatform.utils.{Base58, ScorexLogging}
+import com.zbsnetwork.account.{Address, AddressOrAlias, AddressScheme, PrivateKeyAccount}
+import com.zbsnetwork.api.http.assets.SignedTransferV2Request
+import com.zbsnetwork.common.utils.{Base58, EitherExt2}
+import com.zbsnetwork.it.TransferSending.Req
+import com.zbsnetwork.it.api.AsyncHttpApi._
+import com.zbsnetwork.it.api.Transaction
+import com.zbsnetwork.transaction.transfer._
+import com.zbsnetwork.utils.ScorexLogging
 import org.scalatest.Suite
-import com.zbsplatform.account.{Address, AddressOrAlias, AddressScheme, PrivateKeyAccount}
-import com.zbsplatform.api.http.assets.SignedTransferV2Request
-import com.zbsplatform.transaction.transfer._
 
 import scala.concurrent.Future
 import scala.util.Random

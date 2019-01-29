@@ -1,7 +1,7 @@
-package com.zbsplatform.lang
+package com.zbsnetwork.lang
 
-import com.zbsplatform.lang.directives.DirectiveKey.LANGUAGE_VERSION
-import com.zbsplatform.lang.directives.{Directive, DirectiveParser}
+import com.zbsnetwork.lang.directives.DirectiveKey.LANGUAGE_VERSION
+import com.zbsnetwork.lang.directives.{Directive, DirectiveParser}
 import org.scalatest.prop.PropertyChecks
 import org.scalatest.{Matchers, PropSpec}
 

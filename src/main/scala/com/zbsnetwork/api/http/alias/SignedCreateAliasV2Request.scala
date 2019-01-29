@@ -1,10 +1,10 @@
-package com.zbsplatform.api.http.alias
+package com.zbsnetwork.api.http.alias
 
 import io.swagger.annotations.ApiModelProperty
 import play.api.libs.json.{Format, Json}
-import com.zbsplatform.account.{Alias, PublicKeyAccount}
-import com.zbsplatform.api.http.BroadcastRequest
-import com.zbsplatform.transaction.{CreateAliasTransaction, CreateAliasTransactionV2, Proofs, ValidationError}
+import com.zbsnetwork.account.{Alias, PublicKeyAccount}
+import com.zbsnetwork.api.http.BroadcastRequest
+import com.zbsnetwork.transaction.{CreateAliasTransaction, CreateAliasTransactionV2, Proofs, ValidationError}
 import cats.implicits._
 
 case class SignedCreateAliasV2Request(@ApiModelProperty(required = true)
@@ -25,7 +25,7 @@ case class SignedCreateAliasV2Request(@ApiModelProperty(required = true)
       _sender     <- PublicKeyAccount.fromBase58String(senderPublicKey)
       _proofBytes <- proofs.traverse(s => parseBase58(s, "invalid proof", Proofs.MaxProofStringSize))
       _proofs     <- Proofs.create(_proofBytes)
-      _alias      <- Alias.buildWithCurrentNetworkByte(alias)
+      _alias      <- Alias.buildWithCurrentChainId(alias)
       _t          <- CreateAliasTransactionV2.create(version, _sender, _alias, fee, timestamp, _proofs)
     } yield _t
 }

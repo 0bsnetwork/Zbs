@@ -1,4 +1,4 @@
-package com.zbsplatform.transaction
+package com.zbsnetwork.transaction
 
 import scala.reflect.ClassTag
 import scala.util.Try

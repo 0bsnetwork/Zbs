@@ -1,7 +1,7 @@
-package com.zbsplatform.settings
+package com.zbsnetwork.settings
 
 import com.typesafe.config.Config
-import com.zbsplatform.state.ByteStr
+import com.zbsnetwork.common.state.ByteStr
 import net.ceedubs.ficus.Ficus._
 
 case class CheckpointsSettings(publicKey: ByteStr)

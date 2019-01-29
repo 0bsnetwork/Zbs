@@ -1,11 +1,12 @@
-package com.zbsplatform.network
+package com.zbsnetwork.network
 
 import com.google.common.cache.{CacheBuilder, CacheLoader}
-import com.zbsplatform.network.HistoryReplier._
-import com.zbsplatform.network.MicroBlockSynchronizer.MicroBlockSignature
-import com.zbsplatform.settings.SynchronizationSettings
-import com.zbsplatform.state.{ByteStr, NG}
-import com.zbsplatform.utils.ScorexLogging
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.network.HistoryReplier._
+import com.zbsnetwork.network.MicroBlockSynchronizer.MicroBlockSignature
+import com.zbsnetwork.settings.SynchronizationSettings
+import com.zbsnetwork.state.NG
+import com.zbsnetwork.utils.ScorexLogging
 import io.netty.channel.ChannelHandler.Sharable
 import io.netty.channel.{ChannelHandlerContext, ChannelInboundHandlerAdapter}
 import monix.eval.Task

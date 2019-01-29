@@ -1,6 +1,6 @@
-package com.zbsplatform.consensus
+package com.zbsnetwork.consensus
 
-import com.zbsplatform.crypto
+import com.zbsnetwork.crypto
 
 trait PoSCalculator {
   def calculateBaseTarget(targetBlockDelaySeconds: Long,

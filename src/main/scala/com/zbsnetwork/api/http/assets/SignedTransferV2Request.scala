@@ -1,15 +1,28 @@
-package com.zbsplatform.api.http.assets
+package com.zbsnetwork.api.http.assets
 
 import cats.implicits._
+import com.zbsnetwork.account.{AddressOrAlias, PublicKeyAccount}
+import com.zbsnetwork.api.http.BroadcastRequest
+import com.zbsnetwork.transaction.transfer._
+import com.zbsnetwork.transaction.{AssetIdStringLength, Proofs, ValidationError}
 import io.swagger.annotations.{ApiModel, ApiModelProperty}
-import play.api.libs.json.{Json, OFormat}
-import com.zbsplatform.account.{AddressOrAlias, PublicKeyAccount}
-import com.zbsplatform.api.http.BroadcastRequest
-import com.zbsplatform.transaction.transfer._
-import com.zbsplatform.transaction.{AssetIdStringLength, Proofs, ValidationError}
+import play.api.libs.functional.syntax._
+import play.api.libs.json.{JsPath, Json, Reads, Writes}
 
 object SignedTransferV2Request {
-  implicit val format: OFormat[SignedTransferV2Request] = Json.format
+  implicit val writes: Writes[SignedTransferV2Request] = Json.writes[SignedTransferV2Request]
+  implicit val reads: Reads[SignedTransferV2Request] = (
+    (JsPath \ "senderPublicKey").read[String] and
+      (JsPath \ "assetId").readNullable[String] and
+      (JsPath \ "recipient").read[String] and
+      (JsPath \ "amount").read[Long] and
+      (JsPath \ "feeAssetId").readNullable[String] and
+      (JsPath \ "fee").read[Long] and
+      (JsPath \ "timestamp").read[Long] and
+      (JsPath \ "version").read[Byte] and
+      (JsPath \ "attachment").readNullable[String] and
+      (JsPath \ "proofs").read[List[ProofStr]]
+  )(SignedTransferV2Request.apply _)
 }
 
 @ApiModel(value = "Signed Asset transfer transaction")

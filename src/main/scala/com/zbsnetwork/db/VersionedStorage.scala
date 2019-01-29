@@ -1,4 +1,4 @@
-package com.zbsplatform.db
+package com.zbsnetwork.db
 
 trait VersionedStorage {
   this: PropertiesStorage =>

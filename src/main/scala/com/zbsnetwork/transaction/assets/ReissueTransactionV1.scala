@@ -1,12 +1,13 @@
-package com.zbsplatform.transaction.assets
+package com.zbsnetwork.transaction.assets
 
 import com.google.common.primitives.Bytes
-import com.zbsplatform.crypto
-import com.zbsplatform.state.ByteStr
+import com.zbsnetwork.crypto
 import monix.eval.Coeval
-import com.zbsplatform.account.{PrivateKeyAccount, PublicKeyAccount}
-import com.zbsplatform.transaction._
-import scorex.crypto.signatures.Curve25519._
+import com.zbsnetwork.account.{PrivateKeyAccount, PublicKeyAccount}
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.transaction._
+import com.zbsnetwork.crypto._
+
 import scala.util.{Failure, Success, Try}
 
 case class ReissueTransactionV1 private (sender: PublicKeyAccount,
@@ -30,7 +31,7 @@ case class ReissueTransactionV1 private (sender: PublicKeyAccount,
 
 object ReissueTransactionV1 extends TransactionParserFor[ReissueTransactionV1] with TransactionParser.HardcodedVersion1 {
 
-  override val typeId: Byte = 5
+  override val typeId: Byte = ReissueTransaction.typeId
 
   override protected def parseTail(version: Byte, bytes: Array[Byte]): Try[TransactionT] =
     Try {

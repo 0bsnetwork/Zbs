@@ -1,8 +1,8 @@
-package com.zbsplatform.account
+package com.zbsnetwork.account
 
-import com.zbsplatform.crypto
-import com.zbsplatform.utils.Base58
-import com.zbsplatform.transaction.ValidationError.GenericError
+import com.zbsnetwork.common.utils.Base58
+import com.zbsnetwork.crypto
+import com.zbsnetwork.transaction.ValidationError.GenericError
 
 import scala.util.{Failure, Success}
 

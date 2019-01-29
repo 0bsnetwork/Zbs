@@ -1,11 +1,11 @@
-package com.zbsplatform.network
+package com.zbsnetwork.network
 
-import com.zbsplatform.utils.ScorexLogging
+import com.zbsnetwork.utils.ScorexLogging
 import io.netty.channel.ChannelHandler.Sharable
 import io.netty.channel.{Channel, ChannelHandlerContext, ChannelInboundHandlerAdapter}
 import monix.reactive.subjects.ConcurrentSubject
-import com.zbsplatform.block.Block
-import com.zbsplatform.transaction.Transaction
+import com.zbsnetwork.block.Block
+import com.zbsnetwork.transaction.Transaction
 
 @Sharable
 class MessageObserver extends ChannelInboundHandlerAdapter with ScorexLogging {

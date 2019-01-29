@@ -1,4 +1,4 @@
-package com.zbsplatform.api.http.alias
+package com.zbsnetwork.api.http.alias
 
 import io.swagger.annotations.ApiModelProperty
 import play.api.libs.json.{Format, Json}

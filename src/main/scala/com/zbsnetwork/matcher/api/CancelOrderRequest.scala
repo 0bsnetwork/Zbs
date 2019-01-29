@@ -1,13 +1,15 @@
-package com.zbsplatform.matcher.api
+package com.zbsnetwork.matcher.api
 
 import com.google.common.primitives.Longs
-import com.zbsplatform.account.PublicKeyAccount
-import com.zbsplatform.crypto
-import com.zbsplatform.state.ByteStr
-import com.zbsplatform.utils.Base58
+import com.zbsnetwork.account.PublicKeyAccount
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.Base58
+import com.zbsnetwork.crypto
+import com.zbsnetwork.common.utils.Base58
 import io.swagger.annotations.ApiModelProperty
 import monix.eval.Coeval
 import play.api.libs.json._
+import com.zbsnetwork.utils.byteStrWrites
 
 case class CancelOrderRequest(@ApiModelProperty(dataType = "java.lang.String") sender: PublicKeyAccount,
                               @ApiModelProperty(dataType = "java.lang.String") orderId: Option[ByteStr],

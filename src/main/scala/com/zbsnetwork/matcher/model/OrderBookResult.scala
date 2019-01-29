@@ -1,19 +1,18 @@
-package com.zbsplatform.matcher.model
+package com.zbsnetwork.matcher.model
 
 import com.fasterxml.jackson.core.JsonGenerator
 import com.fasterxml.jackson.databind.SerializerProvider
 import com.fasterxml.jackson.databind.annotation.JsonSerialize
 import com.fasterxml.jackson.databind.ser.std.StdSerializer
-import com.zbsplatform.matcher.api.JsonSerializer
-import com.zbsplatform.transaction.assets.exchange.AssetPair
-import com.zbsplatform.utils.NTP
+import com.zbsnetwork.matcher.api.JsonSerializer
+import com.zbsnetwork.transaction.assets.exchange.AssetPair
 
 @JsonSerialize(using = classOf[OrderBookResult.Serializer])
 case class OrderBookResult(timestamp: Long, pair: AssetPair, bids: Seq[LevelAgg], asks: Seq[LevelAgg])
 
 object OrderBookResult {
 
-  def empty(pair: AssetPair) = OrderBookResult(NTP.correctedTime(), pair, Seq.empty, Seq.empty)
+  def empty(pair: AssetPair, timestamp: Long) = OrderBookResult(timestamp, pair, Seq.empty, Seq.empty)
 
   def toJson(x: OrderBookResult): String = JsonSerializer.serialize(x)
 

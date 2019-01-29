@@ -1,12 +1,13 @@
-package com.zbsplatform.matcher
+package com.zbsnetwork.matcher
 
 import com.google.common.base.Charsets
 import com.typesafe.config.ConfigFactory
-import com.zbsplatform.account.PublicKeyAccount
-import com.zbsplatform.settings.loadConfig
-import com.zbsplatform.state.diffs.produce
-import com.zbsplatform.state.{AssetDescription, Blockchain, ByteStr}
-import com.zbsplatform.transaction.assets.exchange.AssetPair
+import com.zbsnetwork.account.PublicKeyAccount
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.settings.loadConfig
+import com.zbsnetwork.state.diffs.produce
+import com.zbsnetwork.state.{AssetDescription, Blockchain}
+import com.zbsnetwork.transaction.assets.exchange.AssetPair
 import org.scalamock.scalatest.MockFactory
 import org.scalatest.prop.TableDrivenPropertyChecks._
 import org.scalatest.{FreeSpec, Matchers}
@@ -16,7 +17,7 @@ class AssetPairBuilderSpec extends FreeSpec with Matchers with MockFactory {
 
   private def b(v: String) = ByteStr.decodeBase58(v).get
 
-  private val ZBS    = "ZBS"
+  private val ZBS  = "ZBS"
   private val WUSD   = ByteStr.decodeBase58("HyFJ3rrq5m7FxdkWtQXkZrDat1F7LjVVGfpSkUuEXQHj").get
   private val WBTC   = ByteStr.decodeBase58("Fmg13HEHJHuZYbtJq8Da8wifJENq8uBxDuWoP9pVe2Qe").get
   private val WEUR   = ByteStr.decodeBase58("2xnE3EdpqXtFgCP156qt1AbyjpqdZ5jGjWo3CwTawcux").get

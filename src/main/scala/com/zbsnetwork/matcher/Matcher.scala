@@ -1,4 +1,4 @@
-package com.zbsplatform.matcher
+package com.zbsnetwork.matcher
 
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
@@ -9,40 +9,59 @@ import akka.http.scaladsl.Http
 import akka.http.scaladsl.Http.ServerBinding
 import akka.pattern.gracefulStop
 import akka.stream.ActorMaterializer
-import com.zbsplatform.api.http.CompositeHttpService
-import com.zbsplatform.db._
-import com.zbsplatform.matcher.api.{MatcherApiRoute, OrderBookSnapshotHttpCache}
-import com.zbsplatform.matcher.market.{MatcherActor, MatcherTransactionWriter, OrderHistoryActor}
-import com.zbsplatform.matcher.model.OrderBook
-import com.zbsplatform.settings.{BlockchainSettings, RestAPISettings}
-import com.zbsplatform.state.Blockchain
-import com.zbsplatform.transaction.assets.exchange.AssetPair
-import com.zbsplatform.utils.ScorexLogging
-import com.zbsplatform.utx.UtxPool
-import com.zbsplatform.wallet.Wallet
+import com.zbsnetwork.account.{Address, PrivateKeyAccount}
+import com.zbsnetwork.api.http.CompositeHttpService
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.db._
+import com.zbsnetwork.matcher.api.{MatcherApiRoute, OrderBookSnapshotHttpCache}
+import com.zbsnetwork.matcher.market.OrderBookActor.MarketStatus
+import com.zbsnetwork.matcher.market.{MatcherActor, MatcherTransactionWriter, OrderHistoryActor}
+import com.zbsnetwork.matcher.model.{ExchangeTransactionCreator, OrderBook, OrderValidator}
+import com.zbsnetwork.settings.ZbsSettings
+import com.zbsnetwork.state.Blockchain
+import com.zbsnetwork.transaction.assets.exchange.AssetPair
+import com.zbsnetwork.utils._
+import com.zbsnetwork.utx.UtxPool
+import com.zbsnetwork.wallet.Wallet
 import io.netty.channel.group.ChannelGroup
 
 import scala.concurrent.Await
 import scala.concurrent.duration._
+import scala.util.control.NonFatal
 
 class Matcher(actorSystem: ActorSystem,
-              wallet: Wallet,
+              time: Time,
               utx: UtxPool,
               allChannels: ChannelGroup,
               blockchain: Blockchain,
-              blockchainSettings: BlockchainSettings,
-              restAPISettings: RestAPISettings,
-              matcherSettings: MatcherSettings)
+              settings: ZbsSettings,
+              matcherPrivateKey: PrivateKeyAccount)
     extends ScorexLogging {
 
-  private val pairBuilder    = new AssetPairBuilder(matcherSettings, blockchain)
-  private val orderBookCache = new ConcurrentHashMap[AssetPair, OrderBook](1000, 0.9f, 10)
+  import settings._
 
-  private val orderBooks = new AtomicReference(Map.empty[AssetPair, ActorRef])
+  private val pairBuilder        = new AssetPairBuilder(settings.matcherSettings, blockchain)
+  private val orderBookCache     = new ConcurrentHashMap[AssetPair, OrderBook](1000, 0.9f, 10)
+  private val transactionCreator = new ExchangeTransactionCreator(blockchain, matcherPrivateKey, matcherSettings, time)
+  private val orderValidator = new OrderValidator(
+    db,
+    blockchain,
+    transactionCreator,
+    utx.portfolio,
+    pairBuilder.validateAssetPair,
+    settings.matcherSettings,
+    matcherPrivateKey,
+    time
+  )
+
+  private val orderBooks = new AtomicReference(Map.empty[AssetPair, Either[Unit, ActorRef]])
   private val orderBooksSnapshotCache = new OrderBookSnapshotHttpCache(
     matcherSettings.orderBookSnapshotHttpCache,
+    time,
     p => Option(orderBookCache.get(p))
   )
+
+  private val marketStatuses = new ConcurrentHashMap[AssetPair, MarketStatus](1000, 0.9f, 10)
 
   private def updateOrderBookCache(assetPair: AssetPair)(newSnapshot: OrderBook): Unit = {
     orderBookCache.put(assetPair, newSnapshot)
@@ -51,17 +70,16 @@ class Matcher(actorSystem: ActorSystem,
 
   lazy val matcherApiRoutes = Seq(
     MatcherApiRoute(
-      wallet,
       pairBuilder,
+      orderValidator,
       matcher,
       orderHistory,
       p => Option(orderBooks.get()).flatMap(_.get(p)),
+      p => Option(marketStatuses.get(p)),
       orderBooksSnapshotCache,
-      txWriter,
-      restAPISettings,
-      matcherSettings,
-      blockchain,
-      db
+      settings,
+      db,
+      time
     )
   )
 
@@ -70,36 +88,37 @@ class Matcher(actorSystem: ActorSystem,
   )
 
   lazy val matcher: ActorRef = actorSystem.actorOf(
-    MatcherActor.props(orderHistory,
-                       pairBuilder,
-                       orderBooks,
-                       updateOrderBookCache,
-                       wallet,
-                       utx,
-                       allChannels,
-                       matcherSettings,
-                       blockchain,
-                       blockchainSettings.functionalitySettings),
+    MatcherActor.props(
+      pairBuilder.validateAssetPair,
+      orderBooks,
+      updateOrderBookCache,
+      p => ms => marketStatuses.put(p, ms),
+      utx,
+      allChannels,
+      matcherSettings,
+      time,
+      blockchain.assetDescription,
+      transactionCreator.createTransaction
+    ),
     MatcherActor.name
   )
 
-  lazy val db = openDB(matcherSettings.dataDir)
+  private lazy val db = openDB(matcherSettings.dataDir)
 
-  lazy val orderHistory: ActorRef = actorSystem.actorOf(OrderHistoryActor.props(db, matcherSettings, utx, wallet), OrderHistoryActor.name)
-
-  lazy val txWriter: ActorRef = actorSystem.actorOf(MatcherTransactionWriter.props(db, matcherSettings), MatcherTransactionWriter.name)
+  private lazy val orderHistory: ActorRef = actorSystem.actorOf(OrderHistoryActor.props(db, matcherSettings), OrderHistoryActor.name)
 
   @volatile var matcherServerBinding: ServerBinding = _
 
-  def shutdownMatcher(): Unit = {
+  def shutdown(): Unit = {
     log.info("Shutting down matcher")
+    Await.result(matcherServerBinding.unbind(), 10.seconds)
     val stopMatcherTimeout = 5.minutes
     orderBooksSnapshotCache.close()
     Await.result(gracefulStop(matcher, stopMatcherTimeout, MatcherActor.Shutdown), stopMatcherTimeout)
+    Await.result(gracefulStop(orderHistory, stopMatcherTimeout), stopMatcherTimeout)
     log.debug("Matcher's actor system has been shut down")
     db.close()
     log.debug("Matcher's database closed")
-    Await.result(matcherServerBinding.unbind(), 10.seconds)
     log.info("Matcher shutdown successful")
   }
 
@@ -108,7 +127,7 @@ class Matcher(actorSystem: ActorSystem,
     sys.exit(1)
   }
 
-  def runMatcher() {
+  def runMatcher(): Unit = {
     val journalDir  = new File(matcherSettings.journalDataDir)
     val snapshotDir = new File(matcherSettings.snapshotsDataDir)
     journalDir.mkdirs()
@@ -125,7 +144,32 @@ class Matcher(actorSystem: ActorSystem,
     val combinedRoute = CompositeHttpService(actorSystem, matcherApiTypes, matcherApiRoutes, restAPISettings).compositeRoute
     matcherServerBinding = Await.result(Http().bindAndHandle(combinedRoute, matcherSettings.bindAddress, matcherSettings.port), 5.seconds)
 
-    log.info(s"Matcher bound to ${matcherServerBinding.localAddress} ")
-  }
+    log.info(s"Matcher bound to ${matcherServerBinding.localAddress}")
 
+    actorSystem.actorOf(MatcherTransactionWriter.props(db, matcherSettings), MatcherTransactionWriter.name)
+  }
+}
+
+object Matcher extends ScorexLogging {
+  def apply(actorSystem: ActorSystem,
+            time: Time,
+            wallet: Wallet,
+            utx: UtxPool,
+            allChannels: ChannelGroup,
+            blockchain: Blockchain,
+            settings: ZbsSettings): Option[Matcher] =
+    try {
+      val privateKey = (for {
+        address <- Address.fromString(settings.matcherSettings.account)
+        pk      <- wallet.privateKeyAccount(address)
+      } yield pk).explicitGet()
+
+      val matcher = new Matcher(actorSystem, time, utx, allChannels, blockchain, settings, privateKey)
+      matcher.runMatcher()
+      Some(matcher)
+    } catch {
+      case NonFatal(e) =>
+        log.warn("Error starting matcher", e)
+        None
+    }
 }

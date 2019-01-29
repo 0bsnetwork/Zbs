@@ -1,12 +1,12 @@
-package com.zbsplatform.transaction.assets
+package com.zbsnetwork.transaction.assets
 
 import com.google.common.primitives.Bytes
-import com.zbsplatform.crypto
-import com.zbsplatform.state.ByteStr
+import com.zbsnetwork.crypto
 import monix.eval.Coeval
-import com.zbsplatform.account.{AddressScheme, PrivateKeyAccount, PublicKeyAccount}
-import com.zbsplatform.transaction.ValidationError.{GenericError, UnsupportedVersion}
-import com.zbsplatform.transaction._
+import com.zbsnetwork.account.{AddressScheme, PrivateKeyAccount, PublicKeyAccount}
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.transaction.ValidationError.{GenericError, UnsupportedVersion}
+import com.zbsnetwork.transaction._
 
 import scala.util._
 
@@ -34,9 +34,9 @@ case class ReissueTransactionV2 private (version: Byte,
 }
 
 object ReissueTransactionV2 extends TransactionParserFor[ReissueTransactionV2] with TransactionParser.MultipleVersions {
-  override val typeId: Byte                 = 5
+  override val typeId: Byte                 = ReissueTransaction.typeId
   override def supportedVersions: Set[Byte] = Set(2)
-  private def networkByte                   = AddressScheme.current.chainId
+  private def currentChainId                = AddressScheme.current.chainId
 
   override protected def parseTail(version: Byte, bytes: Array[Byte]): Try[TransactionT] =
     Try {
@@ -61,7 +61,7 @@ object ReissueTransactionV2 extends TransactionParserFor[ReissueTransactionV2] w
              proofs: Proofs): Either[ValidationError, TransactionT] =
     for {
       _ <- Either.cond(supportedVersions.contains(version), (), UnsupportedVersion(version))
-      _ <- Either.cond(chainId == networkByte, (), GenericError(s"Wrong chainId actual: ${chainId.toInt}, expected: $networkByte"))
+      _ <- Either.cond(chainId == currentChainId, (), GenericError(s"Wrong chainId actual: ${chainId.toInt}, expected: $currentChainId"))
       _ <- ReissueTransaction.validateReissueParams(quantity, fee)
     } yield ReissueTransactionV2(version, chainId, sender, assetId, quantity, reissuable, fee, timestamp, proofs)
 

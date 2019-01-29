@@ -1,12 +1,12 @@
-package com.zbsplatform.transaction
+package com.zbsnetwork.transaction
 
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 
 import com.google.common.primitives.{Bytes, Ints}
-import com.zbsplatform.network.TransactionSpec
+import com.zbsnetwork.network.TransactionSpec
 import play.api.libs.json.{JsArray, JsObject, Json}
-import com.zbsplatform.block.BlockField
+import com.zbsnetwork.block.BlockField
 
 trait TransactionsBlockField extends BlockField[Seq[Transaction]]
 

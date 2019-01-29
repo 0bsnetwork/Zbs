@@ -1,8 +1,7 @@
-package com.zbsplatform.account
-
-import com.zbsplatform.state.ByteStr
-import com.zbsplatform.serialization.Deser
-import com.zbsplatform.transaction.ValidationError
+package com.zbsnetwork.account
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.serialization.Deser
+import com.zbsnetwork.transaction.ValidationError
 
 trait AddressOrAlias {
   def stringRepr: String

@@ -16,7 +16,7 @@
 
 * Switch network by "testnet" in settings. Default value is true."
 * /scorex/* HTTP API deprecated. Use /node/* instead.
-* All logs goes to stdout and stderr. Use "loggingLevel" in config. 
+* All logs goes to stdout and stderr. Use "loggingLevel" in config.
 
 **0.2.1**
 
@@ -33,7 +33,7 @@
 
 * New API /zbs/payment returns senderPublicKey
 * New API /zbs/create-signed-payment
-* /zbs/external-payment deprecated. 
+* /zbs/external-payment deprecated.
   Use new /zbs/broadcast-signed-payment.
 * New API /zbs/payment/signature
 * minimumTxFee verification for API

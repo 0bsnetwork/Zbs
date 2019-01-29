@@ -1,17 +1,17 @@
-package com.zbsplatform.api.http
+package com.zbsnetwork.api.http
 
 import java.nio.charset.StandardCharsets
 
-import com.zbsplatform.http.ApiMarshallers._
-import com.zbsplatform.http.{RestAPISettingsHelper, RouteSpec}
-import com.zbsplatform.state.{AssetDescription, Blockchain, ByteStr}
-import com.zbsplatform.utx.UtxPool
-import com.zbsplatform.{NoShrink, TestTime, TestWallet, TransactionGen}
+import com.zbsnetwork.api.http.assets.AssetsApiRoute
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.http.{RestAPISettingsHelper, RouteSpec}
+import com.zbsnetwork.state.{AssetDescription, Blockchain}
+import com.zbsnetwork.utx.UtxPool
+import com.zbsnetwork.{NoShrink, TestTime, TestWallet, TransactionGen}
 import io.netty.channel.group.ChannelGroup
 import org.scalamock.scalatest.PathMockFactory
 import org.scalatest.prop.PropertyChecks
 import play.api.libs.json._
-import com.zbsplatform.api.http.assets.AssetsApiRoute
 
 class AssetsApiRouteSpec
     extends RouteSpec("/assets")
@@ -90,5 +90,4 @@ class AssetsApiRouteSpec
       (response \ "minSponsoredAssetFee").asOpt[Long] shouldBe empty
     }
   }
-
 }

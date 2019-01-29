@@ -1,9 +1,10 @@
-package com.zbsplatform.utx
+package com.zbsnetwork.utx
 
-import com.zbsplatform.mining.MultiDimensionalMiningConstraint
-import com.zbsplatform.state.{ByteStr, Diff, Portfolio}
-import com.zbsplatform.account.Address
-import com.zbsplatform.transaction._
+import com.zbsnetwork.mining.MultiDimensionalMiningConstraint
+import com.zbsnetwork.state.{Diff, Portfolio}
+import com.zbsnetwork.account.Address
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.transaction._
 
 trait UtxPool extends AutoCloseable {
   self =>
@@ -22,7 +23,7 @@ trait UtxPool extends AutoCloseable {
 
   def transactionById(transactionId: ByteStr): Option[Transaction]
 
-  def packUnconfirmed(rest: MultiDimensionalMiningConstraint, sortInBlock: Boolean): (Seq[Transaction], MultiDimensionalMiningConstraint)
+  def packUnconfirmed(rest: MultiDimensionalMiningConstraint): (Seq[Transaction], MultiDimensionalMiningConstraint)
 
   def batched[Result](f: UtxBatchOps => Result): Result = f(createBatchOps)
 

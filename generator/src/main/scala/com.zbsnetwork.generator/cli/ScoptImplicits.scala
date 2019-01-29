@@ -1,6 +1,6 @@
-package com.zbsplatform.generator.cli
+package com.zbsnetwork.generator.cli
 
-import com.zbsplatform.generator.Mode
+import com.zbsnetwork.generator.Mode
 import scopt.Read
 
 import scala.concurrent.duration.FiniteDuration

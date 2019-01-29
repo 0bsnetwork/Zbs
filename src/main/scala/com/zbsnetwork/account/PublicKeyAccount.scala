@@ -1,9 +1,9 @@
-package com.zbsplatform.account
+package com.zbsnetwork.account
 
-import com.zbsplatform.utils.base58Length
-import com.zbsplatform.utils.Base58
-import com.zbsplatform.transaction.ValidationError.InvalidAddress
-import scorex.crypto.signatures.Curve25519
+import com.zbsnetwork.common.utils.Base58
+import com.zbsnetwork.utils.base58Length
+import com.zbsnetwork.transaction.ValidationError.InvalidAddress
+import com.zbsnetwork.crypto._
 
 trait PublicKeyAccount {
   def publicKey: Array[Byte]
@@ -20,7 +20,7 @@ trait PublicKeyAccount {
 
 object PublicKeyAccount {
 
-  val KeyStringLength: Int = base58Length(Curve25519.KeyLength)
+  val KeyStringLength: Int = base58Length(KeyLength)
 
   private case class PublicKeyAccountImpl(publicKey: Array[Byte]) extends PublicKeyAccount
 

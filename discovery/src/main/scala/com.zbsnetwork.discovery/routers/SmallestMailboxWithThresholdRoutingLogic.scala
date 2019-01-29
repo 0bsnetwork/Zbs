@@ -1,4 +1,4 @@
-package com.zbsplatform.discovery.routers
+package com.zbsnetwork.discovery.routers
 
 import akka.actor.ActorRef
 import akka.routing.{Routee, SmallestMailboxRoutingLogic}

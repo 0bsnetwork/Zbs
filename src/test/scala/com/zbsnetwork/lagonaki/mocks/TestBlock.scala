@@ -1,11 +1,13 @@
-package com.zbsplatform.lagonaki.mocks
+package com.zbsnetwork.lagonaki.mocks
 
-import com.zbsplatform.state._
-import com.zbsplatform.account.PrivateKeyAccount
-import com.zbsplatform.block._
-import com.zbsplatform.consensus.nxt.NxtLikeConsensusBlockData
-import com.zbsplatform.transaction.Transaction
-import scorex.crypto.signatures.Curve25519._
+import com.zbsnetwork.account.PrivateKeyAccount
+import com.zbsnetwork.block._
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.consensus.nxt.NxtLikeConsensusBlockData
+import com.zbsnetwork.crypto._
+import com.zbsnetwork.transaction.Transaction
+
 import scala.util.{Random, Try}
 
 object TestBlock {

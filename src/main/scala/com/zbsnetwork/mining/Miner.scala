@@ -1,32 +1,30 @@
-package com.zbsplatform.mining
+package com.zbsnetwork.mining
 
 import cats.data.EitherT
 import cats.implicits._
-import com.zbsplatform.consensus.{GeneratingBalanceProvider, PoSSelector}
-import com.zbsplatform.features.BlockchainFeatures
-import com.zbsplatform.features.FeatureProvider._
-import com.zbsplatform.metrics.{BlockStats, HistogramExt, Instrumented}
-import com.zbsplatform.network._
-import com.zbsplatform.settings.{FunctionalitySettings, ZbsSettings}
-import com.zbsplatform.state._
-import com.zbsplatform.state.appender.{BlockAppender, MicroblockAppender}
-import com.zbsplatform.utx.UtxPool
+import com.zbsnetwork.account.{PrivateKeyAccount, PublicKeyAccount}
+import com.zbsnetwork.block.Block._
+import com.zbsnetwork.block.{Block, MicroBlock}
+import com.zbsnetwork.consensus.nxt.NxtLikeConsensusBlockData
+import com.zbsnetwork.consensus.{GeneratingBalanceProvider, PoSSelector}
+import com.zbsnetwork.features.BlockchainFeatures
+import com.zbsnetwork.features.FeatureProvider._
+import com.zbsnetwork.metrics.{BlockStats, HistogramExt, Instrumented}
+import com.zbsnetwork.network._
+import com.zbsnetwork.settings.{FunctionalitySettings, ZbsSettings}
+import com.zbsnetwork.state._
+import com.zbsnetwork.state.appender.{BlockAppender, MicroblockAppender}
+import com.zbsnetwork.transaction._
+import com.zbsnetwork.utils.{ScorexLogging, Time}
+import com.zbsnetwork.utx.UtxPool
+import com.zbsnetwork.wallet.Wallet
 import io.netty.channel.group.ChannelGroup
 import kamon.Kamon
 import kamon.metric.MeasurementUnit
 import monix.eval.Task
 import monix.execution.cancelables.{CompositeCancelable, SerialCancelable}
 import monix.execution.schedulers.SchedulerService
-import com.zbsplatform.account.{Address, PrivateKeyAccount, PublicKeyAccount}
-import com.zbsplatform.block.Block._
-import com.zbsplatform.block.{Block, MicroBlock}
-import com.zbsplatform.consensus.nxt.NxtLikeConsensusBlockData
-import com.zbsplatform.utils.{ScorexLogging, Time}
-import com.zbsplatform.transaction._
-import com.zbsplatform.wallet.Wallet
 
-import scala.collection.mutable.{Map => MMap}
-import scala.concurrent.Await
 import scala.concurrent.duration._
 
 trait Miner {
@@ -36,7 +34,7 @@ trait Miner {
 trait MinerDebugInfo {
   def state: MinerDebugInfo.State
 
-  def collectNextBlockGenerationTimes: List[(Address, Long)]
+  def getNextBlockGenerationOffset(account: PrivateKeyAccount): Either[String, FiniteDuration]
 }
 
 object MinerDebugInfo {
@@ -82,11 +80,9 @@ class MinerImpl(allChannels: ChannelGroup,
   private val blockBuildTimeStats      = Kamon.histogram("pack-and-forge-block-time", MeasurementUnit.time.milliseconds)
   private val microBlockBuildTimeStats = Kamon.histogram("forge-microblock-time", MeasurementUnit.time.milliseconds)
 
-  private val nextBlockGenerationTimes: MMap[Address, Long] = MMap.empty
-
   @volatile private var debugState: MinerDebugInfo.State = MinerDebugInfo.Disabled
 
-  def collectNextBlockGenerationTimes: List[(Address, Long)] = Await.result(Task.now(nextBlockGenerationTimes.toList).runAsyncLogErr, Duration.Inf)
+  def getNextBlockGenerationOffset(account: PrivateKeyAccount): Either[String, FiniteDuration] = nextBlockGenOffsetWithConditions(account)
 
   private def checkAge(parentHeight: Int, parentTimestamp: Long): Either[String, Unit] =
     Either
@@ -105,10 +101,10 @@ class MinerImpl(allChannels: ChannelGroup,
 
   private def ngEnabled: Boolean = blockchainUpdater.featureActivationHeight(BlockchainFeatures.NG.id).exists(blockchainUpdater.height > _ + 1)
 
-  private def generateOneBlockTask(account: PrivateKeyAccount, balance: Long)(
+  private def generateOneBlockTask(account: PrivateKeyAccount)(
       delay: FiniteDuration): Task[Either[String, (MiningConstraints, Block, MiningConstraint)]] = {
     Task {
-      forgeBlock(account, balance)
+      forgeBlock(account)
     }.delayExecution(delay)
   }
 
@@ -132,7 +128,7 @@ class MinerImpl(allChannels: ChannelGroup,
       .leftMap(_.toString)
   }
 
-  private def forgeBlock(account: PrivateKeyAccount, balance: Long): Either[String, (MiningConstraints, Block, MiningConstraint)] = {
+  private def forgeBlock(account: PrivateKeyAccount): Either[String, (MiningConstraints, Block, MiningConstraint)] = {
     // should take last block right at the time of mining since microblocks might have been added
     val height              = blockchainUpdater.height
     val version             = if (height <= blockchainSettings.functionalitySettings.blockVersion3AfterHeight) PlainBlockVersion else NgBlockVersion
@@ -143,6 +139,8 @@ class MinerImpl(allChannels: ChannelGroup,
     val refBlockID          = referencedBlockInfo.blockId
     lazy val currentTime    = timeService.correctedTime()
     lazy val blockDelay     = currentTime - lastBlock.timestamp
+    lazy val balance        = GeneratingBalanceProvider.balance(blockchainUpdater, blockchainSettings.functionalitySettings, height, account.toAddress)
+
     measureSuccessful(
       blockBuildTimeStats,
       for {
@@ -155,9 +153,9 @@ class MinerImpl(allChannels: ChannelGroup,
           s"Forging with ${account.address}, Time $blockDelay > Estimated Time $validBlockDelay, balance $balance, prev block $refBlockID")
         _ = log.debug(s"Previous block ID $refBlockID at $height with target $refBlockBT")
         consensusData <- consensusData(height, account, lastBlock, refBlockBT, refBlockTS, balance, currentTime)
-        estimators                         = MiningConstraints(minerSettings, blockchainUpdater, height)
+        estimators                         = MiningConstraints(blockchainUpdater, height, Some(minerSettings))
         mdConstraint                       = MultiDimensionalMiningConstraint(estimators.total, estimators.keyBlock)
-        (unconfirmed, updatedMdConstraint) = utx.packUnconfirmed(mdConstraint, isSortingRequired())
+        (unconfirmed, updatedMdConstraint) = utx.packUnconfirmed(mdConstraint)
         _                                  = log.debug(s"Adding ${unconfirmed.size} unconfirmed transaction(s) to new block")
         block <- Block
           .buildAndSign(version.toByte, currentTime, refBlockID, consensusData, unconfirmed, account, blockFeatures(version))
@@ -168,10 +166,8 @@ class MinerImpl(allChannels: ChannelGroup,
 
   private def checkQuorumAvailable(): Either[String, Unit] = {
     val chanCount = allChannels.size()
-    Either.cond(chanCount >= minerSettings.quorum, (), s"Quorum not available ($chanCount/${minerSettings.quorum}, not forging block.")
+    Either.cond(chanCount >= minerSettings.quorum, (), s"Quorum not available ($chanCount/${minerSettings.quorum}), not forging block.")
   }
-
-  private def isSortingRequired(): Boolean = blockchainUpdater.height <= blockchainSettings.functionalitySettings.dontRequireSortedTransactionsAfter
 
   private def blockFeatures(version: Byte): Set[Short] = {
     if (version <= 2) Set.empty[Short]
@@ -189,15 +185,15 @@ class MinerImpl(allChannels: ChannelGroup,
     log.trace(s"Generating microBlock for $account, constraints: $restTotalConstraint")
     val pc = allChannels.size()
     if (pc < minerSettings.quorum) {
-      log.trace(s"Quorum not available ($pc/${minerSettings.quorum}, not forging microblock with ${account.address}")
-      Task.now(Retry)
+      log.trace(s"Quorum not available ($pc/${minerSettings.quorum}), not forging microblock with ${account.address}, next attempt in 5 seconds")
+      Task.now(Delay(settings.minerSettings.noQuorumMiningDelay))
     } else if (utx.size == 0) {
       log.trace(s"Skipping microBlock because utx is empty")
       Task.now(Retry)
     } else {
       val (unconfirmed, updatedTotalConstraint) = measureLog("packing unconfirmed transactions for microblock") {
         val mdConstraint                       = MultiDimensionalMiningConstraint(restTotalConstraint, constraints.micro)
-        val (unconfirmed, updatedMdConstraint) = utx.packUnconfirmed(mdConstraint, sortInBlock = false)
+        val (unconfirmed, updatedMdConstraint) = utx.packUnconfirmed(mdConstraint)
         (unconfirmed, updatedMdConstraint.constraints.head)
       }
 
@@ -224,7 +220,7 @@ class MinerImpl(allChannels: ChannelGroup,
           microBlock <- EitherT.fromEither[Task](
             MicroBlock.buildAndSign(account, unconfirmed, accumulatedBlock.signerData.signature, signedBlock.signerData.signature))
           _ = microBlockBuildTimeStats.safeRecord(System.currentTimeMillis() - start)
-          _ <- EitherT(MicroblockAppender(checkpoint, blockchainUpdater, utx, appenderScheduler)(microBlock))
+          _ <- EitherT(MicroblockAppender(checkpoint, blockchainUpdater, utx, appenderScheduler, verify = false)(microBlock))
         } yield (microBlock, signedBlock)).value map {
           case Left(err) => Error(err)
           case Right((microBlock, signedBlock)) =>
@@ -260,6 +256,9 @@ class MinerImpl(allChannels: ChannelGroup,
           }
         case Success(newTotal, updatedTotalConstraint) =>
           generateMicroBlockSequence(account, newTotal, minerSettings.microBlockInterval, constraints, updatedTotalConstraint)
+        case Delay(d) =>
+          generateMicroBlockSequence(account, accumulatedBlock, minerSettings.microBlockInterval, constraints, restTotalConstraint)
+            .delayExecution(d)
         case Retry => generateMicroBlockSequence(account, accumulatedBlock, minerSettings.microBlockInterval, constraints, restTotalConstraint)
         case Stop =>
           Task {
@@ -269,10 +268,7 @@ class MinerImpl(allChannels: ChannelGroup,
       }
   }
 
-  private def nextBlockGenerationTime(fs: FunctionalitySettings,
-                                      height: Int,
-                                      block: Block,
-                                      account: PublicKeyAccount): Either[String, (Long, Long)] = {
+  private def nextBlockGenerationTime(fs: FunctionalitySettings, height: Int, block: Block, account: PublicKeyAccount): Either[String, Long] = {
     val balance = GeneratingBalanceProvider.balance(blockchainUpdater, fs, height, account.toAddress)
 
     if (GeneratingBalanceProvider.isMiningAllowed(blockchainUpdater, height, balance)) {
@@ -283,30 +279,39 @@ class MinerImpl(allChannels: ChannelGroup,
           .leftMap(_.toString)
         result <- Either.cond(
           0 < expectedTS && expectedTS < Long.MaxValue,
-          (balance, expectedTS),
+          expectedTS,
           s"Invalid next block generation time: $expectedTS"
         )
       } yield result
     } else Left(s"Balance $balance of ${account.address} is lower than required for generation")
   }
 
+  private def nextBlockGenOffsetWithConditions(account: PrivateKeyAccount): Either[String, FiniteDuration] = {
+    val height    = blockchainUpdater.height
+    val lastBlock = blockchainUpdater.lastBlock.get
+    for {
+      _  <- checkAge(height, blockchainUpdater.lastBlockTimestamp.get)
+      _  <- checkScript(account)
+      ts <- nextBlockGenerationTime(blockchainSettings.functionalitySettings, height, lastBlock, account)
+      calculatedOffset = ts - timeService.correctedTime()
+      offset           = Math.max(calculatedOffset, minerSettings.minimalBlockGenerationOffset.toMillis).millis
+
+    } yield offset
+  }
+
   private def generateBlockTask(account: PrivateKeyAccount): Task[Unit] = {
     {
-      val height    = blockchainUpdater.height
-      val lastBlock = blockchainUpdater.lastBlock.get
       for {
-        _            <- checkAge(height, blockchainUpdater.lastBlockTimestamp.get)
-        _            <- checkScript(account)
-        balanceAndTs <- nextBlockGenerationTime(blockchainSettings.functionalitySettings, height, lastBlock, account)
-        (balance, ts)    = balanceAndTs
-        calculatedOffset = ts - timeService.correctedTime()
-        offset           = Math.max(calculatedOffset, minerSettings.minimalBlockGenerationOffset.toMillis).millis
-      } yield (offset, balance)
+        offset <- nextBlockGenOffsetWithConditions(account)
+        quorumAvailable = checkQuorumAvailable().isRight
+      } yield {
+        if (quorumAvailable) offset
+        else offset.max(settings.minerSettings.noQuorumMiningDelay)
+      }
     } match {
-      case Right((offset, balance)) =>
+      case Right(offset) =>
         log.debug(s"Next attempt for acc=$account in $offset")
-        nextBlockGenerationTimes += account.toAddress -> (System.currentTimeMillis() + offset.toMillis)
-        generateOneBlockTask(account, balance)(offset).flatMap {
+        generateOneBlockTask(account)(offset).flatMap {
           case Right((estimators, block, totalConstraint)) =>
             BlockAppender(checkpoint, blockchainUpdater, timeService, utx, pos, settings, appenderScheduler)(block)
               .asyncBoundary(minerScheduler)
@@ -320,6 +325,7 @@ class MinerImpl(allChannels: ChannelGroup,
                   if (ngEnabled && !totalConstraint.isEmpty) startMicroBlockMining(account, block, estimators, totalConstraint)
                 case Right(None) => log.warn("Newly created block has already been appended, should not happen")
               }
+
           case Left(err) =>
             log.debug(s"No block generated because $err, retrying")
             generateBlockTask(account)
@@ -362,7 +368,7 @@ object Miner {
   val Disabled = new Miner with MinerDebugInfo {
     override def scheduleMining(): Unit = ()
 
-    override def collectNextBlockGenerationTimes: List[(Address, Long)] = List.empty
+    override def getNextBlockGenerationOffset(account: PrivateKeyAccount): Either[String, FiniteDuration] = Left("Disabled")
 
     override val state = MinerDebugInfo.Disabled
   }
@@ -371,6 +377,7 @@ object Miner {
 
   case object Stop                                                extends MicroblockMiningResult
   case object Retry                                               extends MicroblockMiningResult
+  case class Delay(d: FiniteDuration)                             extends MicroblockMiningResult
   case class Error(e: ValidationError)                            extends MicroblockMiningResult
   case class Success(b: Block, totalConstraint: MiningConstraint) extends MicroblockMiningResult
 

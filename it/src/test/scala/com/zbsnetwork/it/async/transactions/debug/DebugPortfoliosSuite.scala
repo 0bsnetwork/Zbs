@@ -1,8 +1,8 @@
-package com.zbsplatform.it.async.transactions.debug
+package com.zbsnetwork.it.async.transactions.debug
 
-import com.zbsplatform.it.api.AsyncHttpApi._
-import com.zbsplatform.it.transactions.BaseTransactionSuite
-import com.zbsplatform.it.util._
+import com.zbsnetwork.it.api.AsyncHttpApi._
+import com.zbsnetwork.it.transactions.BaseTransactionSuite
+import com.zbsnetwork.it.util._
 
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}

@@ -1,11 +1,11 @@
-package com.zbsplatform.transaction
+package com.zbsnetwork.transaction
 
 import cats.implicits._
 import com.google.common.primitives.Bytes
-import com.zbsplatform.crypto
-import com.zbsplatform.state.ByteStr
+import com.zbsnetwork.crypto
 import monix.eval.Coeval
-import com.zbsplatform.account.{Alias, PrivateKeyAccount, PublicKeyAccount}
+import com.zbsnetwork.account.{Alias, PrivateKeyAccount, PublicKeyAccount}
+import com.zbsnetwork.common.state.ByteStr
 
 import scala.util.{Failure, Success, Try}
 

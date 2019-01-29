@@ -1,13 +1,13 @@
-package com.zbsplatform.state.diffs
+package com.zbsnetwork.state.diffs
 
 import cats._
 import cats.implicits._
-import com.zbsplatform.settings.FunctionalitySettings
-import com.zbsplatform.state._
-import com.zbsplatform.account.Address
-import com.zbsplatform.transaction.ValidationError
-import com.zbsplatform.transaction.ValidationError.GenericError
-import com.zbsplatform.transaction.lease._
+import com.zbsnetwork.settings.FunctionalitySettings
+import com.zbsnetwork.state._
+import com.zbsnetwork.account.Address
+import com.zbsnetwork.transaction.ValidationError
+import com.zbsnetwork.transaction.ValidationError.GenericError
+import com.zbsnetwork.transaction.lease._
 
 import scala.util.{Left, Right}
 
@@ -19,9 +19,10 @@ object LeaseTransactionsDiff {
       if (recipient == sender)
         Left(GenericError("Cannot lease to self"))
       else {
-        val ap = blockchain.portfolio(tx.sender)
-        if (ap.balance - ap.lease.out < tx.amount) {
-          Left(GenericError(s"Cannot lease more than own: Balance:${ap.balance}, already leased: ${ap.lease.out}"))
+        val lease   = blockchain.leaseBalance(tx.sender)
+        val balance = blockchain.balance(tx.sender, None)
+        if (balance - lease.out < tx.amount) {
+          Left(GenericError(s"Cannot lease more than own: Balance:${balance}, already leased: ${lease.out}"))
         } else {
           val portfolioDiff: Map[Address, Portfolio] = Map(
             sender    -> Portfolio(-tx.fee, LeaseBalance(0, tx.amount), Map.empty),

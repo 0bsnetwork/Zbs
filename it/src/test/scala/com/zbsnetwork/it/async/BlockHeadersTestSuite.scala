@@ -1,12 +1,12 @@
-package com.zbsplatform.it.async
+package com.zbsnetwork.it.async
 
 import com.typesafe.config.Config
-import com.zbsplatform.it.api.AsyncHttpApi._
-import com.zbsplatform.it.api._
-import com.zbsplatform.it.transactions.NodesFromDocker
-import com.zbsplatform.it.util._
-import com.zbsplatform.it.{Node, NodeConfigs, ReportingTestName}
-import com.zbsplatform.utils.ScorexLogging
+import com.zbsnetwork.it.api.AsyncHttpApi._
+import com.zbsnetwork.it.api._
+import com.zbsnetwork.it.transactions.NodesFromDocker
+import com.zbsnetwork.it.util._
+import com.zbsnetwork.it.{Node, NodeConfigs, ReportingTestName}
+import com.zbsnetwork.utils.ScorexLogging
 import org.scalatest.{BeforeAndAfterAll, CancelAfterFailure, FreeSpec, Matchers}
 
 import scala.concurrent.ExecutionContext.Implicits.global

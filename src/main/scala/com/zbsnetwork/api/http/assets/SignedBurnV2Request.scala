@@ -1,13 +1,13 @@
-package com.zbsplatform.api.http.assets
+package com.zbsnetwork.api.http.assets
 
 import cats.implicits._
+import com.zbsnetwork.account.{AddressScheme, PublicKeyAccount}
+import com.zbsnetwork.api.http.BroadcastRequest
+import com.zbsnetwork.transaction.assets.BurnTransactionV2
+import com.zbsnetwork.transaction.{AssetIdStringLength, Proofs, ValidationError}
 import io.swagger.annotations.ApiModelProperty
 import play.api.libs.functional.syntax._
 import play.api.libs.json.{JsPath, Json, Reads, Writes}
-import com.zbsplatform.account.{AddressScheme, PublicKeyAccount}
-import com.zbsplatform.api.http.BroadcastRequest
-import com.zbsplatform.transaction.assets.BurnTransactionV2
-import com.zbsplatform.transaction.{AssetIdStringLength, Proofs, ValidationError}
 
 case class SignedBurnV2Request(@ApiModelProperty(value = "BurnTransaction format version", required = true)
                                version: Byte,
@@ -44,7 +44,7 @@ object SignedBurnV2Request {
       (JsPath \ "quantity").read[Long].orElse((JsPath \ "amount").read[Long]) and
       (JsPath \ "fee").read[Long] and
       (JsPath \ "timestamp").read[Long] and
-      (JsPath \ "proofs").read[List[String]]
+      (JsPath \ "proofs").read[List[ProofStr]]
   )(SignedBurnV2Request.apply _)
 
   implicit val writes: Writes[SignedBurnV2Request] = Json.writes[SignedBurnV2Request]

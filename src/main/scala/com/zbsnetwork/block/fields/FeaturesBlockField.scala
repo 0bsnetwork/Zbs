@@ -1,9 +1,9 @@
-package com.zbsplatform.block.fields
+package com.zbsnetwork.block.fields
 
 import java.nio.ByteBuffer
 
 import play.api.libs.json._
-import com.zbsplatform.block.BlockField
+import com.zbsnetwork.block.BlockField
 
 case class FeaturesBlockField(version: Byte, override val value: Set[Short]) extends BlockField[Set[Short]] {
   override val name = "features"

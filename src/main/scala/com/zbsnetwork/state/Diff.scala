@@ -1,13 +1,15 @@
-package com.zbsplatform.state
+package com.zbsnetwork.state
 
 import cats.implicits._
 import cats.kernel.Monoid
-import com.zbsplatform.features.BlockchainFeatures
-import com.zbsplatform.features.FeatureProvider._
-import com.zbsplatform.settings.FunctionalitySettings
-import com.zbsplatform.account.{Address, Alias, PublicKeyAccount}
-import com.zbsplatform.transaction.smart.script.Script
-import com.zbsplatform.transaction.{AssetId, Transaction}
+import com.zbsnetwork.account.{Address, Alias, PublicKeyAccount}
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.features.BlockchainFeatures
+import com.zbsnetwork.features.FeatureProvider._
+import com.zbsnetwork.settings.FunctionalitySettings
+import com.zbsnetwork.state.diffs.CommonValidation
+import com.zbsnetwork.transaction.smart.script.Script
+import com.zbsnetwork.transaction.{AssetId, Transaction}
 
 case class LeaseBalance(in: Long, out: Long)
 
@@ -35,12 +37,12 @@ object VolumeAndFee {
   }
 }
 
-case class AssetInfo(isReissuable: Boolean, volume: BigInt, script: Option[Script])
+case class AssetInfo(isReissuable: Boolean, volume: BigInt)
 object AssetInfo {
   implicit val assetInfoMonoid: Monoid[AssetInfo] = new Monoid[AssetInfo] {
-    override def empty: AssetInfo = AssetInfo(isReissuable = true, 0, None)
+    override def empty: AssetInfo = AssetInfo(isReissuable = true, 0)
     override def combine(x: AssetInfo, y: AssetInfo): AssetInfo =
-      AssetInfo(x.isReissuable && y.isReissuable, x.volume + y.volume, y.script.orElse(x.script))
+      AssetInfo(x.isReissuable && y.isReissuable, x.volume + y.volume)
   }
 }
 
@@ -81,8 +83,6 @@ case class SponsorshipValue(minFee: Long) extends Sponsorship
 case object SponsorshipNoInfo             extends Sponsorship
 
 object Sponsorship {
-  val FeeUnit = 100000
-
   implicit val sponsorshipMonoid: Monoid[Sponsorship] = new Monoid[Sponsorship] {
     override def empty: Sponsorship = SponsorshipNoInfo
 
@@ -99,7 +99,7 @@ object Sponsorship {
       .getOrElse(Int.MaxValue)
 
   def toZbs(assetFee: Long, sponsorship: Long): Long = {
-    val zbs = (BigDecimal(assetFee) * BigDecimal(Sponsorship.FeeUnit)) / BigDecimal(sponsorship)
+    val zbs = (BigDecimal(assetFee) * BigDecimal(CommonValidation.FeeUnit)) / BigDecimal(sponsorship)
     if (zbs > Long.MaxValue) {
       throw new java.lang.ArithmeticException("Overflow")
     }
@@ -107,7 +107,7 @@ object Sponsorship {
   }
 
   def fromZbs(zbsFee: Long, sponsorship: Long): Long = {
-    val assetFee = (BigDecimal(zbsFee) / BigDecimal(Sponsorship.FeeUnit)) * BigDecimal(sponsorship)
+    val assetFee = (BigDecimal(zbsFee) / BigDecimal(CommonValidation.FeeUnit)) * BigDecimal(sponsorship)
     if (assetFee > Long.MaxValue) {
       throw new java.lang.ArithmeticException("Overflow")
     }
@@ -122,6 +122,7 @@ case class Diff(transactions: Map[ByteStr, (Int, Transaction, Set[Address])],
                 orderFills: Map[ByteStr, VolumeAndFee],
                 leaseState: Map[ByteStr, Boolean],
                 scripts: Map[Address, Option[Script]],
+                assetScripts: Map[AssetId, Option[Script]],
                 accountData: Map[Address, AccountDataInfo],
                 sponsorship: Map[AssetId, Sponsorship]) {
 
@@ -148,6 +149,7 @@ object Diff {
             orderFills: Map[ByteStr, VolumeAndFee] = Map.empty,
             leaseState: Map[ByteStr, Boolean] = Map.empty,
             scripts: Map[Address, Option[Script]] = Map.empty,
+            assetScripts: Map[AssetId, Option[Script]] = Map.empty,
             accountData: Map[Address, AccountDataInfo] = Map.empty,
             sponsorship: Map[AssetId, Sponsorship] = Map.empty): Diff =
     Diff(
@@ -158,11 +160,12 @@ object Diff {
       orderFills = orderFills,
       leaseState = leaseState,
       scripts = scripts,
+      assetScripts = assetScripts,
       accountData = accountData,
       sponsorship = sponsorship
     )
 
-  val empty = new Diff(Map.empty, Map.empty, Map.empty, Map.empty, Map.empty, Map.empty, Map.empty, Map.empty, Map.empty)
+  val empty = new Diff(Map.empty, Map.empty, Map.empty, Map.empty, Map.empty, Map.empty, Map.empty, Map.empty, Map.empty, Map.empty)
 
   implicit val diffMonoid = new Monoid[Diff] {
     override def empty: Diff = Diff.empty
@@ -176,6 +179,7 @@ object Diff {
         orderFills = older.orderFills.combine(newer.orderFills),
         leaseState = older.leaseState ++ newer.leaseState,
         scripts = older.scripts ++ newer.scripts,
+        assetScripts = older.assetScripts ++ newer.assetScripts,
         accountData = older.accountData.combine(newer.accountData),
         sponsorship = older.sponsorship.combine(newer.sponsorship)
       )

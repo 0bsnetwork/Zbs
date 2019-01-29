@@ -1,16 +1,16 @@
-package com.zbsplatform.transaction
+package com.zbsnetwork.transaction
 
-import com.zbsplatform.TransactionGen
-import com.zbsplatform.state.{ByteStr, EitherExt2}
+import com.zbsnetwork.TransactionGen
+import com.zbsnetwork.account.PublicKeyAccount
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.{Base58, EitherExt2}
+import com.zbsnetwork.transaction.ValidationError.GenericError
+import com.zbsnetwork.transaction.transfer.MassTransferTransaction.{MaxTransferCount, ParsedTransfer, Transfer}
+import com.zbsnetwork.transaction.transfer._
 import org.scalacheck.Arbitrary
 import org.scalatest._
 import org.scalatest.prop.PropertyChecks
 import play.api.libs.json.Json
-import com.zbsplatform.account.PublicKeyAccount
-import com.zbsplatform.transaction.ValidationError.GenericError
-import com.zbsplatform.transaction.transfer.MassTransferTransaction.{MaxTransferCount, ParsedTransfer, Transfer}
-import com.zbsplatform.transaction.transfer._
-import com.zbsplatform.utils.Base58
 
 class MassTransferTransactionSpecification extends PropSpec with PropertyChecks with Matchers with TransactionGen {
 
@@ -52,7 +52,7 @@ class MassTransferTransactionSpecification extends PropSpec with PropertyChecks 
 
         val tooManyTransfers   = List.fill(MaxTransferCount + 1)(ParsedTransfer(sender.toAddress, 1L))
         val tooManyTransfersEi = create(version, assetId, sender, tooManyTransfers, timestamp, fee, attachment, proofs)
-        tooManyTransfersEi shouldBe Left(GenericError(s"Number of transfers is greater than $MaxTransferCount"))
+        tooManyTransfersEi shouldBe Left(GenericError(s"Number of transfers ${tooManyTransfers.length} is greater than $MaxTransferCount"))
 
         val negativeTransfer   = List(ParsedTransfer(sender.toAddress, -1L))
         val negativeTransferEi = create(version, assetId, sender, negativeTransfer, timestamp, fee, attachment, proofs)

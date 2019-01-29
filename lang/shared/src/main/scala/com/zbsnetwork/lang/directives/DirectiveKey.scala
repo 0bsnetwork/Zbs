@@ -1,4 +1,4 @@
-package com.zbsplatform.lang.directives
+package com.zbsnetwork.lang.directives
 
 sealed trait DirectiveKey
 object DirectiveKey {

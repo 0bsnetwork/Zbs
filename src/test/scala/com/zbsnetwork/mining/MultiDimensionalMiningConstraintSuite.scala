@@ -1,12 +1,12 @@
-package com.zbsplatform.mining
+package com.zbsnetwork.mining
 
-import com.zbsplatform.state.Blockchain
-import com.zbsplatform.{NoShrink, TransactionGen}
+import com.zbsnetwork.state.Blockchain
+import com.zbsnetwork.{NoShrink, TransactionGen}
 import org.scalacheck.{Arbitrary, Gen}
 import org.scalamock.scalatest.PathMockFactory
 import org.scalatest.prop.PropertyChecks
 import org.scalatest.{FreeSpec, Matchers}
-import com.zbsplatform.transaction.Transaction
+import com.zbsnetwork.transaction.Transaction
 
 class MultiDimensionalMiningConstraintSuite
     extends FreeSpec

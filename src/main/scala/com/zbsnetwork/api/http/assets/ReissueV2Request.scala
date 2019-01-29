@@ -1,4 +1,4 @@
-package com.zbsplatform.api.http.assets
+package com.zbsnetwork.api.http.assets
 
 import play.api.libs.json.{Format, Json}
 

@@ -1,13 +1,15 @@
-package com.zbsplatform.transaction.assets
+package com.zbsnetwork.transaction.assets
 
 import com.google.common.primitives.Bytes
-import com.zbsplatform.crypto
-import com.zbsplatform.state.ByteStr
+import com.zbsnetwork.account.{PrivateKeyAccount, PublicKeyAccount}
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.crypto
+import com.zbsnetwork.crypto.SignatureLength
+import com.zbsnetwork.transaction._
+import com.zbsnetwork.transaction.smart.script.Script
 import monix.eval.Coeval
-import com.zbsplatform.account.{PrivateKeyAccount, PublicKeyAccount}
-import com.zbsplatform.transaction._
-import com.zbsplatform.transaction.smart.script.Script
-import scorex.crypto.signatures.Curve25519.SignatureLength
+import play.api.libs.json.JsObject
+
 import scala.util.{Failure, Success, Try}
 
 case class IssueTransactionV1 private (sender: PublicKeyAccount,
@@ -27,12 +29,12 @@ case class IssueTransactionV1 private (sender: PublicKeyAccount,
   override val builder: IssueTransactionV1.type = IssueTransactionV1
   override val bodyBytes: Coeval[Array[Byte]]   = Coeval.evalOnce(Bytes.concat(Array(builder.typeId), bytesBase()))
   override val bytes: Coeval[Array[Byte]]       = Coeval.evalOnce(Bytes.concat(Array(builder.typeId), signature.arr, bodyBytes()))
-
+  override val json: Coeval[JsObject]           = issueJson
 }
 
 object IssueTransactionV1 extends TransactionParserFor[IssueTransactionV1] with TransactionParser.HardcodedVersion1 {
 
-  override val typeId: Byte = 3
+  override val typeId: Byte = IssueTransaction.typeId
 
   override protected def parseTail(version: Byte, bytes: Array[Byte]): Try[TransactionT] =
     Try {

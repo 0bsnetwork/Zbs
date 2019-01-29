@@ -1,19 +1,21 @@
-package com.zbsplatform.state
+package com.zbsnetwork.state
 
 import java.util.concurrent.TimeUnit
 
-import com.zbsplatform.lang.v1.compiler.CompilerV1
-import com.zbsplatform.lang.v1.parser.Parser
-import com.zbsplatform.settings.FunctionalitySettings
-import com.zbsplatform.state.StateSyntheticBenchmark._
-import com.zbsplatform.utils.dummyCompilerContext
+import com.zbsnetwork.account.PrivateKeyAccount
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.lang.Version.ExprV1
+import com.zbsnetwork.lang.v1.compiler.ExpressionCompilerV1
+import com.zbsnetwork.lang.v1.parser.Parser
+import com.zbsnetwork.settings.FunctionalitySettings
+import com.zbsnetwork.state.StateSyntheticBenchmark._
+import com.zbsnetwork.transaction.Transaction
+import com.zbsnetwork.transaction.smart.SetScriptTransaction
+import com.zbsnetwork.transaction.smart.script.v1.ExprScript
+import com.zbsnetwork.transaction.transfer._
+import com.zbsnetwork.utils.compilerContext
 import org.openjdk.jmh.annotations._
 import org.scalacheck.Gen
-import com.zbsplatform.account.PrivateKeyAccount
-import com.zbsplatform.transaction.Transaction
-import com.zbsplatform.transaction.smart.SetScriptTransaction
-import com.zbsplatform.transaction.smart.script.v1.ScriptV1
-import com.zbsplatform.transaction.transfer._
 
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 @BenchmarkMode(Array(Mode.AverageTime))
@@ -73,8 +75,8 @@ object StateSyntheticBenchmark {
       super.init()
 
       val textScript    = "sigVerify(tx.bodyBytes,tx.proofs[0],tx.senderPk)"
-      val untypedScript = Parser(textScript).get.value
-      val typedScript   = CompilerV1(dummyCompilerContext, untypedScript).explicitGet()._1
+      val untypedScript = Parser.parseScript(textScript).get.value
+      val typedScript   = ExpressionCompilerV1(compilerContext(ExprV1, isAssetScript = false), untypedScript).explicitGet()._1
 
       val setScriptBlock = nextBlock(
         Seq(
@@ -82,7 +84,7 @@ object StateSyntheticBenchmark {
             .selfSigned(
               SetScriptTransaction.supportedVersions.head,
               richAccount,
-              Some(ScriptV1(typedScript).explicitGet()),
+              Some(ExprScript(typedScript).explicitGet()),
               1000000,
               System.currentTimeMillis()
             )

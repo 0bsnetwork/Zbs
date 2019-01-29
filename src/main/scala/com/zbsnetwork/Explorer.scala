@@ -1,16 +1,17 @@
-package com.zbsplatform
+package com.zbsnetwork
 
 import java.io.File
 import java.nio.ByteBuffer
 import java.util
 
 import com.typesafe.config.ConfigFactory
-import com.zbsplatform.account.{Address, AddressScheme}
-import com.zbsplatform.database.{Keys, LevelDBWriter}
-import com.zbsplatform.db.openDB
-import com.zbsplatform.settings.{ZbsSettings, loadConfig}
-import com.zbsplatform.state.{ByteStr, EitherExt2}
-import com.zbsplatform.utils.{Base58, Base64, ScorexLogging}
+import com.zbsnetwork.account.{Address, AddressScheme}
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.{Base58, Base64, EitherExt2}
+import com.zbsnetwork.database.{Keys, LevelDBWriter}
+import com.zbsnetwork.db.openDB
+import com.zbsnetwork.settings.{ZbsSettings, loadConfig}
+import com.zbsnetwork.utils.ScorexLogging
 import org.slf4j.bridge.SLF4JBridgeHandler
 
 import scala.collection.JavaConverters._
@@ -63,7 +64,11 @@ object Explorer extends ScorexLogging {
     "addresses-for-asset",
     "address-transaction-ids-seq-nr",
     "address-transaction-ids",
-    "alias-is-disabled"
+    "alias-is-disabled",
+    "carry-fee-history",
+    "carry-fee",
+    "asset-script-history",
+    "asset-script"
   )
 
   def main(args: Array[String]): Unit = {
@@ -79,8 +84,14 @@ object Explorer extends ScorexLogging {
 
     log.info(s"Data directory: ${settings.dataDirectory}")
 
-    val db     = openDB(settings.dataDirectory)
-    val reader = new LevelDBWriter(db, settings.blockchainSettings.functionalitySettings)
+    val db = openDB(settings.dataDirectory)
+    val reader = new LevelDBWriter(
+      db,
+      settings.blockchainSettings.functionalitySettings,
+      maxCacheSize = settings.maxCacheSize,
+      maxRollbackDepth = settings.maxRollbackDepth,
+      rememberBlocksInterval = settings.rememberBlocks.toMillis
+    )
 
     val blockchainHeight = reader.height
     log.info(s"Blockchain height is $blockchainHeight")

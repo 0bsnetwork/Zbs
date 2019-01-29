@@ -1,14 +1,15 @@
-package com.zbsplatform.transaction
+package com.zbsnetwork.transaction
 
-import com.zbsplatform.TransactionGen
-import com.zbsplatform.account.PublicKeyAccount
-import com.zbsplatform.features.BlockchainFeatures._
-import com.zbsplatform.lagonaki.mocks.TestBlock.{create => block}
-import com.zbsplatform.settings.{Constants, TestFunctionalitySettings}
-import com.zbsplatform.state.diffs._
-import com.zbsplatform.state.{ByteStr, EitherExt2}
-import com.zbsplatform.transaction.assets.{IssueTransactionV1, SponsorFeeTransaction}
-import com.zbsplatform.transaction.transfer.TransferTransactionV1
+import com.zbsnetwork.TransactionGen
+import com.zbsnetwork.account.PublicKeyAccount
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.features.BlockchainFeatures._
+import com.zbsnetwork.lagonaki.mocks.TestBlock.{create => block}
+import com.zbsnetwork.settings.{Constants, TestFunctionalitySettings}
+import com.zbsnetwork.state.diffs._
+import com.zbsnetwork.transaction.assets.{IssueTransactionV1, SponsorFeeTransaction}
+import com.zbsnetwork.transaction.transfer.TransferTransactionV1
 import org.scalacheck.Gen
 import org.scalatest._
 import org.scalatest.prop.PropertyChecks
@@ -114,7 +115,7 @@ class SponsorFeeTransactionSpecification extends PropSpec with PropertyChecks wi
   val invalidFee =
     Table(
       "fee",
-      -1 * Constants.UnitsInZbs,
+      -1 * Constants.UnitsInWave,
       0
     )
 

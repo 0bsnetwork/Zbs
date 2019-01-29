@@ -1,17 +1,18 @@
-package com.zbsplatform.state.diffs.smart.scenarios
+package com.zbsnetwork.state.diffs.smart.scenarios
 
-import com.zbsplatform.lang.v1.compiler.Terms._
-import com.zbsplatform.state._
-import com.zbsplatform.state.diffs.smart.smartEnabledFS
-import com.zbsplatform.state.diffs.{ENOUGH_AMT, assertDiffEi, produce}
-import com.zbsplatform.{NoShrink, TransactionGen}
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.lagonaki.mocks.TestBlock
+import com.zbsnetwork.lang.v1.compiler.Terms._
+import com.zbsnetwork.state.diffs.smart.smartEnabledFS
+import com.zbsnetwork.state.diffs.{ENOUGH_AMT, assertDiffEi, produce}
+import com.zbsnetwork.transaction.smart.script.v1.ExprScript
+import com.zbsnetwork.transaction.transfer._
+import com.zbsnetwork.transaction.{GenesisTransaction, Proofs}
+import com.zbsnetwork.{NoShrink, TransactionGen}
 import org.scalacheck.Gen
 import org.scalatest.prop.PropertyChecks
 import org.scalatest.{Matchers, PropSpec}
-import com.zbsplatform.lagonaki.mocks.TestBlock
-import com.zbsplatform.transaction.smart.script.v1.ScriptV1
-import com.zbsplatform.transaction.transfer._
-import com.zbsplatform.transaction.{GenesisTransaction, Proofs}
 
 class OneProofForNonScriptedAccountTest extends PropSpec with PropertyChecks with Matchers with TransactionGen with NoShrink {
 
@@ -24,7 +25,7 @@ class OneProofForNonScriptedAccountTest extends PropSpec with PropertyChecks wit
       fee       <- smallFeeGen
       ts        <- positiveIntGen
       genesis = GenesisTransaction.create(master, ENOUGH_AMT, ts).explicitGet()
-      setScript <- selfSignedSetScriptTransactionGenP(master, ScriptV1(TRUE).explicitGet())
+      setScript <- selfSignedSetScriptTransactionGenP(master, ExprScript(TRUE).explicitGet())
       transfer = TransferTransactionV2.selfSigned(version, None, master, recepient, amt, ts, None, fee, Array.emptyByteArray).explicitGet()
     } yield (genesis, setScript, transfer)
 

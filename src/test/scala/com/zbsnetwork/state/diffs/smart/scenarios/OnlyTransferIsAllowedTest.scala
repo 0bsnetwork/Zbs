@@ -1,15 +1,16 @@
-package com.zbsplatform.state.diffs.smart.scenarios
+package com.zbsnetwork.state.diffs.smart.scenarios
 
-import com.zbsplatform.lang.v1.compiler.CompilerV1
-import com.zbsplatform.lang.v1.parser.Parser
-import com.zbsplatform.state._
-import com.zbsplatform.state.diffs._
-import com.zbsplatform.state.diffs.smart._
-import com.zbsplatform.utils.dummyCompilerContext
-import com.zbsplatform.{NoShrink, TransactionGen}
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.lagonaki.mocks.TestBlock
+import com.zbsnetwork.lang.Version.ExprV1
+import com.zbsnetwork.lang.v1.compiler.ExpressionCompilerV1
+import com.zbsnetwork.lang.v1.parser.Parser
+import com.zbsnetwork.state.diffs._
+import com.zbsnetwork.state.diffs.smart._
+import com.zbsnetwork.utils.compilerContext
+import com.zbsnetwork.{NoShrink, TransactionGen}
 import org.scalatest.prop.PropertyChecks
 import org.scalatest.{Matchers, PropSpec}
-import com.zbsplatform.lagonaki.mocks.TestBlock
 
 class OnlyTransferIsAllowedTest extends PropSpec with PropertyChecks with Matchers with TransactionGen with NoShrink {
 
@@ -25,8 +26,8 @@ class OnlyTransferIsAllowedTest extends PropSpec with PropertyChecks with Matche
          |     false
          | }
       """.stripMargin
-    val untyped         = Parser(scriptText).get.value
-    val transferAllowed = CompilerV1(dummyCompilerContext, untyped).explicitGet()._1
+    val untyped         = Parser.parseScript(scriptText).get.value
+    val transferAllowed = ExpressionCompilerV1(compilerContext(ExprV1, isAssetScript = false), untyped).explicitGet()._1
 
     forAll(preconditionsTransferAndLease(transferAllowed)) {
       case (genesis, script, lease, transfer) =>

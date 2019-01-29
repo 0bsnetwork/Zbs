@@ -1,16 +1,17 @@
-package com.zbsplatform.transaction
+package com.zbsnetwork.transaction
 
 import com.google.common.primitives.Shorts
-import com.zbsplatform.TransactionGen
-import com.zbsplatform.state.DataEntry._
-import com.zbsplatform.state.{BinaryDataEntry, BooleanDataEntry, ByteStr, DataEntry, EitherExt2, IntegerDataEntry, StringDataEntry}
-import com.zbsplatform.utils.Base58
+import com.zbsnetwork.TransactionGen
+import com.zbsnetwork.account.PublicKeyAccount
+import com.zbsnetwork.api.http.SignedDataRequest
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.{Base58, EitherExt2}
+import com.zbsnetwork.state.DataEntry._
+import com.zbsnetwork.state.{BinaryDataEntry, BooleanDataEntry, DataEntry, IntegerDataEntry, StringDataEntry}
 import org.scalacheck.{Arbitrary, Gen}
 import org.scalatest._
 import org.scalatest.prop.PropertyChecks
 import play.api.libs.json.{Format, Json}
-import com.zbsplatform.account.PublicKeyAccount
-import com.zbsplatform.api.http.SignedDataRequest
 import scorex.crypto.encode.Base64
 
 class DataTransactionSpecification extends PropSpec with PropertyChecks with Matchers with TransactionGen {
@@ -87,7 +88,7 @@ class DataTransactionSpecification extends PropSpec with PropertyChecks with Mat
 
   property("positive validation cases") {
     import DataTransaction.MaxEntryCount
-    import com.zbsplatform.state._
+    import com.zbsnetwork.state._
     forAll(dataTransactionGen, dataEntryGen(500)) {
       case (DataTransaction(version, sender, data, fee, timestamp, proofs), entry) =>
         def check(data: List[DataEntry[_]]): Assertion = {

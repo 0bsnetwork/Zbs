@@ -1,16 +1,17 @@
-package com.zbsplatform.api.http
+package com.zbsnetwork.api.http
 
 import java.security.SecureRandom
 
 import javax.ws.rs.Path
 import akka.http.scaladsl.server.Route
-import com.zbsplatform.crypto
-import com.zbsplatform.settings.RestAPISettings
-import com.zbsplatform.state.diffs.CommonValidation
-import com.zbsplatform.utils.{Base58, Time}
+import com.zbsnetwork.common.utils.Base58
+import com.zbsnetwork.crypto
+import com.zbsnetwork.settings.RestAPISettings
+import com.zbsnetwork.state.diffs.CommonValidation
+import com.zbsnetwork.utils.Time
 import io.swagger.annotations._
-import play.api.libs.json.Json
-import com.zbsplatform.transaction.smart.script.{Script, ScriptCompiler}
+import play.api.libs.json._
+import com.zbsnetwork.transaction.smart.script.{Script, ScriptCompiler}
 
 @Path("/utils")
 @Api(value = "/utils", description = "Useful functions", position = 3, produces = "application/json")
@@ -25,14 +26,21 @@ case class UtilsApiRoute(timeService: Time, settings: RestAPISettings) extends A
   }
 
   override val route: Route = pathPrefix("utils") {
-    compile ~ estimate ~ time ~ seedRoute ~ length ~ hashFast ~ hashSecure ~ sign
+    compile ~ compileContract ~ estimate ~ time ~ seedRoute ~ length ~ hashFast ~ hashSecure ~ sign ~ transactionSerialize
   }
 
   @Path("/script/compile")
   @ApiOperation(value = "Compile", notes = "Compiles string code to base64 script representation", httpMethod = "POST")
   @ApiImplicitParams(
     Array(
-      new ApiImplicitParam(name = "code", required = true, dataType = "string", paramType = "body", value = "Script code")
+      new ApiImplicitParam(
+        name = "code",
+        required = true,
+        dataType = "string",
+        paramType = "body",
+        value = "Script code",
+        example = "true"
+      )
     ))
   @ApiResponses(
     Array(
@@ -40,26 +48,69 @@ case class UtilsApiRoute(timeService: Time, settings: RestAPISettings) extends A
     ))
   def compile: Route = path("script" / "compile") {
     (post & entity(as[String])) { code =>
-      complete(
-        ScriptCompiler(code).fold(
-          e => ScriptCompilerError(e), {
-            case (script, complexity) =>
-              Json.obj(
-                "script"     -> script.bytes().base64,
-                "complexity" -> complexity,
-                "extraFee"   -> CommonValidation.ScriptExtraFee
-              )
-          }
+      parameter('assetScript.as[Boolean] ? false) { isAssetScript =>
+        complete(
+          ScriptCompiler(code, isAssetScript).fold(
+            e => ScriptCompilerError(e), {
+              case (script, complexity) =>
+                Json.obj(
+                  "script"     -> script.bytes().base64,
+                  "complexity" -> complexity,
+                  "extraFee"   -> CommonValidation.ScriptExtraFee
+                )
+            }
+          )
         )
+      }
+    }
+  }
+  @Path("/script/compileContract")
+  @ApiOperation(value = "Compile Contract", notes = "Compiles string code to base64 contract representation", httpMethod = "POST")
+  @ApiImplicitParams(
+    Array(
+      new ApiImplicitParam(
+        name = "code",
+        required = true,
+        dataType = "string",
+        paramType = "body",
+        value = "Contract code",
+        example = "true"
+      )
+    ))
+  @ApiResponses(
+    Array(
+      new ApiResponse(code = 200, message = "base64 or error")
+    ))
+  def compileContract: Route = path("script" / "compileContract") {
+    (post & entity(as[String])) { code =>
+      complete(
+        ScriptCompiler
+          .contract(code)
+          .fold(
+            e => ScriptCompilerError(e), {
+              case (contract) =>
+                Json.obj(
+                  "script"     -> contract.bytes().base64,
+                  "complexity" -> 0,
+                  "extraFee"   -> CommonValidation.ScriptExtraFee
+                )
+            }
+          )
       )
     }
   }
-
   @Path("/script/estimate")
   @ApiOperation(value = "Estimate", notes = "Estimates compiled code in Base64 representation", httpMethod = "POST")
   @ApiImplicitParams(
     Array(
-      new ApiImplicitParam(name = "code", required = true, dataType = "string", paramType = "body", value = "A compiled Base64 code")
+      new ApiImplicitParam(
+        name = "code",
+        required = true,
+        dataType = "string",
+        paramType = "body",
+        value = "A compiled Base64 code",
+        example = "AQa3b8tH"
+      )
     ))
   @ApiResponses(
     Array(
@@ -73,7 +124,7 @@ case class UtilsApiRoute(timeService: Time, settings: RestAPISettings) extends A
           .left
           .map(_.m)
           .flatMap { script =>
-            ScriptCompiler.estimate(script).map((script, _))
+            ScriptCompiler.estimate(script, script.version).map((script, _))
           }
           .fold(
             e => ScriptCompilerError(e), {
@@ -126,7 +177,13 @@ case class UtilsApiRoute(timeService: Time, settings: RestAPISettings) extends A
   @ApiOperation(value = "Hash", notes = "Return SecureCryptographicHash of specified message", httpMethod = "POST")
   @ApiImplicitParams(
     Array(
-      new ApiImplicitParam(name = "message", value = "Message to hash", required = true, paramType = "body", dataType = "string")
+      new ApiImplicitParam(
+        name = "message",
+        value = "Message to hash",
+        required = true,
+        paramType = "body",
+        dataType = "string"
+      )
     ))
   @ApiResponses(
     Array(
@@ -142,7 +199,13 @@ case class UtilsApiRoute(timeService: Time, settings: RestAPISettings) extends A
   @ApiOperation(value = "Hash", notes = "Return FastCryptographicHash of specified message", httpMethod = "POST")
   @ApiImplicitParams(
     Array(
-      new ApiImplicitParam(name = "message", value = "Message to hash", required = true, paramType = "body", dataType = "string")
+      new ApiImplicitParam(
+        name = "message",
+        value = "Message to hash",
+        required = true,
+        paramType = "body",
+        dataType = "string"
+      )
     ))
   @ApiResponses(
     Array(
@@ -157,8 +220,21 @@ case class UtilsApiRoute(timeService: Time, settings: RestAPISettings) extends A
   @ApiOperation(value = "Hash", notes = "Return FastCryptographicHash of specified message", httpMethod = "POST")
   @ApiImplicitParams(
     Array(
-      new ApiImplicitParam(name = "privateKey", value = "privateKey", required = true, paramType = "path", dataType = "string"),
-      new ApiImplicitParam(name = "message", value = "Message to hash", required = true, paramType = "body", dataType = "string")
+      new ApiImplicitParam(
+        name = "privateKey",
+        value = "privateKey",
+        required = true,
+        paramType = "path",
+        dataType = "string",
+        example = "3kMEhU5z3v8bmer1ERFUUhW58Dtuhyo9hE5vrhjqAWYT"
+      ),
+      new ApiImplicitParam(
+        name = "message",
+        value = "Message to hash (base58 string)",
+        required = true,
+        paramType = "body",
+        dataType = "string"
+      )
     ))
   @ApiResponses(
     Array(
@@ -170,6 +246,26 @@ case class UtilsApiRoute(timeService: Time, settings: RestAPISettings) extends A
         Json.obj("message" -> message,
                  "signature" ->
                    Base58.encode(crypto.sign(Base58.decode(pk).get, Base58.decode(message).get))))
+    }
+  }
+
+  @Path("/transactionSerialize")
+  @ApiOperation(value = "Serialize transaction", notes = "Serialize transaction", httpMethod = "POST")
+  @ApiImplicitParams(
+    Array(
+      new ApiImplicitParam(
+        name = "json",
+        required = true,
+        paramType = "body",
+        dataType = "string",
+        value = "Transaction data including <a href='transaction-types.html'>type</a> and signature/proofs"
+      )
+    ))
+  def transactionSerialize: Route = (pathPrefix("transactionSerialize") & post) {
+    handleExceptions(jsonExceptionHandler) {
+      json[JsObject] { jsv =>
+        parseOrCreateTransaction(jsv)(tx => Json.obj("bytes" -> tx.bodyBytes().map(_.toInt & 0xff)))
+      }
     }
   }
 }

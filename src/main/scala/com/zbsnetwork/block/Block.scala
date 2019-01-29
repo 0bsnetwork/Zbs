@@ -1,21 +1,24 @@
-package com.zbsplatform.block
+package com.zbsnetwork.block
 
 import java.nio.ByteBuffer
 
 import cats._
 import com.google.common.primitives.{Bytes, Ints, Longs}
-import com.zbsplatform.crypto
-import com.zbsplatform.settings.GenesisSettings
-import com.zbsplatform.state._
+import com.zbsnetwork.account.{Address, PrivateKeyAccount, PublicKeyAccount}
+import com.zbsnetwork.block.fields.FeaturesBlockField
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.consensus.nxt.{NxtConsensusBlockField, NxtLikeConsensusBlockData}
+import com.zbsnetwork.crypto
+import com.zbsnetwork.crypto._
+import com.zbsnetwork.settings.GenesisSettings
+import com.zbsnetwork.state._
+import com.zbsnetwork.transaction.ValidationError.GenericError
+import com.zbsnetwork.transaction._
+import com.zbsnetwork.utils.ScorexLogging
 import monix.eval.Coeval
 import play.api.libs.json.{JsObject, Json}
-import com.zbsplatform.account.{Address, PrivateKeyAccount, PublicKeyAccount}
-import com.zbsplatform.block.fields.FeaturesBlockField
-import com.zbsplatform.consensus.nxt.{NxtConsensusBlockField, NxtLikeConsensusBlockData}
-import com.zbsplatform.utils.ScorexLogging
-import com.zbsplatform.transaction.ValidationError.GenericError
-import com.zbsplatform.transaction._
-import scorex.crypto.signatures.Curve25519._
+
 import scala.util.{Failure, Try}
 
 class BlockHeader(val timestamp: Long,
@@ -170,8 +173,11 @@ case class Block private (override val timestamp: Long,
   val prevBlockFeePart: Coeval[Portfolio] =
     Coeval.evalOnce(Monoid[Portfolio].combineAll(transactionData.map(tx => tx.feeDiff().minus(tx.feeDiff().multiply(CurrentBlockFeePart)))))
 
-  protected val signatureValid: Coeval[Boolean] =
-    Coeval.evalOnce(crypto.verify(signerData.signature.arr, bytesWithoutSignature(), signerData.generator.publicKey))
+  protected val signatureValid: Coeval[Boolean] = Coeval.evalOnce {
+    import signerData.generator.publicKey
+    !crypto.isWeakPublicKey(publicKey) && crypto.verify(signerData.signature.arr, bytesWithoutSignature(), publicKey)
+  }
+
   protected override val signedDescendants: Coeval[Seq[Signed]] = Coeval.evalOnce(transactionData.flatMap(_.cast[Signed]))
 
   override def toString: String =
@@ -303,18 +309,27 @@ object Block extends ScorexLogging {
 
     val signature = genesisSettings.signature.fold(crypto.sign(genesisSigner, toSign))(_.arr)
 
-    if (crypto.verify(signature, toSign, genesisSigner.publicKey))
-      Right(
-        Block(
-          timestamp = timestamp,
-          version = GenesisBlockVersion,
-          reference = ByteStr(reference),
-          signerData = SignerData(genesisSigner, ByteStr(signature)),
-          consensusData = consensusGenesisData,
-          transactionData = transactionGenesisData,
-          featureVotes = Set.empty
-        ))
-    else Left(GenericError("Passed genesis signature is not valid"))
+    for {
+      // Verify signature
+      _ <- Either.cond(crypto.verify(signature, toSign, genesisSigner.publicKey), (), GenericError("Passed genesis signature is not valid"))
+
+      // Verify initial balance
+      genesisTransactionsSum = transactionGenesisData.map(_.amount).reduce(Math.addExact(_: Long, _: Long))
+      _ <- Either.cond(
+        genesisTransactionsSum == genesisSettings.initialBalance,
+        (),
+        GenericError(s"Initial balance ${genesisSettings.initialBalance} did not match the distributions sum $genesisTransactionsSum")
+      )
+    } yield
+      Block(
+        timestamp = timestamp,
+        version = GenesisBlockVersion,
+        reference = ByteStr(reference),
+        signerData = SignerData(genesisSigner, ByteStr(signature)),
+        consensusData = consensusGenesisData,
+        transactionData = transactionGenesisData,
+        featureVotes = Set.empty
+      )
   }
 
   val GenesisBlockVersion: Byte = 1

@@ -1,6 +1,6 @@
-package com.zbsplatform.it.transactions
+package com.zbsnetwork.it.transactions
 
-import com.zbsplatform.it.{Docker, DockerBased, Node, Nodes}
+import com.zbsnetwork.it.{Docker, DockerBased, Node, Nodes}
 import monix.eval.Coeval
 import org.scalatest.Suite
 

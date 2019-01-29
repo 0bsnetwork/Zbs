@@ -1,11 +1,11 @@
-package com.zbsplatform.generator
+package com.zbsnetwork.generator
 
 import java.net.InetSocketAddress
 
 import cats.Show
 import cats.implicits.showInterpolator
-import com.zbsplatform.state.EitherExt2
-import com.zbsplatform.account.PrivateKeyAccount
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.account.PrivateKeyAccount
 
 case class GeneratorSettings(chainId: String,
                              accounts: Seq[String],
@@ -15,7 +15,9 @@ case class GeneratorSettings(chainId: String,
                              narrow: NarrowTransactionGenerator.Settings,
                              wide: WideTransactionGenerator.Settings,
                              dynWide: DynamicWideTransactionGenerator.Settings,
-                             multisig: MultisigTransactionGenerator.Settings) {
+                             multisig: MultisigTransactionGenerator.Settings,
+                             oracle: OracleTransactionGenerator.Settings,
+                             swarm: SmartGenerator.Settings) {
   val addressScheme: Char                        = chainId.head
   val privateKeyAccounts: Seq[PrivateKeyAccount] = accounts.map(s => PrivateKeyAccount.fromSeed(s).explicitGet())
 }
@@ -29,6 +31,8 @@ object GeneratorSettings {
       case Mode.WIDE     => show"$wide"
       case Mode.DYN_WIDE => show"$dynWide"
       case Mode.MULTISIG => show"$multisig"
+      case Mode.ORACLE   => show"$oracle"
+      case Mode.SWARM    => show"$swarm"
     }).toString
 
     s"""network byte: $chainId

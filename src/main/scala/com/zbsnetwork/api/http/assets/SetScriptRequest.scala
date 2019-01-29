@@ -1,7 +1,7 @@
-package com.zbsplatform.api.http.assets
+package com.zbsnetwork.api.http.assets
 
 import play.api.libs.json.{Format, JsNumber, JsObject, Json}
-import com.zbsplatform.transaction.smart.SetScriptTransaction
+import com.zbsnetwork.transaction.smart.SetScriptTransaction
 
 case class SetScriptRequest(version: Byte, sender: String, script: Option[String], fee: Long, timestamp: Option[Long] = None) {}
 

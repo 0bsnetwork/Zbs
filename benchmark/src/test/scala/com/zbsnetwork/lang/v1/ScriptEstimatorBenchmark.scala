@@ -1,9 +1,10 @@
-package com.zbsplatform.lang.v1
+package com.zbsnetwork.lang.v1
 
 import java.util.concurrent.TimeUnit
 
-import com.zbsplatform.lang.v1.ScriptEstimatorBenchmark.St
-import com.zbsplatform.utils
+import com.zbsnetwork.lang.Version.ExprV1
+import com.zbsnetwork.lang.v1.ScriptEstimatorBenchmark.St
+import com.zbsnetwork.utils
 import monix.eval.Coeval
 import org.openjdk.jmh.annotations._
 import org.openjdk.jmh.infra.Blackhole
@@ -22,7 +23,7 @@ class ScriptEstimatorBenchmark {
 object ScriptEstimatorBenchmark {
 
   class St extends BigSum {
-    val functionCosts: Map[FunctionHeader, Coeval[Long]] = utils.functionCosts
+    val functionCosts: Map[FunctionHeader, Coeval[Long]] = utils.functionCosts(ExprV1)
   }
 
 }

@@ -1,8 +1,8 @@
-package com.zbsplatform.network
+package com.zbsnetwork.network
 
-import com.zbsplatform.settings.SynchronizationSettings.MicroblockSynchronizerSettings
-import com.zbsplatform.state.ByteStr
-import com.zbsplatform.{BlockGen, RxScheduler, TransactionGen}
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.settings.SynchronizationSettings.MicroblockSynchronizerSettings
+import com.zbsnetwork.{BlockGen, RxScheduler, TransactionGen}
 import io.netty.channel.Channel
 import io.netty.channel.embedded.EmbeddedChannel
 import monix.reactive.Observable

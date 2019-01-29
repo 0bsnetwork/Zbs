@@ -1,16 +1,15 @@
-package com.zbsplatform.it.sync
+package com.zbsnetwork.it.sync
 
 import com.typesafe.config.{Config, ConfigFactory}
-import com.zbsplatform.it.NodeConfigs.Default
-import com.zbsplatform.it.api.SyncHttpApi._
-import com.zbsplatform.it.transactions.BaseTransactionSuite
-import com.zbsplatform.it.util._
-import com.zbsplatform.state.{EitherExt2, Sponsorship}
-import com.zbsplatform.utils.Base58
+import com.zbsnetwork.account.PrivateKeyAccount
+import com.zbsnetwork.it.NodeConfigs.Default
+import com.zbsnetwork.it.api.SyncHttpApi._
+import com.zbsnetwork.it.transactions.BaseTransactionSuite
+import com.zbsnetwork.it.util._
+import com.zbsnetwork.state.Sponsorship
+import com.zbsnetwork.transaction.assets.IssueTransactionV1
+import com.zbsnetwork.common.utils.EitherExt2
 import org.scalatest.CancelAfterFailure
-import com.zbsplatform.account.PrivateKeyAccount
-import com.zbsplatform.api.http.assets.SignedIssueV1Request
-import com.zbsplatform.transaction.assets.IssueTransactionV1
 
 class CustomFeeTransactionSuite extends BaseTransactionSuite with CancelAfterFailure {
 
@@ -68,12 +67,12 @@ class CustomFeeTransactionSuite extends BaseTransactionSuite with CancelAfterFai
 }
 
 object CustomFeeTransactionSuite {
-  val minerAddress             = Default(0).getString("address")
-  val senderAddress            = Default(3).getString("address")
+  val minerAddress             = Default.head.getString("address")
+  val senderAddress            = Default(2).getString("address")
   val defaultAssetQuantity     = 999999999999l
   val featureCheckBlocksPeriod = 13
 
-  private val seed = Default(3).getString("account-seed")
+  private val seed = Default(2).getString("account-seed")
   private val pk   = PrivateKeyAccount.fromSeed(seed).explicitGet()
   val assetTx = IssueTransactionV1
     .selfSigned(
@@ -104,22 +103,7 @@ object CustomFeeTransactionSuite {
   val Configs: Seq[Config] = Seq(
     minerConfig.withFallback(Default.head),
     notMinerConfig.withFallback(Default(1)),
-    notMinerConfig.withFallback(Default(2)),
-    notMinerConfig.withFallback(Default(3))
+    notMinerConfig.withFallback(Default(2))
   )
 
-  def createSignedIssueRequest(tx: IssueTransactionV1): SignedIssueV1Request = {
-    import tx._
-    SignedIssueV1Request(
-      Base58.encode(tx.sender.publicKey),
-      new String(name),
-      new String(description),
-      quantity,
-      decimals,
-      reissuable,
-      issueFee,
-      timestamp,
-      signature.base58
-    )
-  }
 }

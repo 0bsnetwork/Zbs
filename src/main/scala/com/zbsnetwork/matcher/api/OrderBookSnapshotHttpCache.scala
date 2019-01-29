@@ -1,20 +1,20 @@
-package com.zbsplatform.matcher.api
+package com.zbsnetwork.matcher.api
 
 import java.util.concurrent.ScheduledFuture
 
 import akka.http.scaladsl.model.HttpResponse
 import com.google.common.cache.{CacheBuilder, CacheLoader}
-import com.zbsplatform.matcher.api.OrderBookSnapshotHttpCache.Settings
-import com.zbsplatform.matcher.market.OrderBookActor.GetOrderBookResponse
-import com.zbsplatform.matcher.model.MatcherModel.{Level, Price}
-import com.zbsplatform.matcher.model.{LevelAgg, LimitOrder, OrderBook}
-import com.zbsplatform.transaction.assets.exchange.AssetPair
-import com.zbsplatform.utils.NTP
+import com.zbsnetwork.matcher.api.OrderBookSnapshotHttpCache.Settings
+import com.zbsnetwork.matcher.market.OrderBookActor.GetOrderBookResponse
+import com.zbsnetwork.matcher.model.MatcherModel.{Level, Price}
+import com.zbsnetwork.matcher.model.{LevelAgg, LimitOrder, OrderBook}
+import com.zbsnetwork.transaction.assets.exchange.AssetPair
+import com.zbsnetwork.utils.Time
 import kamon.Kamon
 
 import scala.concurrent.duration._
 
-class OrderBookSnapshotHttpCache(settings: Settings, orderBookSnapshot: AssetPair => Option[OrderBook]) extends AutoCloseable {
+class OrderBookSnapshotHttpCache(settings: Settings, time: Time, orderBookSnapshot: AssetPair => Option[OrderBook]) extends AutoCloseable {
   import OrderBookSnapshotHttpCache._
 
   private val depthRanges = settings.depthRanges.sorted
@@ -25,11 +25,11 @@ class OrderBookSnapshotHttpCache(settings: Settings, orderBookSnapshot: AssetPai
     .expireAfterAccess(settings.cacheTimeout.length, settings.cacheTimeout.unit)
     .build[Key, HttpResponse](new CacheLoader[Key, HttpResponse] {
       override def load(key: Key): HttpResponse = {
-        def aggregateLevel(l: (Price, Level[LimitOrder])) = LevelAgg(l._1, l._2.foldLeft(0L)((b, o) => b + o.amount))
+        def aggregateLevel(l: (Price, Level[LimitOrder])) = LevelAgg(l._2.foldLeft(0L)((b, o) => b + o.amount), l._1)
 
         val orderBook = orderBookSnapshot(key.pair).getOrElse(OrderBook.empty)
         GetOrderBookResponse(
-          NTP.correctedTime(),
+          time.correctedTime(),
           key.pair,
           orderBook.bids.view.take(key.depth).map(aggregateLevel).toSeq,
           orderBook.asks.view.take(key.depth).map(aggregateLevel).toSeq

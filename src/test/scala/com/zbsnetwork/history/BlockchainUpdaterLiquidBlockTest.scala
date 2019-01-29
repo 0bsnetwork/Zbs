@@ -1,75 +1,98 @@
-package com.zbsplatform.history
+package com.zbsnetwork.history
 
-import com.zbsplatform._
-import com.zbsplatform.state._
-import com.zbsplatform.state.diffs.ENOUGH_AMT
+import com.zbsnetwork._
+import com.zbsnetwork.account.PrivateKeyAccount
+import com.zbsnetwork.block.{Block, MicroBlock, SignerData}
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.consensus.nxt.NxtLikeConsensusBlockData
+import com.zbsnetwork.lagonaki.mocks.TestBlock
+import com.zbsnetwork.state.diffs.ENOUGH_AMT
+import com.zbsnetwork.transaction.ValidationError.GenericError
+import com.zbsnetwork.transaction.transfer._
+import com.zbsnetwork.transaction.{GenesisTransaction, Transaction}
 import org.scalacheck.Gen
 import org.scalatest._
 import org.scalatest.prop.PropertyChecks
-import com.zbsplatform.account.PrivateKeyAccount
-import com.zbsplatform.block.{Block, MicroBlock, SignerData}
-import com.zbsplatform.consensus.nxt.NxtLikeConsensusBlockData
-import com.zbsplatform.lagonaki.mocks.TestBlock
-import com.zbsplatform.transaction.ValidationError.GenericError
-import com.zbsplatform.transaction.transfer._
-import com.zbsplatform.transaction.{GenesisTransaction, Transaction}
 
 class BlockchainUpdaterLiquidBlockTest extends PropSpec with PropertyChecks with DomainScenarioDrivenPropertyCheck with Matchers with TransactionGen {
 
-  private val preconditionsAndPayments: Gen[(Block, Block, Seq[MicroBlock])] = for {
-    richAccount        <- accountGen
-    totalTxNumber      <- Gen.chooseNum(Block.MaxTransactionsPerBlockVer3 + 1, Block.MaxTransactionsPerBlockVer3 + 100)
-    txNumberInKeyBlock <- Gen.chooseNum(0, Block.MaxTransactionsPerBlockVer3)
-    allTxs             <- Gen.listOfN(totalTxNumber, validTransferGen(richAccount))
-  } yield {
-    val (keyBlockTxs, microTxs) = allTxs.splitAt(txNumberInKeyBlock)
-    val txNumberInMicros        = totalTxNumber - txNumberInKeyBlock
+  private def preconditionsAndPayments(minTx: Int, maxTx: Int): Gen[(Block, Block, Seq[MicroBlock])] =
+    for {
+      richAccount        <- accountGen
+      totalTxNumber      <- Gen.chooseNum(minTx, maxTx)
+      txNumberInKeyBlock <- Gen.chooseNum(0, Block.MaxTransactionsPerBlockVer3)
+      allTxs             <- Gen.listOfN(totalTxNumber, validTransferGen(richAccount))
+    } yield {
+      val (keyBlockTxs, microTxs) = allTxs.splitAt(txNumberInKeyBlock)
+      val txNumberInMicros        = totalTxNumber - txNumberInKeyBlock
 
-    val prevBlock = unsafeBlock(
-      reference = randomSig,
-      txs = Seq(GenesisTransaction.create(richAccount, ENOUGH_AMT, 0).explicitGet()),
-      signer = TestBlock.defaultSigner,
-      version = 3,
-      timestamp = 0
-    )
+      val prevBlock = unsafeBlock(
+        reference = randomSig,
+        txs = Seq(GenesisTransaction.create(richAccount, ENOUGH_AMT, 0).explicitGet()),
+        signer = TestBlock.defaultSigner,
+        version = 3,
+        timestamp = 0
+      )
 
-    val (keyBlock, microBlocks) = unsafeChainBaseAndMicro(
-      totalRefTo = prevBlock.signerData.signature,
-      base = keyBlockTxs,
-      micros = microTxs.grouped(math.max(1, txNumberInMicros / 5)).toSeq,
-      signer = TestBlock.defaultSigner,
-      version = 3,
-      timestamp = System.currentTimeMillis()
-    )
+      val (keyBlock, microBlocks) = unsafeChainBaseAndMicro(
+        totalRefTo = prevBlock.signerData.signature,
+        base = keyBlockTxs,
+        micros = microTxs.grouped(math.max(1, txNumberInMicros / 5)).toSeq,
+        signer = TestBlock.defaultSigner,
+        version = 3,
+        timestamp = System.currentTimeMillis()
+      )
 
-    (prevBlock, keyBlock, microBlocks)
-  }
+      (prevBlock, keyBlock, microBlocks)
+    }
 
   property("liquid block can't be overfilled") {
-    withDomain(MicroblocksActivatedAt0ZbsSettings) { d =>
-      val (prevBlock, keyBlock, microBlocks) = preconditionsAndPayments.sample.get
+    import Block.{MaxTransactionsPerBlockVer3 => Max}
+    forAll(preconditionsAndPayments(Max + 1, Max + 100)) {
+      case (prevBlock, keyBlock, microBlocks) =>
+        withDomain(MicroblocksActivatedAt0ZbsSettings) { d =>
+          val blocksApplied = for {
+            _ <- d.blockchainUpdater.processBlock(prevBlock)
+            _ <- d.blockchainUpdater.processBlock(keyBlock)
+          } yield ()
 
-      val blocksApplied = for {
-        _ <- d.blockchainUpdater.processBlock(prevBlock)
-        _ <- d.blockchainUpdater.processBlock(keyBlock)
-      } yield ()
+          val r = microBlocks.foldLeft(blocksApplied) {
+            case (Right(_), curr) => d.blockchainUpdater.processMicroBlock(curr)
+            case (x, _)           => x
+          }
 
-      val r = microBlocks.foldLeft(blocksApplied) {
-        case (Right(_), curr) => d.blockchainUpdater.processMicroBlock(curr)
-        case (x, _)           => x
-      }
-
-      withClue("All microblocks should not be processed") {
-        r match {
-          case Left(e: GenericError) => e.err should include("Limit of txs was reached")
-          case x =>
-            val txNumberByMicroBlock = microBlocks.map(_.transactionData.size)
-            fail(
-              s"Unexpected result: $x. keyblock txs: ${keyBlock.transactionCount}, " +
-                s"microblock txs: ${txNumberByMicroBlock.mkString(", ")} (total: ${txNumberByMicroBlock.sum}), " +
-                s"total txs: ${keyBlock.transactionCount + txNumberByMicroBlock.sum}")
+          withClue("All microblocks should not be processed") {
+            r match {
+              case Left(e: GenericError) => e.err should include("Limit of txs was reached")
+              case x =>
+                val txNumberByMicroBlock = microBlocks.map(_.transactionData.size)
+                fail(
+                  s"Unexpected result: $x. keyblock txs: ${keyBlock.transactionCount}, " +
+                    s"microblock txs: ${txNumberByMicroBlock.mkString(", ")} (total: ${txNumberByMicroBlock.sum}), " +
+                    s"total txs: ${keyBlock.transactionCount + txNumberByMicroBlock.sum}")
+            }
+          }
         }
-      }
+    }
+  }
+
+  property("miner settings don't interfere with micro block processing") {
+    val oneTxPerMicroSettings = MicroblocksActivatedAt0ZbsSettings
+      .copy(
+        minerSettings = MicroblocksActivatedAt0ZbsSettings.minerSettings.copy(
+          maxTransactionsInMicroBlock = 1
+        )
+      )
+    forAll(preconditionsAndPayments(10, Block.MaxTransactionsPerBlockVer3)) {
+      case (genBlock, keyBlock, microBlocks) =>
+        withDomain(oneTxPerMicroSettings) { d =>
+          d.blockchainUpdater.processBlock(genBlock)
+          d.blockchainUpdater.processBlock(keyBlock)
+          microBlocks.foreach { mb =>
+            d.blockchainUpdater.processMicroBlock(mb) shouldBe 'right
+          }
+        }
     }
   }
 

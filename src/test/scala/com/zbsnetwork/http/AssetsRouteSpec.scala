@@ -1,21 +1,21 @@
-package com.zbsplatform.http
+package com.zbsnetwork.http
 
 import akka.http.scaladsl.model.StatusCodes
 import com.typesafe.config.ConfigFactory
-import com.zbsplatform.http.ApiMarshallers._
-import com.zbsplatform.settings.RestAPISettings
-import com.zbsplatform.state.{Blockchain, Diff}
-import com.zbsplatform.utx.UtxPool
-import com.zbsplatform.{RequestGen, TestTime}
+import com.zbsnetwork.http.ApiMarshallers._
+import com.zbsnetwork.settings.RestAPISettings
+import com.zbsnetwork.state.{Blockchain, Diff}
+import com.zbsnetwork.utx.UtxPool
+import com.zbsnetwork.{RequestGen, TestTime}
 import io.netty.channel.group.ChannelGroup
 import org.scalamock.scalatest.PathMockFactory
 import org.scalatest.concurrent.Eventually
 import play.api.libs.json.Writes
-import com.zbsplatform.account.Address
-import com.zbsplatform.api.http.assets.{AssetsApiRoute, TransferV1Request, TransferV2Request}
-import com.zbsplatform.transaction.Transaction
-import com.zbsplatform.transaction.transfer._
-import com.zbsplatform.wallet.Wallet
+import com.zbsnetwork.account.Address
+import com.zbsnetwork.api.http.assets.{AssetsApiRoute, TransferV1Request, TransferV2Request}
+import com.zbsnetwork.transaction.Transaction
+import com.zbsnetwork.transaction.transfer._
+import com.zbsnetwork.wallet.Wallet
 
 class AssetsRouteSpec extends RouteSpec("/assets") with RequestGen with PathMockFactory with Eventually {
 

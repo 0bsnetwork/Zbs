@@ -1,16 +1,16 @@
-package com.zbsplatform.utils
+package com.zbsnetwork.utils
 
-import com.zbsplatform.lang.v1.compiler.Terms.{FUNCTION_CALL, TRUE}
-import com.zbsplatform.lang.v1.compiler.Types.BOOLEAN
-import com.zbsplatform.lang.v1.evaluator.ctx.{EvaluationContext, UserFunction}
+import com.zbsnetwork.lang.v1.compiler.Terms.{FUNCTION_CALL, TRUE}
+import com.zbsnetwork.lang.v1.compiler.Types.BOOLEAN
+import com.zbsnetwork.lang.v1.evaluator.ctx.{EvaluationContext, UserFunction}
 import org.scalatest.{FreeSpec, Matchers}
 
 class UtilsSpecification extends FreeSpec with Matchers {
 
   "estimate()" - {
     "handles functions that depend on each other" in {
-      val callee = UserFunction("callee", BOOLEAN)(TRUE)
-      val caller = UserFunction("caller", BOOLEAN)(FUNCTION_CALL(callee.header, List.empty))
+      val callee = UserFunction("callee", BOOLEAN, "test users true")(TRUE)
+      val caller = UserFunction("caller", BOOLEAN, "test call")(FUNCTION_CALL(callee.header, List.empty))
       val ctx = EvaluationContext(
         typeDefs = Map.empty,
         letDefs = Map.empty,

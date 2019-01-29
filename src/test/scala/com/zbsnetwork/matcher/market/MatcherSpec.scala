@@ -1,19 +1,19 @@
-package com.zbsplatform.matcher.market
+package com.zbsnetwork.matcher.market
 import java.io.File
 import java.nio.file.Files
 
 import akka.actor.ActorSystem
 import akka.testkit.TestKitBase
 import com.typesafe.config.ConfigFactory
-import com.zbsplatform.TestHelpers.deleteRecursively
-import com.zbsplatform.settings.loadConfig
+import com.zbsnetwork.TestHelpers.deleteRecursively
+import com.zbsnetwork.settings.loadConfig
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
 
 abstract class MatcherSpec(actorSystemName: String) extends TestKitBase with WordSpecLike with Matchers with BeforeAndAfterAll {
   import MatcherSpec._
   implicit lazy val system: ActorSystem = ActorSystem(
     actorSystemName,
-    loadConfig(ConfigFactory.parseString(s"$SnapshotStorePath = ${Files.createTempDirectory("order-book-actor-spec")}"))
+    loadConfig(ConfigFactory.parseString(s"$SnapshotStorePath = ${Files.createTempDirectory(actorSystemName)}"))
   )
   override protected def afterAll(): Unit = {
     super.afterAll()

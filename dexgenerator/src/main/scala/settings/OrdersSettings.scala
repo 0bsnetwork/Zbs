@@ -1,8 +1,8 @@
 package settings
 
 import cats.Show
-import com.zbsplatform.account.PrivateKeyAccount
-import com.zbsplatform.dexgen.utils.GenOrderType
+import com.zbsnetwork.account.PrivateKeyAccount
+import com.zbsnetwork.dexgen.utils.GenOrderType
 import settings.OrdersSettings.Settings
 
 class OrdersSettings(settings: Settings, val accounts: Seq[PrivateKeyAccount], val assets: Int) {}

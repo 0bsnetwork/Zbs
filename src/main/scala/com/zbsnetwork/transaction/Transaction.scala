@@ -1,8 +1,9 @@
-package com.zbsplatform.transaction
+package com.zbsnetwork.transaction
 
-import com.zbsplatform.state._
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.state._
 import monix.eval.Coeval
-import com.zbsplatform.serialization.{BytesSerializable, JsonSerializable}
+import com.zbsnetwork.serialization.{BytesSerializable, JsonSerializable}
 
 trait Transaction extends BytesSerializable with JsonSerializable {
   val id: Coeval[ByteStr]
@@ -19,6 +20,9 @@ trait Transaction extends BytesSerializable with JsonSerializable {
   }
 
   override def hashCode(): Int = id().hashCode()
+
+  val bodyBytes: Coeval[Array[Byte]]
+  def checkedAssets(): Seq[AssetId] = Seq.empty
 }
 
 object Transaction {

@@ -1,14 +1,15 @@
-package com.zbsplatform.utx
+package com.zbsnetwork.utx
 
 import akka.event.EventStream
 import cats.kernel.Monoid
-import com.zbsplatform.matcher.MatcherSettings
-import com.zbsplatform.matcher.model.Events.BalanceChanged
-import com.zbsplatform.mining.MultiDimensionalMiningConstraint
-import com.zbsplatform.state.{ByteStr, Diff, Portfolio}
-import com.zbsplatform.account.Address
-import com.zbsplatform.utils.ScorexLogging
-import com.zbsplatform.transaction.{AssetId, Authorized, Transaction, ValidationError}
+import com.zbsnetwork.matcher.MatcherSettings
+import com.zbsnetwork.matcher.model.Events.BalanceChanged
+import com.zbsnetwork.mining.MultiDimensionalMiningConstraint
+import com.zbsnetwork.state.{Diff, Portfolio}
+import com.zbsnetwork.account.Address
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.utils.ScorexLogging
+import com.zbsnetwork.transaction.{AssetId, Authorized, Transaction, ValidationError}
 
 import scala.collection.mutable
 
@@ -45,8 +46,8 @@ class MatcherUtxPool(underlying: UtxPool, matcherSettings: MatcherSettings, even
 
   override def transactionById(transactionId: ByteStr): Option[Transaction] = underlying.transactionById(transactionId)
 
-  override def packUnconfirmed(rest: MultiDimensionalMiningConstraint, sortInBlock: Boolean): (Seq[Transaction], MultiDimensionalMiningConstraint) =
-    underlying.packUnconfirmed(rest, sortInBlock)
+  override def packUnconfirmed(rest: MultiDimensionalMiningConstraint): (Seq[Transaction], MultiDimensionalMiningConstraint) =
+    underlying.packUnconfirmed(rest)
 
   override def batched[Result](f: UtxBatchOps => Result): Result = {
     val ops = new BatchOpsImpl(underlying.createBatchOps)

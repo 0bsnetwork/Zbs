@@ -1,21 +1,23 @@
 import com.typesafe.sbt.packager.archetypes.TemplateWriter
 import sbt.Keys.{sourceGenerators, _}
 import sbt._
-import sbtcrossproject.CrossPlugin.autoImport.crossProject
 import sbt.internal.inc.ReflectUtilities
 import sbtassembly.MergeStrategy
+import sbtcrossproject.CrossPlugin.autoImport.crossProject
 
 enablePlugins(JavaServerAppPackaging, JDebPackaging, SystemdPlugin, GitVersioning)
 scalafmtOnCompile in ThisBuild := true
+Global / cancelable := true
+Global / coverageExcludedPackages := ".*"
 
 val versionSource = Def.task {
   // WARNING!!!
   // Please, update the fallback version every major and minor releases.
   // This version is used then building from sources without Git repository
   // In case of not updating the version nodes build from headless sources will fail to connect to newer versions
-  val FallbackVersion = (0, 14, 6)
+  val FallbackVersion = (0, 15, 0)
 
-  val versionFile      = (sourceManaged in Compile).value / "com" / "zbsplatform" / "Version.scala"
+  val versionFile      = (sourceManaged in Compile).value / "com" / "zbsnetwork" / "Version.scala"
   val versionExtractor = """(\d+)\.(\d+)\.(\d+).*""".r
   val (major, minor, patch) = version.value match {
     case versionExtractor(ma, mi, pa) => (ma.toInt, mi.toInt, pa.toInt)
@@ -23,7 +25,7 @@ val versionSource = Def.task {
   }
   IO.write(
     versionFile,
-    s"""package com.zbsplatform
+    s"""package com.zbsnetwork
        |
        |object Version {
        |  val VersionString = "${version.value}"
@@ -44,21 +46,29 @@ logBuffered := false
 
 inThisBuild(
   Seq(
-    scalaVersion := "2.12.6",
-    organization := "com.zbsplatform",
+    scalaVersion := "2.12.8",
+    organization := "com.zbsnetwork",
     crossPaths := false,
     scalacOptions ++= Seq("-feature", "-deprecation", "-language:higherKinds", "-language:implicitConversions", "-Ywarn-unused:-implicits", "-Xlint")
   ))
 
 resolvers ++= Seq(
   Resolver.bintrayRepo("ethereum", "maven"),
-  Resolver.bintrayRepo("dnvriend", "maven")
+  Resolver.bintrayRepo("dnvriend", "maven"),
+  Resolver.sbtPluginRepo("releases")
 )
 
 fork in run := true
 javaOptions in run ++= Seq(
   "-XX:+IgnoreUnrecognizedVMOptions",
   "--add-modules=java.xml.bind"
+)
+
+Test / fork := true
+Test / javaOptions ++= Seq(
+  "-XX:+IgnoreUnrecognizedVMOptions",
+  "--add-modules=java.xml.bind",
+  "--add-exports=java.base/jdk.internal.ref=ALL-UNNAMED"
 )
 
 val aopMerge: MergeStrategy = new MergeStrategy {
@@ -96,7 +106,7 @@ inTask(assembly)(
 
 inConfig(Compile)(
   Seq(
-    mainClass := Some("com.zbsplatform.Application"),
+    mainClass := Some("com.zbsnetwork.Application"),
     publishArtifact in packageDoc := false,
     publishArtifact in packageSrc := false,
     sourceGenerators += versionSource
@@ -112,7 +122,7 @@ inConfig(Test)(
 
 inConfig(Linux)(
   Seq(
-    maintainer := "zbsplatform.com",
+    maintainer := "0bsnetwork.com",
     packageSummary := "Zbs node",
     packageDescription := "Zbs node"
   ))
@@ -139,8 +149,8 @@ inConfig(Universal)(
       // -J prefix is required by the bash script
       "-J-server",
       // JVM memory tuning for 2g ram
-      "-J-Xms2048m",
-      "-J-Xmx3g",
+      "-J-Xms128m",
+      "-J-Xmx2g",
       "-J-XX:+ExitOnOutOfMemoryError",
       // Java 9 support
       "-J-XX:+IgnoreUnrecognizedVMOptions",
@@ -199,26 +209,46 @@ def allProjects: List[ProjectReference] = ReflectUtilities.allVals[Project](this
   p: ProjectReference
 }
 
-addCommandAlias("checkPR", """;set scalacOptions in ThisBuild ++= Seq("-Xfatal-warnings"); Global / checkPRRaw""")
+addCommandAlias(
+  "checkPR",
+  """;
+    |set scalacOptions in ThisBuild ++= Seq("-Xfatal-warnings");
+    |Global / checkPRRaw;
+    |set scalacOptions in ThisBuild -= "-Xfatal-warnings";
+  """.stripMargin
+)
+
 lazy val checkPRRaw = taskKey[Unit]("Build a project and run unit tests")
 checkPRRaw in Global := {
   try {
     clean.all(ScopeFilter(inProjects(allProjects: _*), inConfigurations(Compile))).value
   } finally {
-    test.all(ScopeFilter(inProjects(langJVM, node), inConfigurations(Test))).value
+    test.all(ScopeFilter(inProjects(langJVM, node, commonJVM), inConfigurations(Test))).value
+    (langJS / Compile / fastOptJS).value
     compile.all(ScopeFilter(inProjects(generator, benchmark), inConfigurations(Test))).value
   }
 }
+
+lazy val common = crossProject(JSPlatform, JVMPlatform)
+  .withoutSuffixFor(JVMPlatform)
+  .settings(
+    libraryDependencies ++= Dependencies.scalatest
+  )
+
+lazy val commonJS  = common.js
+lazy val commonJVM = common.jvm
 
 lazy val lang =
   crossProject(JSPlatform, JVMPlatform)
     .withoutSuffixFor(JVMPlatform)
     .settings(
-      version := "0.0.1",
+      version := "1.0.0",
+      coverageExcludedPackages := ".*",
       // the following line forces scala version across all dependencies
       scalaModuleInfo ~= (_.map(_.withOverrideScalaVersion(true))),
       test in assembly := {},
       addCompilerPlugin(Dependencies.kindProjector),
+      addCompilerPlugin(Dependencies.betterFor),
       libraryDependencies ++=
         Dependencies.cats ++
           Dependencies.fp ++
@@ -227,28 +257,49 @@ lazy val lang =
           Dependencies.scalatest ++
           Dependencies.scalactic ++
           Dependencies.monix.value ++
-          Dependencies.scodec.value ++
           Dependencies.fastparse.value,
-      resolvers += Resolver.bintrayIvyRepo("portable-scala", "sbt-plugins")
+      resolvers += Resolver.bintrayIvyRepo("portable-scala", "sbt-plugins"),
+      resolvers += Resolver.sbtPluginRepo("releases")
     )
     .jsSettings(
       scalaJSLinkerConfig ~= {
         _.withModuleKind(ModuleKind.CommonJSModule)
-      }
+      },
+      libraryDependencies ++= Seq(
+        "org.rudogma" %%% "supertagged" % "1.4",
+        "com.chuusai" %%% "shapeless"   % "2.3.3"
+      )
     )
     .jvmSettings(
-      libraryDependencies ++= Seq(
-        "org.scala-js"                %% "scalajs-stubs" % "0.6.22" % "provided"
-      ) ++ Dependencies.logging.map(_ % "test") // scrypto logs an error if a signature verification was failed
+      coverageExcludedPackages := "",
+      publishMavenStyle := true,
+      credentials += Credentials(Path.userHome / ".sbt" / ".credentials"),
+      publishTo := Some("Sonatype Nexus" at "https://oss.sonatype.org/service/local/staging/deploy/maven2"),
+      name := "RIDE Compiler",
+      normalizedName := "lang",
+      description := "The RIDE smart contract language compiler",
+      homepage := Some(url("https://docs.0bsnetwork.com/en/technical-details/zbs-contracts-language-description/maven-compiler-package.html")),
+      licenses := Seq(("MIT", url("https://github.com/0bsnetwork/Zbs/blob/master/LICENSE"))),
+      organization := "com.zbsnetwork",
+      organizationName := "Zbs Platform",
+      organizationHomepage := Some(url("https://0bsnetwork.com")),
+      scmInfo := Some(ScmInfo(url("https://github.com/0bsnetwork/Zbs"), "git@github.com:0bsnetwork/Zbs.git", None)),
+      developers := List(Developer("petermz", "Peter Zhelezniakov", "peterz@rambler.ru", url("https://0bsnetwork.com"))),
+      libraryDependencies ++= Dependencies.meta ++
+        Seq(
+          "org.scala-js"                      %% "scalajs-stubs" % "1.0.0-RC1" % "provided",
+          "com.github.spullara.mustache.java" % "compiler" % "0.9.5"
+        ) ++ Dependencies.logging.map(_       % "test") // scrypto logs an error if a signature verification was failed
     )
 
-lazy val langJS  = lang.js
-lazy val langJVM = lang.jvm
+lazy val langJS  = lang.js.dependsOn(commonJS)
+lazy val langJVM = lang.jvm.dependsOn(commonJVM)
 
 lazy val node = project
   .in(file("."))
   .settings(
     addCompilerPlugin(Dependencies.kindProjector),
+    coverageExcludedPackages := "",
     libraryDependencies ++=
       Dependencies.network ++
         Dependencies.db ++
@@ -266,7 +317,7 @@ lazy val node = project
         Dependencies.commons_net ++
         Dependencies.monix.value
   )
-  .dependsOn(langJVM)
+  .dependsOn(langJVM, commonJVM)
 
 lazy val discovery = project
 

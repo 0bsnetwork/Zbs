@@ -1,4 +1,4 @@
-package com.zbsplatform.features.api
+package com.zbsnetwork.features.api
 
 sealed trait NodeFeatureStatus
 

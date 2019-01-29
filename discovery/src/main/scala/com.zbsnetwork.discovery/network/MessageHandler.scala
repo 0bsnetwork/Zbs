@@ -1,4 +1,4 @@
-package com.zbsplatform.discovery.network
+package com.zbsnetwork.discovery.network
 
 import io.netty.channel.{ChannelHandlerContext, ChannelInboundHandlerAdapter}
 

@@ -1,4 +1,4 @@
-package com.zbsplatform.http
+package com.zbsnetwork.http
 
 import java.net.{InetAddress, InetSocketAddress, URI}
 import java.util.concurrent.ConcurrentMap
@@ -6,37 +6,43 @@ import java.util.concurrent.ConcurrentMap
 import akka.http.scaladsl.marshalling.ToResponseMarshallable
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Route
+import cats.implicits._
 import com.typesafe.config.{ConfigObject, ConfigRenderOptions}
-import com.zbsplatform.account.Address
-import com.zbsplatform.api.http._
-import com.zbsplatform.block.Block
-import com.zbsplatform.block.Block.BlockId
-import com.zbsplatform.crypto
-import com.zbsplatform.mining.{Miner, MinerDebugInfo}
-import com.zbsplatform.network.{LocalScoreChanged, PeerDatabase, PeerInfo, _}
-import com.zbsplatform.settings.ZbsSettings
-import com.zbsplatform.state.{Blockchain, ByteStr, LeaseBalance, NG, Portfolio}
-import com.zbsplatform.transaction._
-import com.zbsplatform.utils.{Base58, NTP, ScorexLogging}
-import com.zbsplatform.utx.UtxPool
-import com.zbsplatform.wallet.Wallet
+import com.zbsnetwork.account.Address
+import com.zbsnetwork.api.http._
+import com.zbsnetwork.block.Block
+import com.zbsnetwork.block.Block.BlockId
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.Base58
+import com.zbsnetwork.crypto
+import com.zbsnetwork.mining.{Miner, MinerDebugInfo}
+import com.zbsnetwork.network.{LocalScoreChanged, PeerDatabase, PeerInfo, _}
+import com.zbsnetwork.settings.ZbsSettings
+import com.zbsnetwork.state.diffs.TransactionDiffer
+import com.zbsnetwork.state.{Blockchain, LeaseBalance, NG, Portfolio}
+import com.zbsnetwork.transaction.ValidationError.InvalidRequestSignature
+import com.zbsnetwork.transaction._
+import com.zbsnetwork.transaction.smart.Verifier
+import com.zbsnetwork.utils.{ScorexLogging, Time}
+import com.zbsnetwork.utx.UtxPool
+import com.zbsnetwork.wallet.Wallet
 import io.netty.channel.Channel
 import io.netty.channel.group.ChannelGroup
 import io.swagger.annotations._
 import javax.ws.rs.Path
-
-import com.zbsplatform.state.diffs.TransactionDiffer
-import com.zbsplatform.transaction.smart.Verifier
 import monix.eval.{Coeval, Task}
 import play.api.libs.json._
+import com.zbsnetwork.utils.byteStrWrites
 
 import scala.concurrent.Future
+import scala.concurrent.duration._
 import scala.util.control.NonFatal
 import scala.util.{Failure, Success}
 
 @Path("/debug")
 @Api(value = "/debug")
 case class DebugApiRoute(ws: ZbsSettings,
+                         time: Time,
                          blockchain: Blockchain,
                          wallet: Wallet,
                          ng: NG,
@@ -93,7 +99,7 @@ case class DebugApiRoute(ws: ZbsSettings,
         value = "Json with data",
         required = true,
         paramType = "body",
-        dataType = "com.zbsplatform.http.DebugMessage",
+        dataType = "com.zbsnetwork.http.DebugMessage",
         defaultValue = "{\n\t\"message\": \"foo\"\n}"
       )
     ))
@@ -130,11 +136,11 @@ case class DebugApiRoute(ws: ZbsSettings,
     ))
   @ApiResponses(Array(new ApiResponse(code = 200, message = "Json portfolio")))
   def portfolios: Route = path("portfolios" / Segment) { rawAddress =>
-    (get & withAuth & parameter('considerUnspent.as[Boolean])) { considerUnspent =>
+    (get & withAuth & parameter('considerUnspent.as[Boolean].?)) { considerUnspent =>
       Address.fromString(rawAddress) match {
         case Left(_) => complete(InvalidAddress)
         case Right(address) =>
-          val portfolio = if (considerUnspent) utxStorage.portfolio(address) else ng.portfolio(address)
+          val portfolio = if (considerUnspent.getOrElse(true)) utxStorage.portfolio(address) else ng.portfolio(address)
           complete(Json.toJson(portfolio))
       }
     }
@@ -183,7 +189,7 @@ case class DebugApiRoute(ws: ZbsSettings,
         value = "Json with data",
         required = true,
         paramType = "body",
-        dataType = "com.zbsplatform.http.RollbackParams",
+        dataType = "com.zbsnetwork.http.RollbackParams",
         defaultValue = "{\n\t\"rollbackTo\": 3,\n\t\"returnTransactionsToUTX\": false\n}"
       )
     ))
@@ -191,7 +197,7 @@ case class DebugApiRoute(ws: ZbsSettings,
     Array(
       new ApiResponse(code = 200, message = "200 if success, 404 if there are no block at this height")
     ))
-  def rollback: Route = (path("rollback") & post & withAuth) {
+  def rollback: Route = (path("rollback") & post & withAuth & withRequestTimeout(15.minutes)) {
     json[RollbackParams] { params =>
       ng.blockAt(params.rollbackTo) match {
         case Some(block) =>
@@ -227,14 +233,21 @@ case class DebugApiRoute(ws: ZbsSettings,
       new ApiResponse(code = 200, message = "Json state")
     ))
   def minerInfo: Route = (path("minerInfo") & get & withAuth) {
-    complete(miner.collectNextBlockGenerationTimes.map {
-      case (a, t) =>
-        AccountMiningInfo(
-          a.stringRepr,
-          ng.effectiveBalance(a, ng.height, ws.blockchainSettings.functionalitySettings.generatingBalanceDepth(ng.height)),
-          t
-        )
-    })
+    complete(
+      wallet.privateKeyAccounts
+        .filterNot(account => ng.hasScript(account.toAddress))
+        .map { account =>
+          (account.toAddress, miner.getNextBlockGenerationOffset(account))
+        }
+        .collect {
+          case (address, Right(offset)) =>
+            AccountMiningInfo(
+              address.stringRepr,
+              ng.effectiveBalance(address, ng.height, ws.blockchainSettings.functionalitySettings.generatingBalanceDepth(ng.height)),
+              System.currentTimeMillis() + offset.toMillis
+            )
+        }
+    )
   }
 
   @Path("/historyInfo")
@@ -278,12 +291,16 @@ case class DebugApiRoute(ws: ZbsSettings,
     ))
   def rollbackTo: Route = path("rollback-to" / Segment) { signature =>
     (delete & withAuth) {
-      ByteStr.decodeBase58(signature) match {
-        case Success(sig) =>
-          complete(rollbackToBlock(sig, returnTransactionsToUtx = false))
-        case _ =>
-          complete(InvalidSignature)
-      }
+      val signatureEi: Either[ValidationError, ByteStr] =
+        ByteStr
+          .decodeBase58(signature)
+          .toEither
+          .leftMap(_ => InvalidRequestSignature)
+      signatureEi
+        .fold(
+          err => complete(ApiError.fromValidationError(err)),
+          sig => complete(rollbackToBlock(sig, false))
+        )
     }
   }
 
@@ -331,7 +348,7 @@ case class DebugApiRoute(ws: ZbsSettings,
         val diffEi = for {
           tx <- TransactionFactory.fromSignedRequest(jsv)
           _  <- Verifier(blockchain, h)(tx)
-          ei <- TransactionDiffer(fs, blockchain.lastBlockTimestamp, NTP.correctedTime(), h)(blockchain, tx)
+          ei <- TransactionDiffer(fs, blockchain.lastBlockTimestamp, time.correctedTime(), h)(blockchain, tx)
         } yield ei
         val timeSpent = (System.nanoTime - t0) / 1000 / 1000.0
         val response  = Json.obj("valid" -> diffEi.isRight, "validationTime" -> timeSpent)

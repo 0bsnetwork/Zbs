@@ -1,17 +1,19 @@
-package com.zbsplatform.lagonaki.unit
+package com.zbsnetwork.lagonaki.unit
 
-import com.zbsplatform.metrics.Instrumented
-import com.zbsplatform.state._
-import com.zbsplatform.state.diffs.produce
-import com.zbsplatform.{NoShrink, TransactionGen, crypto}
+import com.zbsnetwork.account.PublicKeyAccount
+import com.zbsnetwork.block.{Block, SignerData}
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.consensus.nxt.NxtLikeConsensusBlockData
+import com.zbsnetwork.metrics.Instrumented
+import com.zbsnetwork.state.diffs.produce
+import com.zbsnetwork.transaction._
+import com.zbsnetwork.transaction.transfer._
+import com.zbsnetwork.{NoShrink, TransactionGen, crypto}
 import org.scalacheck.Arbitrary.arbitrary
 import org.scalacheck.Gen
 import org.scalatest._
 import org.scalatest.prop.PropertyChecks
-import com.zbsplatform.block.Block
-import com.zbsplatform.consensus.nxt.NxtLikeConsensusBlockData
-import com.zbsplatform.transaction._
-import com.zbsplatform.transaction.transfer._
 
 class BlockSpecification extends PropSpec with PropertyChecks with TransactionGen with Matchers with NoShrink {
 
@@ -117,6 +119,25 @@ class BlockSpecification extends PropSpec with PropertyChecks with TransactionGe
         assert(parsedBlock.version.toInt == version)
         assert(parsedBlock.signerData.generator.publicKey.sameElements(recipient.publicKey))
         assert(parsedBlock.featureVotes == featureVotes)
+    }
+  }
+
+  property("block signed by a weak public key is invalid") {
+    val weakAccount = PublicKeyAccount(Array.fill(32)(0: Byte))
+    forAll(blockGen) {
+      case (baseTarget, reference, generationSignature, recipient, transactionData) =>
+        val block = Block
+          .build(
+            3,
+            time,
+            reference,
+            NxtLikeConsensusBlockData(baseTarget, generationSignature),
+            transactionData,
+            SignerData(weakAccount, ByteStr(Array.fill(64)(0: Byte))),
+            Set.empty
+          )
+          .explicitGet()
+        block.signaturesValid() shouldBe 'left
     }
   }
 

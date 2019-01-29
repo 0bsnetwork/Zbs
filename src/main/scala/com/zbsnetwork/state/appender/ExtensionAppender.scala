@@ -1,21 +1,22 @@
-package com.zbsplatform.state.appender
+package com.zbsnetwork.state.appender
 
-import com.zbsplatform.consensus.PoSSelector
-import com.zbsplatform.metrics.{BlockStats, Instrumented, Metrics}
-import com.zbsplatform.mining.Miner
-import com.zbsplatform.network.{InvalidBlockStorage, PeerDatabase, formatBlocks, id}
-import com.zbsplatform.settings.ZbsSettings
-import com.zbsplatform.state._
-import com.zbsplatform.utils.{ScorexLogging, Time}
-import com.zbsplatform.utx.UtxPool
+import com.zbsnetwork.block.Block
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.consensus.PoSSelector
+import com.zbsnetwork.metrics.{BlockStats, Instrumented, Metrics}
+import com.zbsnetwork.mining.Miner
+import com.zbsnetwork.network.{InvalidBlockStorage, PeerDatabase, formatBlocks, id}
+import com.zbsnetwork.settings.ZbsSettings
+import com.zbsnetwork.state._
+import com.zbsnetwork.transaction.ValidationError.GenericError
+import com.zbsnetwork.transaction._
+import com.zbsnetwork.utils.{ScorexLogging, Time}
+import com.zbsnetwork.utx.UtxPool
 import io.netty.channel.Channel
 import io.netty.channel.group.ChannelGroup
 import monix.eval.{Coeval, Task}
 import monix.execution.Scheduler
 import org.influxdb.dto.Point
-import com.zbsplatform.block.Block
-import com.zbsplatform.transaction.ValidationError.GenericError
-import com.zbsplatform.transaction._
 
 import scala.util.{Left, Right}
 
@@ -78,7 +79,11 @@ object ExtensionAppender extends ScorexLogging with Instrumented {
                 _ <- Either.cond(isForkValidWithCheckpoint(commonBlockHeight),
                                  (),
                                  GenericError("Fork contains block that doesn't match checkpoint, declining fork"))
-                droppedBlocks <- blockchainUpdater.removeAfter(lastCommonBlockId)
+                droppedBlocks <- {
+                  if (commonBlockHeight < initialHeight)
+                    blockchainUpdater.removeAfter(lastCommonBlockId)
+                  else Right(Seq.empty)
+                }
               } yield (commonBlockHeight, droppedBlocks)
 
               droppedBlocksEi.flatMap {

@@ -1,9 +1,10 @@
-package com.zbsplatform.api.http
+package com.zbsnetwork.api.http
 
 import akka.http.scaladsl.server.Directive1
-import com.zbsplatform.state.{Blockchain, ByteStr}
-import com.zbsplatform.block.Block
-import com.zbsplatform.transaction.TransactionParsers
+import com.zbsnetwork.state.Blockchain
+import com.zbsnetwork.block.Block
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.transaction.TransactionParsers
 
 trait CommonApiFunctions { this: ApiRoute =>
   protected[api] def withBlock(blockchain: Blockchain, encodedSignature: String): Directive1[Block] =

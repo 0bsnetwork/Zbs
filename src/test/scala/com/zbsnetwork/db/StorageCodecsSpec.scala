@@ -1,7 +1,7 @@
-package com.zbsplatform.db
+package com.zbsnetwork.db
 
-import com.zbsplatform.network.{BlockCheckpoint, Checkpoint}
-import com.zbsplatform.state.EitherExt2
+import com.zbsnetwork.network.{BlockCheckpoint, Checkpoint}
+import com.zbsnetwork.common.utils.EitherExt2
 import org.scalatest.prop.PropertyChecks
 import org.scalatest.{FreeSpec, Matchers}
 

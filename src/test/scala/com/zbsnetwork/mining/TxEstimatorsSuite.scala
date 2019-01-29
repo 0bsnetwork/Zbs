@@ -1,13 +1,16 @@
-package com.zbsplatform.mining
+package com.zbsnetwork.mining
 
-import com.zbsplatform.TransactionGen
-import com.zbsplatform.lang.v1.compiler.Terms
-import com.zbsplatform.state.{AssetDescription, Blockchain, ByteStr, EitherExt2}
+import com.zbsnetwork.TransactionGen
+import com.zbsnetwork.account.{Address, PrivateKeyAccount}
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.lang.Version.ExprV1
+import com.zbsnetwork.lang.v1.compiler.Terms
+import com.zbsnetwork.state.{AssetDescription, Blockchain}
+import com.zbsnetwork.transaction.smart.script.v1.ExprScript
+import com.zbsnetwork.transaction.transfer.TransferTransactionV1
 import org.scalamock.scalatest.PathMockFactory
 import org.scalatest.{FreeSpec, Matchers}
-import com.zbsplatform.account.{Address, PrivateKeyAccount}
-import com.zbsplatform.transaction.smart.script.v1.ScriptV1
-import com.zbsplatform.transaction.transfer.TransferTransactionV1
 
 class TxEstimatorsSuite extends FreeSpec with Matchers with PathMockFactory with TransactionGen {
   "scriptRunNumber" - {
@@ -55,7 +58,7 @@ class TxEstimatorsSuite extends FreeSpec with Matchers with PathMockFactory with
   }
 
   private val assetId = ByteStr("coin_id".getBytes())
-  private val script  = ScriptV1(Terms.TRUE, checkSize = false).explicitGet()
+  private val script  = ExprScript(ExprV1, Terms.TRUE, checkSize = false).explicitGet()
 
   private val transferZbsTx = TransferTransactionV1
     .selfSigned(

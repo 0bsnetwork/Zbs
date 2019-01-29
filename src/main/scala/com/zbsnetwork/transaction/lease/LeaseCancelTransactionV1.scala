@@ -1,12 +1,13 @@
-package com.zbsplatform.transaction.lease
+package com.zbsnetwork.transaction.lease
 
 import com.google.common.primitives.Bytes
-import com.zbsplatform.crypto
-import com.zbsplatform.state.ByteStr
+import com.zbsnetwork.crypto
 import monix.eval.Coeval
-import com.zbsplatform.account.{PrivateKeyAccount, PublicKeyAccount}
-import com.zbsplatform.transaction._
-import scorex.crypto.signatures.Curve25519._
+import com.zbsnetwork.account.{PrivateKeyAccount, PublicKeyAccount}
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.transaction._
+import com.zbsnetwork.crypto._
+
 import scala.util.{Failure, Success, Try}
 
 case class LeaseCancelTransactionV1 private (sender: PublicKeyAccount, leaseId: ByteStr, fee: Long, timestamp: Long, signature: ByteStr)
@@ -28,7 +29,7 @@ case class LeaseCancelTransactionV1 private (sender: PublicKeyAccount, leaseId: 
 
 object LeaseCancelTransactionV1 extends TransactionParserFor[LeaseCancelTransactionV1] with TransactionParser.HardcodedVersion1 {
 
-  override val typeId: Byte = 9
+  override val typeId: Byte = LeaseCancelTransaction.typeId
 
   override protected def parseTail(version: Byte, bytes: Array[Byte]): Try[TransactionT] =
     Try {

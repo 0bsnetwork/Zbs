@@ -1,12 +1,13 @@
-package com.zbsplatform.transaction
+package com.zbsnetwork.transaction
 
 import com.google.common.primitives.{Bytes, Ints, Longs}
-import com.zbsplatform.crypto
-import com.zbsplatform.state.{ByteStr, _}
+import com.zbsnetwork.account.Address
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.crypto
+import com.zbsnetwork.transaction.TransactionParsers._
 import monix.eval.Coeval
 import play.api.libs.json.{JsObject, Json}
-import com.zbsplatform.account.Address
-import com.zbsplatform.transaction.TransactionParsers._
 
 import scala.util.{Failure, Success, Try}
 
@@ -39,6 +40,7 @@ case class GenesisTransaction private (recipient: Address, amount: Long, timesta
     require(res.length == TypeLength + BASE_LENGTH)
     res
   }
+  override val bodyBytes: Coeval[Array[Byte]] = bytes
 }
 
 object GenesisTransaction extends TransactionParserFor[GenesisTransaction] with TransactionParser.HardcodedVersion1 {

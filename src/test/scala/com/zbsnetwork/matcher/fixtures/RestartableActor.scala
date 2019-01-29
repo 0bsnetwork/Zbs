@@ -1,8 +1,8 @@
-package com.zbsplatform.matcher.fixtures
+package com.zbsnetwork.matcher.fixtures
 
 import akka.persistence.PersistentActor
 
-import com.zbsplatform.matcher.fixtures.RestartableActor.{RestartActor, RestartActorException}
+import com.zbsnetwork.matcher.fixtures.RestartableActor.{RestartActor, RestartActorException}
 
 trait RestartableActor extends PersistentActor {
 

@@ -1,11 +1,11 @@
-package com.zbsplatform.lang.v1.evaluator.ctx.impl
+package com.zbsnetwork.lang.v1.evaluator.ctx.impl
 
-import com.zbsplatform.lang.ExecutionError
-import com.zbsplatform.lang.v1.evaluator.ctx.CaseObj
-import com.zbsplatform.lang.v1.evaluator.ctx.impl.zbs.Types
-import com.zbsplatform.lang.v1.traits.Recipient.{Address, Alias}
-import com.zbsplatform.lang.v1.traits.{DataType, Environment, Recipient}
-import scodec.bits.ByteVector
+import com.zbsnetwork.lang.ExecutionError
+import com.zbsnetwork.lang.v1.compiler.Terms.{CaseObj, CONST_BYTESTR, CONST_STRING}
+import com.zbsnetwork.lang.v1.evaluator.ctx.impl.zbs.Types
+import com.zbsnetwork.lang.v1.traits.domain.Recipient
+import com.zbsnetwork.lang.v1.traits.domain.Recipient.{Address, Alias}
+import com.zbsnetwork.lang.v1.traits.{DataType, Environment}
 
 class EnvironmentFunctions(environment: Environment) {
 
@@ -17,14 +17,14 @@ class EnvironmentFunctions(environment: Environment) {
         addressOrAlias.fields
           .get("bytes")
           .toRight("Can't find 'bytes'")
-          .map(_.asInstanceOf[ByteVector])
-          .map(Address)
+          .map(_.asInstanceOf[CONST_BYTESTR])
+          .map(a => Address(a.bs))
       } else if (objTypeName == Types.aliasType.name) {
         addressOrAlias.fields
           .get("alias")
           .toRight("Can't find alias")
-          .map(_.asInstanceOf[String])
-          .map(Alias)
+          .map(_.asInstanceOf[CONST_STRING])
+          .map(a => Alias(a.s))
       } else {
         Left(s"$addressOrAlias neither Address nor alias")
       }
@@ -37,9 +37,9 @@ class EnvironmentFunctions(environment: Environment) {
 }
 
 object EnvironmentFunctions {
-  val ChecksumLength       = 4
-  val HashLength           = 20
+  val ChecksumLength = 4
+  val HashLength = 20
   val AddressVersion: Byte = 1
-  val AddressLength: Int   = 1 + 1 + ChecksumLength + HashLength
-  val AddressPrefix        = "address:"
+  val AddressLength: Int = 1 + 1 + ChecksumLength + HashLength
+  val AddressPrefix = "address:"
 }

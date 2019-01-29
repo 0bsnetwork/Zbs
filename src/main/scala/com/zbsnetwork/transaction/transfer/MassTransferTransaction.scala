@@ -1,19 +1,19 @@
-package com.zbsplatform.transaction.transfer
+package com.zbsnetwork.transaction.transfer
 
 import cats.implicits._
 import com.google.common.primitives.{Bytes, Longs, Shorts}
-import com.zbsplatform.account.{AddressOrAlias, PrivateKeyAccount, PublicKeyAccount}
-import com.zbsplatform.crypto
-import com.zbsplatform.serialization.Deser
-import com.zbsplatform.state._
-import com.zbsplatform.transaction.ValidationError.Validation
-import com.zbsplatform.transaction._
-import com.zbsplatform.transaction.transfer.MassTransferTransaction.{ParsedTransfer, toJson}
-import com.zbsplatform.utils.Base58
+import com.zbsnetwork.account.{AddressOrAlias, PrivateKeyAccount, PublicKeyAccount}
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.{Base58, EitherExt2}
+import com.zbsnetwork.crypto
+import com.zbsnetwork.crypto._
+import com.zbsnetwork.serialization.Deser
+import com.zbsnetwork.transaction.ValidationError.Validation
+import com.zbsnetwork.transaction._
+import com.zbsnetwork.transaction.transfer.MassTransferTransaction.{ParsedTransfer, toJson}
 import io.swagger.annotations.{ApiModel, ApiModelProperty}
 import monix.eval.Coeval
 import play.api.libs.json.{Format, JsObject, JsValue, Json}
-import scorex.crypto.signatures.Curve25519._
 
 import scala.annotation.meta.field
 import scala.util.{Either, Failure, Success, Try}
@@ -67,7 +67,8 @@ case class MassTransferTransaction private (version: Byte,
   def compactJson(recipients: Set[AddressOrAlias]): JsObject =
     jsonBase() ++ Json.obj("transfers" -> toJson(transfers.filter(t => recipients.contains(t.address))))
 
-  override val bytes: Coeval[Array[Byte]] = Coeval.evalOnce(Bytes.concat(bodyBytes(), proofs.bytes()))
+  override val bytes: Coeval[Array[Byte]]    = Coeval.evalOnce(Bytes.concat(bodyBytes(), proofs.bytes()))
+  override def checkedAssets(): Seq[AssetId] = assetId.toSeq
 }
 
 object MassTransferTransaction extends TransactionParserFor[MassTransferTransaction] with TransactionParser.OneVersion {
@@ -78,11 +79,9 @@ object MassTransferTransaction extends TransactionParserFor[MassTransferTransact
   val MaxTransferCount = 100
 
   @ApiModel
-  case class Transfer(@(ApiModelProperty @field)(dataType = "string",
-                                                 example = "3Mciuup51AxRrpSz7XhutnQYTkNT9691HAk",
-                                                 required = true,
-                                                 allowEmptyValue = false) recipient: String,
-                      @(ApiModelProperty @field)(dataType = "long", example = "3000000000", required = true, allowEmptyValue = false) amount: Long)
+  case class Transfer(
+      @(ApiModelProperty @field)(dataType = "string", example = "3Mciuup51AxRrpSz7XhutnQYTkNT9691HAk", required = true) recipient: String,
+      @(ApiModelProperty @field)(dataType = "long", example = "3000000000", required = true) amount: Long)
 
   case class ParsedTransfer(address: AddressOrAlias, amount: Long)
 
@@ -134,7 +133,7 @@ object MassTransferTransaction extends TransactionParserFor[MassTransferTransact
         if (version != MassTransferTransaction.version) {
           Left(ValidationError.UnsupportedVersion(version))
         } else if (transfers.lengthCompare(MaxTransferCount) > 0) {
-          Left(ValidationError.GenericError(s"Number of transfers is greater than $MaxTransferCount"))
+          Left(ValidationError.GenericError(s"Number of transfers ${transfers.length} is greater than $MaxTransferCount"))
         } else if (transfers.exists(_.amount < 0)) {
           Left(ValidationError.GenericError("One of the transfers has negative amount"))
         } else if (attachment.length > TransferTransaction.MaxAttachmentSize) {

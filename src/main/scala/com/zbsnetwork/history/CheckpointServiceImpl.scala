@@ -1,12 +1,12 @@
-package com.zbsplatform.history
+package com.zbsnetwork.history
 
-import com.zbsplatform.crypto
-import com.zbsplatform.db.{CheckpointCodec, PropertiesStorage, SubStorage}
-import com.zbsplatform.network.Checkpoint
-import com.zbsplatform.settings.CheckpointsSettings
+import com.zbsnetwork.crypto
+import com.zbsnetwork.db.{CheckpointCodec, PropertiesStorage, SubStorage}
+import com.zbsnetwork.network.Checkpoint
+import com.zbsnetwork.settings.CheckpointsSettings
 import org.iq80.leveldb.DB
-import com.zbsplatform.transaction.ValidationError.GenericError
-import com.zbsplatform.transaction.{CheckpointService, ValidationError}
+import com.zbsnetwork.transaction.ValidationError.GenericError
+import com.zbsnetwork.transaction.{CheckpointService, ValidationError}
 
 class CheckpointServiceImpl(db: DB, settings: CheckpointsSettings)
     extends SubStorage(db, "checkpoints")

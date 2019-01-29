@@ -1,17 +1,18 @@
-package com.zbsplatform.lang.v1
+package com.zbsnetwork.lang.v1
 
 import cats.data.EitherT
 import cats.kernel.Monoid
-import com.zbsplatform.lang.Common._
-import com.zbsplatform.lang._
-import com.zbsplatform.lang.v1.compiler.CompilerV1
-import com.zbsplatform.lang.v1.compiler.Terms._
-import com.zbsplatform.lang.v1.evaluator.FunctionIds._
-import com.zbsplatform.lang.v1.evaluator.ctx._
-import com.zbsplatform.lang.v1.evaluator.ctx.impl.PureContext
-import com.zbsplatform.lang.v1.evaluator.ctx.impl.zbs.Types.transferTransactionType
-import com.zbsplatform.lang.v1.parser.Parser
-import com.zbsplatform.lang.v1.testing.ScriptGen
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.lang.Common._
+import com.zbsnetwork.lang.Version.ExprV1
+import com.zbsnetwork.lang.v1.compiler.ExpressionCompilerV1
+import com.zbsnetwork.lang.v1.compiler.Terms._
+import com.zbsnetwork.lang.v1.evaluator.FunctionIds._
+import com.zbsnetwork.lang.v1.evaluator.ctx._
+import com.zbsnetwork.lang.v1.evaluator.ctx.impl.PureContext
+import com.zbsnetwork.lang.v1.evaluator.ctx.impl.zbs.Types
+import com.zbsnetwork.lang.v1.parser.Parser
+import com.zbsnetwork.lang.v1.testing.ScriptGen
 import monix.eval.Coeval
 import org.scalatest.prop.PropertyChecks
 import org.scalatest.{Matchers, PropSpec}
@@ -24,19 +25,22 @@ class ScriptEstimatorTest extends PropSpec with PropertyChecks with Matchers wit
   val FunctionCosts: Map[FunctionHeader, Coeval[Long]] = Map[FunctionHeader, Long](Plus -> 100, Minus -> 10, Gt -> 10).mapValues(Coeval.now)
 
   private val ctx = {
-    val tx = CaseObj(transferTransactionType.typeRef, Map("amount" -> 100000000L))
+    val transactionType = Types.buildTransferTransactionType(true)
+    val tx              = CaseObj(transactionType.typeRef, Map("amount" -> CONST_LONG(100000000L)))
     Monoid
-      .combine(PureContext.ctx,
-               CTX(
-                 Seq(transferTransactionType),
-                 Map(("tx", (transferTransactionType.typeRef, LazyVal(EitherT.pure(tx))))),
-                 Seq.empty
-               ))
+      .combine(
+        PureContext.build(ExprV1),
+        CTX(
+          Seq(transactionType),
+          Map(("tx", ((transactionType.typeRef, "Fake transaction"), LazyVal(EitherT.pure(tx))))),
+          Array.empty
+        )
+      )
   }
 
   private def compile(code: String): EXPR = {
-    val untyped = Parser(code).get.value
-    CompilerV1(ctx.compilerContext, untyped).map(_._1).explicitGet()
+    val untyped = Parser.parseScript(code).get.value
+    ExpressionCompilerV1(ctx.compilerContext, untyped).map(_._1).explicitGet()
   }
 
   private def estimate(functionCosts: collection.Map[FunctionHeader, Coeval[Long]], script: EXPR) =

@@ -1,14 +1,14 @@
-package com.zbsplatform.transaction
+package com.zbsnetwork.transaction
 
-import com.zbsplatform.TransactionGen
-import com.zbsplatform.state.{ByteStr, EitherExt2}
+import com.zbsnetwork.TransactionGen
+import com.zbsnetwork.account.{Address, PublicKeyAccount}
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.{Base58, EitherExt2}
+import com.zbsnetwork.state.diffs._
+import com.zbsnetwork.transaction.transfer._
 import org.scalatest._
 import org.scalatest.prop.PropertyChecks
 import play.api.libs.json.Json
-import com.zbsplatform.account.{Address, PublicKeyAccount}
-import com.zbsplatform.transaction.transfer._
-import com.zbsplatform.state.diffs._
-import com.zbsplatform.utils.Base58
 
 class TransferTransactionV1Specification extends PropSpec with PropertyChecks with Matchers with TransactionGen {
 
@@ -44,6 +44,7 @@ class TransferTransactionV1Specification extends PropSpec with PropertyChecks wi
                         "fee": 100000,
                         "timestamp": 1526552510868,
                         "signature": "eaV1i3hEiXyYQd6DQY7EnPg9XzpAvB9VA3bnpin2qJe4G36GZXaGnYKCgSf9xiQ61DcAwcBFzjSXh6FwCgazzFz",
+                        "proofs": ["eaV1i3hEiXyYQd6DQY7EnPg9XzpAvB9VA3bnpin2qJe4G36GZXaGnYKCgSf9xiQ61DcAwcBFzjSXh6FwCgazzFz"],
                         "version": 1,
                         "recipient": "3My3KZgFQ3CrVHgz6vGRt8687sH4oAA1qp8",
                         "assetId": null,

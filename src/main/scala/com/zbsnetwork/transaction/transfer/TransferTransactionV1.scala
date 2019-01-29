@@ -1,12 +1,12 @@
-package com.zbsplatform.transaction.transfer
+package com.zbsnetwork.transaction.transfer
 
 import com.google.common.primitives.Bytes
-import com.zbsplatform.account.{AddressOrAlias, PrivateKeyAccount, PublicKeyAccount}
-import com.zbsplatform.crypto
-import com.zbsplatform.state.ByteStr
-import com.zbsplatform.transaction._
+import com.zbsnetwork.account.{AddressOrAlias, PrivateKeyAccount, PublicKeyAccount}
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.crypto
+import com.zbsnetwork.transaction._
 import monix.eval.Coeval
-import scorex.crypto.signatures.Curve25519._
+import com.zbsnetwork.crypto._
 
 import scala.util.{Failure, Success, Try}
 
@@ -31,7 +31,7 @@ case class TransferTransactionV1 private (assetId: Option[AssetId],
 
 object TransferTransactionV1 extends TransactionParserFor[TransferTransactionV1] with TransactionParser.HardcodedVersion1 {
 
-  override val typeId: Byte = 4
+  override val typeId: Byte = TransferTransaction.typeId
 
   override protected def parseTail(version: Byte, bytes: Array[Byte]): Try[TransactionT] =
     Try {

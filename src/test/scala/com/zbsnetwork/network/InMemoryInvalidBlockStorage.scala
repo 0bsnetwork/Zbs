@@ -1,8 +1,8 @@
-package com.zbsplatform.network
+package com.zbsnetwork.network
 
-import com.zbsplatform.state.ByteStr
-import com.zbsplatform.transaction.ValidationError
-import com.zbsplatform.transaction.ValidationError.GenericError
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.transaction.ValidationError
+import com.zbsnetwork.transaction.ValidationError.GenericError
 
 class InMemoryInvalidBlockStorage extends InvalidBlockStorage {
 

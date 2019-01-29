@@ -1,6 +1,6 @@
-package com.zbsplatform.network
+package com.zbsnetwork.network
 
-import com.zbsplatform.network.message.{Message => ScorexMessage}
+import com.zbsnetwork.network.message.{Message => ScorexMessage}
 import io.netty.channel.ChannelHandler.Sharable
 import io.netty.channel.{ChannelDuplexHandler, ChannelHandlerContext, ChannelPromise}
 import kamon.Kamon

@@ -1,15 +1,17 @@
-package com.zbsplatform.transaction
+package com.zbsnetwork.transaction
 
 import java.util
 
 import com.google.common.primitives.{Bytes, Ints, Longs}
-import com.zbsplatform.crypto
-import com.zbsplatform.state._
+import com.zbsnetwork.account.{Address, PrivateKeyAccount, PublicKeyAccount}
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.crypto
+import com.zbsnetwork.crypto._
+import com.zbsnetwork.transaction.TransactionParsers._
 import monix.eval.Coeval
 import play.api.libs.json.{JsObject, Json}
-import com.zbsplatform.account.{Address, PrivateKeyAccount, PublicKeyAccount}
-import com.zbsplatform.transaction.TransactionParsers._
-import scorex.crypto.signatures.Curve25519._
+
 import scala.util.{Failure, Success, Try}
 
 case class PaymentTransaction private (sender: PublicKeyAccount, recipient: Address, amount: Long, fee: Long, timestamp: Long, signature: ByteStr)

@@ -1,24 +1,26 @@
-package com.zbsplatform.state.diffs
+package com.zbsnetwork.state.diffs
 
 import cats._
-import com.zbsplatform.features.BlockchainFeatures
-import com.zbsplatform.lang.v1.compiler.CompilerV1
-import com.zbsplatform.lang.v1.parser.Parser
-import com.zbsplatform.state._
-import com.zbsplatform.state.diffs.smart.smartEnabledFS
-import com.zbsplatform.utils.dummyCompilerContext
-import com.zbsplatform.{NoShrink, TransactionGen, WithDB}
+import com.zbsnetwork.account.AddressScheme
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.features.BlockchainFeatures
+import com.zbsnetwork.lagonaki.mocks.TestBlock
+import com.zbsnetwork.lang.Version.ExprV1
+import com.zbsnetwork.lang.v1.compiler.ExpressionCompilerV1
+import com.zbsnetwork.lang.v1.parser.Parser
+import com.zbsnetwork.settings.TestFunctionalitySettings
+import com.zbsnetwork.state._
+import com.zbsnetwork.state.diffs.smart.smartEnabledFS
+import com.zbsnetwork.transaction.GenesisTransaction
+import com.zbsnetwork.transaction.assets._
+import com.zbsnetwork.transaction.smart.script.v1.ExprScript
+import com.zbsnetwork.transaction.transfer._
+import com.zbsnetwork.utils.compilerContext
+import com.zbsnetwork.{NoShrink, TransactionGen, WithDB}
 import fastparse.core.Parsed
 import org.scalacheck.{Arbitrary, Gen}
 import org.scalatest.prop.PropertyChecks
 import org.scalatest.{Matchers, PropSpec}
-import com.zbsplatform.account.AddressScheme
-import com.zbsplatform.settings.TestFunctionalitySettings
-import com.zbsplatform.lagonaki.mocks.TestBlock
-import com.zbsplatform.transaction.GenesisTransaction
-import com.zbsplatform.transaction.assets._
-import com.zbsplatform.transaction.smart.script.v1.ScriptV1
-import com.zbsplatform.transaction.transfer._
 
 class AssetTransactionsDiffTest extends PropSpec with PropertyChecks with Matchers with TransactionGen with NoShrink with WithDB {
 
@@ -101,7 +103,7 @@ class AssetTransactionsDiffTest extends PropSpec with PropertyChecks with Matche
       genesis: GenesisTransaction = GenesisTransaction.create(issuer, ENOUGH_AMT, timestamp).explicitGet()
       (issue, _, _) <- issueReissueBurnGeneratorP(ENOUGH_AMT, issuer)
       assetTransfer <- transferGeneratorP(issuer, burner, Some(issue.assetId()), None)
-      zbsTransfer   <- zbsTransferGeneratorP(issuer, burner)
+      zbsTransfer <- zbsTransferGeneratorP(issuer, burner)
       burn = BurnTransactionV1.selfSigned(burner, issue.assetId(), assetTransfer.amount, zbsTransfer.amount, timestamp).explicitGet()
     } yield (genesis, issue, assetTransfer, zbsTransfer, burn)
 
@@ -217,18 +219,18 @@ class AssetTransactionsDiffTest extends PropSpec with PropertyChecks with Matche
   }
 
   private def createScript(code: String) = {
-    val Parsed.Success(expr, _) = Parser(code).get
-    ScriptV1(CompilerV1(dummyCompilerContext, expr).explicitGet()._1).explicitGet()
+    val Parsed.Success(expr, _) = Parser.parseScript(code).get
+    ExprScript(ExpressionCompilerV1(compilerContext(ExprV1, isAssetScript = false), expr).explicitGet()._1).explicitGet()
   }
 
   def genesisIssueTransferReissue(code: String): Gen[(Seq[GenesisTransaction], IssueTransactionV2, TransferTransactionV1, ReissueTransactionV1)] =
     for {
-      version          <- Gen.oneOf(IssueTransactionV2.supportedVersions.toSeq)
-      timestamp        <- timestampGen
+      version            <- Gen.oneOf(IssueTransactionV2.supportedVersions.toSeq)
+      timestamp          <- timestampGen
       initialZbsAmount <- Gen.choose(Long.MaxValue / 1000, Long.MaxValue / 100)
-      accountA         <- accountGen
-      accountB         <- accountGen
-      smallFee         <- Gen.choose(1l, 10l)
+      accountA           <- accountGen
+      accountB           <- accountGen
+      smallFee           <- Gen.choose(1l, 10l)
       genesisTx1 = GenesisTransaction.create(accountA, initialZbsAmount, timestamp).explicitGet()
       genesisTx2 = GenesisTransaction.create(accountB, initialZbsAmount, timestamp).explicitGet()
       reissuable = true
@@ -306,13 +308,11 @@ class AssetTransactionsDiffTest extends PropSpec with PropertyChecks with Matche
     }
   }
 
-  property("Can reissue when script evaluates to TRUE even if sender is not original issuer") {
+  property("Only issuer can reissue") {
     forAll(genesisIssueTransferReissue("true")) {
       case (gen, issue, _, reissue) =>
-        assertDiffAndState(Seq(TestBlock.create(gen)), TestBlock.create(Seq(issue, reissue)), smartEnabledFS) {
-          case (blockDiff, newState) =>
-            val totalPortfolioDiff = Monoid.combineAll(blockDiff.portfolios.values)
-            totalPortfolioDiff.assets(issue.id()) shouldEqual (issue.quantity + reissue.quantity)
+        assertDiffEi(Seq(TestBlock.create(gen)), TestBlock.create(Seq(issue, reissue)), smartEnabledFS) { ei =>
+          ei should produce("Asset was issued by other address")
         }
     }
   }

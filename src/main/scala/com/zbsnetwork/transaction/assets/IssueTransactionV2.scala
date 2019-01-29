@@ -1,14 +1,15 @@
-package com.zbsplatform.transaction.assets
+package com.zbsnetwork.transaction.assets
 
 import com.google.common.primitives.Bytes
-import com.zbsplatform.crypto
-import com.zbsplatform.state.ByteStr
+import com.zbsnetwork.crypto
 import monix.eval.Coeval
-import com.zbsplatform.account.{AddressScheme, PrivateKeyAccount, PublicKeyAccount}
-import com.zbsplatform.serialization.Deser
-import com.zbsplatform.transaction.ValidationError.{GenericError, UnsupportedVersion}
-import com.zbsplatform.transaction._
-import com.zbsplatform.transaction.smart.script.{Script, ScriptReader}
+import com.zbsnetwork.account.{AddressScheme, PrivateKeyAccount, PublicKeyAccount}
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.serialization.Deser
+import com.zbsnetwork.transaction.ValidationError.{GenericError, UnsupportedVersion}
+import com.zbsnetwork.transaction._
+import com.zbsnetwork.transaction.smart.script.{Script, ScriptReader}
+import play.api.libs.json.{JsObject, Json}
 
 import scala.util.Try
 
@@ -36,14 +37,15 @@ case class IssueTransactionV2 private (version: Byte,
     ))
   override val bytes: Coeval[Array[Byte]] = Coeval.evalOnce(Bytes.concat(Array(0: Byte), bodyBytes(), proofs.bytes()))
 
+  override val json: Coeval[JsObject] = Coeval.evalOnce(issueJson() ++ Json.obj("chainId" -> chainId, "script" -> script.map(_.bytes().base64)))
 }
 
 object IssueTransactionV2 extends TransactionParserFor[IssueTransactionV2] with TransactionParser.MultipleVersions {
 
-  override val typeId: Byte                 = 3
+  override val typeId: Byte                 = IssueTransaction.typeId
   override val supportedVersions: Set[Byte] = Set(2)
 
-  private def networkByte = AddressScheme.current.chainId
+  private def currentChainId = AddressScheme.current.chainId
 
   override protected def parseTail(version: Byte, bytes: Array[Byte]): Try[TransactionT] =
     Try {
@@ -80,7 +82,7 @@ object IssueTransactionV2 extends TransactionParserFor[IssueTransactionV2] with 
              proofs: Proofs): Either[ValidationError, TransactionT] =
     for {
       _ <- Either.cond(supportedVersions.contains(version), (), UnsupportedVersion(version))
-      _ <- Either.cond(chainId == networkByte, (), GenericError(s"Wrong chainId actual: ${chainId.toInt}, expected: $networkByte"))
+      _ <- Either.cond(chainId == currentChainId, (), GenericError(s"Wrong chainId actual: ${chainId.toInt}, expected: $currentChainId"))
       _ <- IssueTransaction.validateIssueParams(name, description, quantity, decimals, reissuable, fee)
     } yield IssueTransactionV2(version, chainId, sender, name, description, quantity, decimals, reissuable, script, fee, timestamp, proofs)
 

@@ -1,12 +1,15 @@
-package com.zbsplatform.transaction
+package com.zbsnetwork.transaction
 
 import com.google.common.primitives.{Bytes, Longs, Shorts}
-import com.zbsplatform.crypto
-import com.zbsplatform.state._
+import com.zbsnetwork.account.{PrivateKeyAccount, PublicKeyAccount}
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.crypto
+import com.zbsnetwork.crypto._
+import com.zbsnetwork.state._
 import monix.eval.Coeval
 import play.api.libs.json._
-import com.zbsplatform.account.{PrivateKeyAccount, PublicKeyAccount}
-import scorex.crypto.signatures.Curve25519._
+
 import scala.util.{Failure, Success, Try}
 
 case class DataTransaction private (version: Byte, sender: PublicKeyAccount, data: List[DataEntry[_]], fee: Long, timestamp: Long, proofs: Proofs)

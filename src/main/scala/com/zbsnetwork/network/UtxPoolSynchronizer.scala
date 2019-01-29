@@ -1,17 +1,22 @@
-package com.zbsplatform.network
+package com.zbsnetwork.network
 
 import java.util.concurrent.TimeUnit
 
 import com.google.common.cache.CacheBuilder
-import com.zbsplatform.settings.SynchronizationSettings.UtxSynchronizerSettings
-import com.zbsplatform.state.ByteStr
-import com.zbsplatform.utx.UtxPool
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.settings.SynchronizationSettings.UtxSynchronizerSettings
+import com.zbsnetwork.utx.UtxPool
 import io.netty.channel.Channel
 import io.netty.channel.group.{ChannelGroup, ChannelMatcher}
 import monix.execution.{CancelableFuture, Scheduler}
-import com.zbsplatform.transaction.Transaction
+import com.zbsnetwork.transaction.Transaction
+import com.zbsnetwork.utils.ScorexLogging
 
-object UtxPoolSynchronizer {
+import scala.util.{Failure, Success}
+import scala.util.control.NonFatal
+
+object UtxPoolSynchronizer extends ScorexLogging {
+
   def start(utx: UtxPool,
             settings: UtxSynchronizerSettings,
             allChannels: ChannelGroup,
@@ -25,7 +30,7 @@ object UtxPoolSynchronizer {
       .expireAfterWrite(settings.networkTxCacheTime.toMillis, TimeUnit.MILLISECONDS)
       .build[ByteStr, Object]
 
-    txSource
+    val synchronizerFuture = txSource
       .observeOn(scheduler)
       .bufferTimedAndCounted(settings.maxBufferTime, settings.maxBufferSize)
       .foreach { txBuffer =>
@@ -55,5 +60,11 @@ object UtxPoolSynchronizer {
           allChannels.flush()
         }
       }
+
+    synchronizerFuture.onComplete {
+      case Success(_)            => log.error("UtxPoolSynschronizer stops")
+      case Failure(NonFatal(th)) => log.error("Error in utx pool synchronizer", th)
+    }
+    synchronizerFuture
   }
 }

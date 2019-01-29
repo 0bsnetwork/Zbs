@@ -1,14 +1,14 @@
-package com.zbsplatform.matcher
+package com.zbsnetwork.matcher
 
 import java.nio.ByteBuffer
 
-import com.zbsplatform.state.ByteStr
-import com.zbsplatform.transaction.AssetId
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.transaction.AssetId
 
 case class OrderAssets(orderId: ByteStr, spendAsset: Option[AssetId])
 
 object OrderAssets {
-  import com.zbsplatform.matcher.util.Codecs._
+  import com.zbsnetwork.matcher.util.Codecs._
 
   def read(b: Array[Byte]): OrderAssets = {
     val bb  = ByteBuffer.wrap(b)

@@ -1,10 +1,10 @@
-package com.zbsplatform.transaction
+package com.zbsnetwork.transaction
 
-import com.zbsplatform.TransactionGen
-import com.zbsplatform.account.{Address, PublicKeyAccount}
-import com.zbsplatform.state._
-import com.zbsplatform.transaction.transfer._
-import com.zbsplatform.utils.Base58
+import com.zbsnetwork.TransactionGen
+import com.zbsnetwork.account.{Address, PublicKeyAccount}
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.{Base58, EitherExt2}
+import com.zbsnetwork.transaction.transfer._
 import org.scalacheck.Gen
 import org.scalatest._
 import org.scalatest.prop.PropertyChecks

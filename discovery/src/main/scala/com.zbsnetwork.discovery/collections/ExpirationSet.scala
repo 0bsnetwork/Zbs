@@ -1,4 +1,4 @@
-package com.zbsplatform.discovery.collections
+package com.zbsnetwork.discovery.collections
 
 import java.util.concurrent.TimeUnit
 import scala.collection.JavaConverters._

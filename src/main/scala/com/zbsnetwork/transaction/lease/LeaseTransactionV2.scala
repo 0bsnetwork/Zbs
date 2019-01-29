@@ -1,13 +1,13 @@
-package com.zbsplatform.transaction.lease
+package com.zbsnetwork.transaction.lease
 
 import com.google.common.primitives.Bytes
-import com.zbsplatform.crypto
-import com.zbsplatform.state.ByteStr
+import com.zbsnetwork.crypto
 import monix.eval.Coeval
-import com.zbsplatform.account.{AddressOrAlias, PrivateKeyAccount, PublicKeyAccount}
-import com.zbsplatform.serialization.Deser
-import com.zbsplatform.transaction.ValidationError.UnsupportedVersion
-import com.zbsplatform.transaction._
+import com.zbsnetwork.account.{AddressOrAlias, PrivateKeyAccount, PublicKeyAccount}
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.serialization.Deser
+import com.zbsnetwork.transaction.ValidationError.UnsupportedVersion
+import com.zbsnetwork.transaction._
 
 import scala.util.{Either, Failure, Success, Try}
 
@@ -31,7 +31,7 @@ case class LeaseTransactionV2 private (version: Byte,
 
 object LeaseTransactionV2 extends TransactionParserFor[LeaseTransactionV2] with TransactionParser.MultipleVersions {
 
-  override val typeId: Byte                 = 8
+  override val typeId: Byte                 = LeaseTransaction.typeId
   override def supportedVersions: Set[Byte] = Set(2)
 
   override protected def parseTail(version: Byte, bytes: Array[Byte]): Try[TransactionT] =

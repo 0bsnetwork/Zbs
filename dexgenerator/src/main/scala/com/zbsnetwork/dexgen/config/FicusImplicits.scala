@@ -1,11 +1,11 @@
-package com.zbsplatform.dexgen.config
+package com.zbsnetwork.dexgen.config
 
 import java.net.InetSocketAddress
 
 import com.google.common.base.CaseFormat
 import com.typesafe.config.Config
 
-import com.zbsplatform.dexgen.utils.GenOrderType
+import com.zbsnetwork.dexgen.utils.GenOrderType
 import net.ceedubs.ficus.Ficus._
 import net.ceedubs.ficus.readers.{CollectionReaders, ValueReader}
 

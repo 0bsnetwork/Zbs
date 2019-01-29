@@ -1,20 +1,19 @@
-package com.zbsplatform.http
+package com.zbsnetwork.http
 
 import com.typesafe.config.ConfigFactory
-import com.zbsplatform.RequestGen
-import com.zbsplatform.http.ApiMarshallers._
-import com.zbsplatform.settings.RestAPISettings
-import com.zbsplatform.state.diffs.TransactionDiffer.TransactionValidationError
-import com.zbsplatform.utx.UtxPool
+import com.zbsnetwork.RequestGen
+import com.zbsnetwork.settings.RestAPISettings
+import com.zbsnetwork.state.diffs.TransactionDiffer.TransactionValidationError
+import com.zbsnetwork.utx.UtxPool
 import io.netty.channel.group.ChannelGroup
 import org.scalamock.scalatest.PathMockFactory
 import org.scalatest.prop.PropertyChecks
 import play.api.libs.json.Json._
 import play.api.libs.json._
-import com.zbsplatform.api.http._
-import com.zbsplatform.api.http.alias.AliasBroadcastApiRoute
-import com.zbsplatform.transaction.ValidationError.GenericError
-import com.zbsplatform.transaction.Transaction
+import com.zbsnetwork.api.http._
+import com.zbsnetwork.api.http.alias.AliasBroadcastApiRoute
+import com.zbsnetwork.transaction.ValidationError.GenericError
+import com.zbsnetwork.transaction.Transaction
 
 class AliasBroadcastRouteSpec extends RouteSpec("/alias/broadcast/") with RequestGen with PathMockFactory with PropertyChecks {
   private val settings    = RestAPISettings.fromConfig(ConfigFactory.load())
@@ -39,7 +38,7 @@ class AliasBroadcastRouteSpec extends RouteSpec("/alias/broadcast/") with Reques
     val route = AliasBroadcastApiRoute(settings, utx, allChannels).route
 
     "create alias transaction" in forAll(createAliasReq) { req =>
-      import com.zbsplatform.api.http.alias.SignedCreateAliasV1Request.broadcastAliasV1RequestReadsFormat
+      import com.zbsnetwork.api.http.alias.SignedCreateAliasV1Request.broadcastAliasV1RequestReadsFormat
 
       def posting(v: JsValue): RouteTestResult = Post(routePath("create"), v) ~> route
 

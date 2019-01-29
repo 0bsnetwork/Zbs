@@ -1,14 +1,16 @@
-package com.zbsplatform.state
+package com.zbsnetwork.state
 
 import cats.Monoid
-import com.zbsplatform.db.WithState
-import com.zbsplatform.mining.MiningConstraint
-import com.zbsplatform.settings.FunctionalitySettings
+import com.zbsnetwork.block.Block
+import com.zbsnetwork.common.state.diffs.ProduceError
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.db.WithState
+import com.zbsnetwork.lagonaki.mocks.TestBlock
+import com.zbsnetwork.mining.MiningConstraint
+import com.zbsnetwork.settings.{FunctionalitySettings, TestFunctionalitySettings => TFS}
+import com.zbsnetwork.state.reader.CompositeBlockchain
+import com.zbsnetwork.transaction.{Transaction, ValidationError}
 import org.scalatest.Matchers
-import com.zbsplatform.block.Block
-import com.zbsplatform.lagonaki.mocks.TestBlock
-import com.zbsplatform.transaction.{Transaction, ValidationError}
-import com.zbsplatform.settings.{TestFunctionalitySettings => TFS}
 
 package object diffs extends WithState with Matchers {
   val ENOUGH_AMT: Long = Long.MaxValue / 3
@@ -35,7 +37,11 @@ package object diffs extends WithState with Matchers {
       state.append(diff, fees, curBlock)
       Some(curBlock)
     }
+
     val (diff, fees, _) = differ(state, preconditions.lastOption, block).explicitGet()
+    val cb = new CompositeBlockchain(state, Some(diff))
+    assertion(diff, cb)
+
     state.append(diff, fees, block)
     assertion(diff, state)
   }

@@ -1,9 +1,9 @@
-package com.zbsplatform.it.async
+package com.zbsnetwork.it.async
 
 import com.typesafe.config.Config
-import com.zbsplatform.it.api.AsyncHttpApi._
-import com.zbsplatform.it.transactions.NodesFromDocker
-import com.zbsplatform.it.{NodeConfigs, TransferSending, WaitForHeight2}
+import com.zbsnetwork.it.api.AsyncHttpApi._
+import com.zbsnetwork.it.transactions.NodesFromDocker
+import com.zbsnetwork.it.{NodeConfigs, TransferSending, WaitForHeight2}
 import org.scalatest._
 
 import scala.concurrent.Await.result
@@ -16,8 +16,8 @@ class ValidChainGenerationSuite extends FreeSpec with WaitForHeight2 with Transf
 
   override protected def nodeConfigs: Seq[Config] =
     NodeConfigs.newBuilder
-      .overrideBase(_.quorum(3))
-      .withDefault(3)
+      .overrideBase(_.quorum(2))
+      .withDefault(2)
       .withSpecial(_.nonMiner)
       .buildNonConflicting()
 

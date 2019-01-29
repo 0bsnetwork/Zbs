@@ -1,13 +1,13 @@
-package com.zbsplatform.api.http.assets
+package com.zbsnetwork.api.http.assets
 
 import io.swagger.annotations.ApiModelProperty
 import play.api.libs.functional.syntax._
 import play.api.libs.json._
-import com.zbsplatform.account.PublicKeyAccount
-import com.zbsplatform.api.http.BroadcastRequest
-import com.zbsplatform.transaction.TransactionParsers.SignatureStringLength
-import com.zbsplatform.transaction.assets.BurnTransactionV1
-import com.zbsplatform.transaction.{AssetIdStringLength, ValidationError}
+import com.zbsnetwork.account.PublicKeyAccount
+import com.zbsnetwork.api.http.BroadcastRequest
+import com.zbsnetwork.transaction.TransactionParsers.SignatureStringLength
+import com.zbsnetwork.transaction.assets.BurnTransactionV1
+import com.zbsnetwork.transaction.{AssetIdStringLength, ValidationError}
 
 object SignedBurnV1Request {
   implicit val reads: Reads[SignedBurnV1Request] = (

@@ -1,13 +1,14 @@
-package com.zbsplatform.transaction
+package com.zbsnetwork.transaction
 
-import com.zbsplatform.history._
-import com.zbsplatform.state.diffs._
-import com.zbsplatform.state.{Diff, EitherExt2, NgState}
-import com.zbsplatform.{NoShrink, TransactionGen}
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.history._
+import com.zbsnetwork.state.diffs._
+import com.zbsnetwork.state.{Diff, NgState}
+import com.zbsnetwork.transaction.transfer._
+import com.zbsnetwork.{NoShrink, TransactionGen}
 import org.scalacheck.Gen
 import org.scalatest.prop.PropertyChecks
 import org.scalatest.{Matchers, PropSpec}
-import com.zbsplatform.transaction.transfer._
 
 class NgStateTest extends PropSpec with PropertyChecks with Matchers with TransactionGen with NoShrink {
 

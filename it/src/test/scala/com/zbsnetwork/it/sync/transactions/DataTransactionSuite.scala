@@ -1,16 +1,16 @@
-package com.zbsplatform.it.sync.transactions
+package com.zbsnetwork.it.sync.transactions
 
-import com.zbsplatform.it.api.SyncHttpApi._
-import com.zbsplatform.it.api.UnexpectedStatusCodeException
-import com.zbsplatform.it.sync.{calcDataFee, minFee}
-import com.zbsplatform.it.transactions.BaseTransactionSuite
-import com.zbsplatform.it.util._
-import com.zbsplatform.state.{BinaryDataEntry, BooleanDataEntry, ByteStr, DataEntry, EitherExt2, IntegerDataEntry, StringDataEntry}
-import com.zbsplatform.utils.Base58
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.{Base58, EitherExt2}
+import com.zbsnetwork.it.api.SyncHttpApi._
+import com.zbsnetwork.it.api.UnexpectedStatusCodeException
+import com.zbsnetwork.it.sync.{calcDataFee, minFee}
+import com.zbsnetwork.it.transactions.BaseTransactionSuite
+import com.zbsnetwork.it.util._
+import com.zbsnetwork.state.{BinaryDataEntry, BooleanDataEntry, DataEntry, IntegerDataEntry, StringDataEntry}
+import com.zbsnetwork.transaction.DataTransaction
 import org.scalatest.{Assertion, Assertions}
 import play.api.libs.json._
-import com.zbsplatform.api.http.SignedDataRequest
-import com.zbsplatform.transaction.DataTransaction
 
 import scala.concurrent.duration._
 import scala.util.{Failure, Random, Try}
@@ -51,24 +51,14 @@ class DataTransactionSuite extends BaseTransactionSuite {
              version: Byte = DataTransaction.supportedVersions.head): DataTransaction =
       DataTransaction.selfSigned(version, sender.privateKey, entries, fee, timestamp).explicitGet()
 
-    def request(tx: DataTransaction): SignedDataRequest =
-      SignedDataRequest(DataTransaction.supportedVersions.head,
-                        Base58.encode(tx.sender.publicKey),
-                        tx.data,
-                        tx.fee,
-                        tx.timestamp,
-                        tx.proofs.base58().toList)
-
-    implicit val w = Json.writes[SignedDataRequest].transform((jsobj: JsObject) => jsobj + ("type" -> JsNumber(DataTransaction.typeId)))
-
     val (balance1, eff1) = notMiner.accountBalances(firstAddress)
     val invalidTxs = Seq(
-      (data(timestamp = System.currentTimeMillis + 1.day.toMillis), "Transaction .* is from far future"),
+      (data(timestamp = System.currentTimeMillis + 1.day.toMillis), "Transaction timestamp .* is more than .*ms in the future"),
       (data(fee = 99999), "Fee .* does not exceed minimal value")
     )
 
     for ((tx, diag) <- invalidTxs) {
-      assertBadRequestAndResponse(sender.broadcastRequest(request(tx)), diag)
+      assertBadRequestAndResponse(sender.broadcastRequest(tx.json()), diag)
       nodes.foreach(_.ensureTxDoesntExist(tx.id().base58))
     }
 
@@ -271,7 +261,7 @@ class DataTransactionSuite extends BaseTransactionSuite {
   }
 
   test("try to make address with 1000 DataEntries") {
-    val dataSet = 0 to 200 flatMap (i =>
+    val dataSet = 0 until 200 flatMap (i =>
       List(
         IntegerDataEntry(s"int$i", 1000 + i),
         BooleanDataEntry(s"bool$i", false),
@@ -280,14 +270,8 @@ class DataTransactionSuite extends BaseTransactionSuite {
         IntegerDataEntry(s"integer$i", 1000 - i)
       ))
 
-    val dataAllTypes = dataSet.toList
-
-    for (i <- 0 to 900 by 100) {
-      val dataTx = dataAllTypes.slice(i, i + 100)
-      val fee    = calcDataFee(dataTx)
-      val txId   = sender.putData(thirdAddress, dataTx, fee).id
-      nodes.waitForHeightAriseAndTxPresent(txId)
-    }
+    val txIds = dataSet.grouped(100).map(_.toList).map(data => sender.putData(thirdAddress, data, calcDataFee(data)).id)
+    txIds foreach nodes.waitForTransaction
 
     val r = scala.util.Random.nextInt(199)
     sender.getData(thirdAddress, s"int$r") shouldBe IntegerDataEntry(s"int$r", 1000 + r)

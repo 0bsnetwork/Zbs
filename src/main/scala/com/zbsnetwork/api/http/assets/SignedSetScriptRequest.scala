@@ -1,16 +1,26 @@
-package com.zbsplatform.api.http.assets
+package com.zbsnetwork.api.http.assets
 
 import cats.implicits._
+import com.zbsnetwork.account.PublicKeyAccount
+import com.zbsnetwork.api.http.BroadcastRequest
+import com.zbsnetwork.transaction.smart.SetScriptTransaction
+import com.zbsnetwork.transaction.smart.script.Script
+import com.zbsnetwork.transaction.{Proofs, ValidationError}
 import io.swagger.annotations.{ApiModel, ApiModelProperty}
-import play.api.libs.json.{Json, OFormat}
-import com.zbsplatform.account.PublicKeyAccount
-import com.zbsplatform.api.http.BroadcastRequest
-import com.zbsplatform.transaction.smart.SetScriptTransaction
-import com.zbsplatform.transaction.smart.script.Script
-import com.zbsplatform.transaction.{Proofs, ValidationError}
+import play.api.libs.functional.syntax._
+import play.api.libs.json._
 
 object SignedSetScriptRequest {
-  implicit val jsonFormat: OFormat[SignedSetScriptRequest] = Json.format
+  implicit val signedSetScriptRequestReads: Reads[SignedSetScriptRequest] = (
+    (JsPath \ "version").read[Byte] and
+      (JsPath \ "senderPublicKey").read[String] and
+      (JsPath \ "script").readNullable[String] and
+      (JsPath \ "fee").read[Long] and
+      (JsPath \ "timestamp").read[Long] and
+      (JsPath \ "proofs").read[List[ProofStr]]
+  )(SignedSetScriptRequest.apply _)
+
+  implicit val signedSetScriptRequestWrites: OWrites[SignedSetScriptRequest] = Json.writes[SignedSetScriptRequest]
 }
 
 @ApiModel(value = "Proven SetScript transaction")
@@ -31,8 +41,8 @@ case class SignedSetScriptRequest(@ApiModelProperty(required = true)
     for {
       _sender <- PublicKeyAccount.fromBase58String(senderPublicKey)
       _script <- script match {
-        case None    => Right(None)
-        case Some(s) => Script.fromBase64String(s).map(Some(_))
+        case None | Some("") => Right(None)
+        case Some(s)         => Script.fromBase64String(s).map(Some(_))
       }
       _proofBytes <- proofs.traverse(s => parseBase58(s, "invalid proof", Proofs.MaxProofStringSize))
       _proofs     <- Proofs.create(_proofBytes)

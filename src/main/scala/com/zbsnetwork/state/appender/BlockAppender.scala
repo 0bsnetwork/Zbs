@@ -1,22 +1,22 @@
-package com.zbsplatform.state.appender
+package com.zbsnetwork.state.appender
 
 import cats.data.EitherT
-import com.zbsplatform.consensus.PoSSelector
-import com.zbsplatform.metrics._
-import com.zbsplatform.mining.Miner
-import com.zbsplatform.network._
-import com.zbsplatform.settings.ZbsSettings
-import com.zbsplatform.state.Blockchain
-import com.zbsplatform.utils.{ScorexLogging, Time}
-import com.zbsplatform.utx.UtxPool
+import com.zbsnetwork.consensus.PoSSelector
+import com.zbsnetwork.metrics._
+import com.zbsnetwork.mining.Miner
+import com.zbsnetwork.network._
+import com.zbsnetwork.settings.ZbsSettings
+import com.zbsnetwork.state.Blockchain
+import com.zbsnetwork.utils.{ScorexLogging, Time}
+import com.zbsnetwork.utx.UtxPool
 import io.netty.channel.Channel
 import io.netty.channel.group.ChannelGroup
 import kamon.Kamon
 import monix.eval.Task
 import monix.execution.Scheduler
-import com.zbsplatform.block.Block
-import com.zbsplatform.transaction.ValidationError.{BlockAppendError, InvalidSignature}
-import com.zbsplatform.transaction.{BlockchainUpdater, CheckpointService, ValidationError}
+import com.zbsnetwork.block.Block
+import com.zbsnetwork.transaction.ValidationError.{BlockAppendError, InvalidSignature}
+import com.zbsnetwork.transaction.{BlockchainUpdater, CheckpointService, ValidationError}
 
 import scala.util.Right
 
@@ -28,12 +28,13 @@ object BlockAppender extends ScorexLogging with Instrumented {
             utxStorage: UtxPool,
             pos: PoSSelector,
             settings: ZbsSettings,
-            scheduler: Scheduler)(newBlock: Block): Task[Either[ValidationError, Option[BigInt]]] =
+            scheduler: Scheduler,
+            verify: Boolean = true)(newBlock: Block): Task[Either[ValidationError, Option[BigInt]]] =
     Task {
       measureSuccessful(
         blockProcessingTimeStats, {
           if (blockchainUpdater.isLastBlockId(newBlock.reference)) {
-            appendBlock(checkpoint, blockchainUpdater, utxStorage, pos, time, settings)(newBlock).map(_ => Some(blockchainUpdater.score))
+            appendBlock(checkpoint, blockchainUpdater, utxStorage, pos, time, settings, verify)(newBlock).map(_ => Some(blockchainUpdater.score))
           } else if (blockchainUpdater.contains(newBlock.uniqueId)) {
             Right(None)
           } else {

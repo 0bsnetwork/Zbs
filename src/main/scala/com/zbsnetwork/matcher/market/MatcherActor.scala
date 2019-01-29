@@ -1,44 +1,35 @@
-package com.zbsplatform.matcher.market
+package com.zbsnetwork.matcher.market
 
 import java.util.concurrent.atomic.AtomicReference
 
-import akka.actor.{Actor, ActorRef, Props, Terminated}
-import akka.http.scaladsl.model._
+import akka.actor.{Actor, ActorRef, PoisonPill, Props, Terminated}
 import akka.persistence.{PersistentActor, RecoveryCompleted, _}
 import com.google.common.base.Charsets
-import com.zbsplatform.account.Address
-import com.zbsplatform.matcher.api.MatcherResponse
-import com.zbsplatform.matcher.market.OrderBookActor._
-import com.zbsplatform.matcher.model.OrderBook
-import com.zbsplatform.matcher.{AssetPairBuilder, MatcherSettings}
-import com.zbsplatform.settings.FunctionalitySettings
-import com.zbsplatform.state.{AssetDescription, Blockchain}
-import com.zbsplatform.transaction.AssetId
-import com.zbsplatform.transaction.assets.exchange.Validation.booleanOperators
-import com.zbsplatform.transaction.assets.exchange.{AssetPair, Order}
-import com.zbsplatform.utils.{Base58, NTP, ScorexLogging}
-import com.zbsplatform.utx.UtxPool
-import com.zbsplatform.wallet.Wallet
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.matcher.MatcherSettings
+import com.zbsnetwork.matcher.api.{DuringShutdown, OrderBookUnavailable}
+import com.zbsnetwork.matcher.market.OrderBookActor._
+import com.zbsnetwork.matcher.model.Events.OrderExecuted
+import com.zbsnetwork.matcher.model.OrderBook
+import com.zbsnetwork.state.AssetDescription
+import com.zbsnetwork.transaction.assets.exchange.{AssetPair, ExchangeTransaction, Order}
+import com.zbsnetwork.transaction.{AssetId, ValidationError}
+import com.zbsnetwork.utils.{ScorexLogging, Time}
+import com.zbsnetwork.utx.UtxPool
 import io.netty.channel.group.ChannelGroup
 import play.api.libs.json._
 import scorex.utils._
 
-class MatcherActor(orderHistory: ActorRef,
-                   pairBuilder: AssetPairBuilder,
-                   orderBooks: AtomicReference[Map[AssetPair, ActorRef]],
-                   updateSnapshot: AssetPair => OrderBook => Unit,
-                   wallet: Wallet,
-                   utx: UtxPool,
-                   allChannels: ChannelGroup,
-                   settings: MatcherSettings,
-                   blockchain: Blockchain,
-                   functionalitySettings: FunctionalitySettings)
+class MatcherActor(orderBooks: AtomicReference[Map[AssetPair, Either[Unit, ActorRef]]],
+                   orderBookActorProps: (AssetPair, ActorRef) => Props,
+                   assetDescription: ByteStr => Option[AssetDescription])
     extends PersistentActor
     with ScorexLogging {
 
   import MatcherActor._
 
   private var tradedPairs            = Map.empty[AssetPair, MarketData]
+  private var childrenNames          = Map.empty[ActorRef, AssetPair]
   private var lastSnapshotSequenceNr = 0L
 
   private var shutdownStatus: ShutdownStatus = ShutdownStatus(
@@ -51,103 +42,86 @@ class MatcherActor(orderHistory: ActorRef,
 
   private def orderBook(pair: AssetPair) = Option(orderBooks.get()).flatMap(_.get(pair))
 
-  def getAssetName(asset: Option[AssetId], desc: Option[AssetDescription]): String =
+  private def getAssetName(asset: Option[AssetId], desc: Option[AssetDescription]): String =
     asset.fold(AssetPair.ZbsName) { _ =>
       desc.fold("Unknown")(d => new String(d.name, Charsets.UTF_8))
     }
 
-  def getAssetInfo(asset: Option[AssetId], desc: Option[AssetDescription]): Option[AssetInfo] =
+  private def getAssetInfo(asset: Option[AssetId], desc: Option[AssetDescription]): Option[AssetInfo] =
     asset.fold(Option(8))(_ => desc.map(_.decimals)).map(AssetInfo)
 
   private def createMarketData(pair: AssetPair): MarketData = {
-    val amountDesc = pair.amountAsset.flatMap(blockchain.assetDescription)
-    val priceDesc  = pair.priceAsset.flatMap(blockchain.assetDescription)
+    val amountDesc = pair.amountAsset.flatMap(assetDescription)
+    val priceDesc  = pair.priceAsset.flatMap(assetDescription)
 
     MarketData(
       pair,
       getAssetName(pair.amountAsset, amountDesc),
       getAssetName(pair.priceAsset, priceDesc),
-      NTP.correctedTime(),
+      System.currentTimeMillis(),
       getAssetInfo(pair.amountAsset, amountDesc),
       getAssetInfo(pair.priceAsset, priceDesc)
     )
   }
 
-  private def createOrderBookActor(pair: AssetPair): ActorRef = context.actorOf(
-    OrderBookActor.props(pair, updateSnapshot(pair), orderHistory, blockchain, settings, wallet, utx, allChannels, functionalitySettings),
-    OrderBookActor.name(pair)
-  )
+  private def createOrderBookActor(pair: AssetPair): ActorRef = {
+    val r = context.actorOf(orderBookActorProps(pair, self), OrderBookActor.name(pair))
+    childrenNames += r -> pair
+    context.watch(r)
+    r
+  }
 
-  def createOrderBook(pair: AssetPair): ActorRef = {
+  private def createOrderBook(pair: AssetPair): ActorRef = {
     log.info(s"Creating order book for $pair")
     val orderBook = createOrderBookActor(pair)
-    orderBooks.updateAndGet(_ + (pair -> orderBook))
+    orderBooks.updateAndGet(_ + (pair -> Right(orderBook)))
     tradedPairs += pair -> createMarketData(pair)
     orderBook
   }
 
-  def checkBlacklistedAddress(address: Address)(f: => Unit): Unit = {
-    val v = !settings.blacklistedAddresses.contains(address.address) :| s"Invalid Address: ${address.address}"
-    if (v) f else sender() ! MatcherResponse(StatusCodes.Forbidden, v.messages())
+  /**
+    * @param f (sender, orderBook)
+    */
+  private def runFor(pair: AssetPair)(f: (ActorRef, ActorRef) => Unit): Unit = {
+    val s = sender()
+    if (shutdownStatus.initiated) s ! DuringShutdown
+    else
+      orderBook(pair) match {
+        case Some(Right(ob)) => f(s, ob)
+        case Some(Left(_))   => s ! OrderBookUnavailable
+        case None =>
+          val ob = createOrderBook(pair)
+          persistAsync(OrderBookCreated(pair))(_ => f(s, ob))
+      }
   }
 
-  def createAndForward(order: Order): Unit = {
-    val orderBook = createOrderBook(order.assetPair)
-    persistAsync(OrderBookCreated(order.assetPair)) { _ =>
-      forwardReq(order)(orderBook)
-    }
-  }
-
-  def returnEmptyOrderBook(pair: AssetPair): Unit = {
-    sender() ! GetOrderBookResponse.empty(pair)
-  }
-
-  def forwardReq(req: Any)(orderBook: ActorRef): Unit = orderBook forward req
-
-  def checkAssetPair(assetPair: AssetPair, msg: Any)(f: => Unit): Unit =
-    pairBuilder.validateAssetPair(assetPair) match {
-      case Right(_) => f
-      case Left(e) =>
-        sender() ! pairBuilder
-          .validateAssetPair(assetPair.reverse)
-          .fold[MatcherResponse](
-            _ => StatusCodes.NotFound -> e,
-            _ => StatusCodes.Found    -> e
-          )
-    }
-
-  def getMatcherPublicKey: Array[Byte] = {
-    wallet.findPrivateKey(settings.account).map(_.publicKey).getOrElse(Array())
-  }
-
-  def forwardToOrderBook: Receive = {
-    case GetMarkets =>
-      sender() ! GetMarketsResponse(getMatcherPublicKey, tradedPairs.values.toSeq)
+  private def forwardToOrderBook: Receive = {
+    case GetMarkets => sender() ! tradedPairs.values.toSeq
 
     case order: Order =>
-      checkAssetPair(order.assetPair, order) {
-        checkBlacklistedAddress(order.senderPublicKey) {
-          orderBook(order.assetPair).fold(createAndForward(order))(forwardReq(order))
-        }
-      }
+      runFor(order.assetPair)((sender, orderBook) => orderBook.tell(order, sender))
 
-    case ob: DeleteOrderBookRequest =>
-      checkAssetPair(ob.assetPair, ob) {
-        orderBook(ob.assetPair)
-          .fold(returnEmptyOrderBook(ob.assetPair))(forwardReq(ob))
-        removeOrderBook(ob.assetPair)
+    case deleteOrder: DeleteOrderBookRequest =>
+      runFor(deleteOrder.assetPair) { (sender, ref) =>
+        ref.tell(deleteOrder, sender)
+        orderBooks.getAndUpdate(_.filterNot { x =>
+          x._2.right.exists(_ == ref)
+        })
+
+        tradedPairs -= deleteOrder.assetPair
+        deleteMessages(lastSequenceNr)
+        saveSnapshot(Snapshot(tradedPairs.keySet))
       }
 
     case Shutdown =>
-      val s = sender()
       shutdownStatus = shutdownStatus.copy(
         initiated = true,
         onComplete = { () =>
-          s ! ShutdownComplete
           context.stop(self)
         }
       )
 
+      context.children.foreach(context.unwatch)
       context.become(snapshotsCommands orElse shutdownFallback)
 
       if (lastSnapshotSequenceNr < lastSequenceNr) saveSnapshot(Snapshot(tradedPairs.keySet))
@@ -165,14 +139,11 @@ class MatcherActor(orderHistory: ActorRef,
       } else {
         context.actorOf(Props(classOf[GracefulShutdownActor], context.children.toVector, self))
       }
-  }
 
-  private def removeOrderBook(pair: AssetPair): Unit = {
-    if (tradedPairs.contains(pair)) {
-      tradedPairs -= pair
-      deleteMessages(lastSequenceNr)
-      saveSnapshot(Snapshot(tradedPairs.keySet))
-    }
+    case Terminated(ref) =>
+      orderBooks.getAndUpdate { m =>
+        childrenNames.get(ref).fold(m)(m.updated(_, Left(())))
+      }
   }
 
   override def receiveRecover: Receive = {
@@ -242,7 +213,7 @@ class MatcherActor(orderHistory: ActorRef,
       shutdownStatus = shutdownStatus.copy(orderBooksStopped = true)
       shutdownStatus.tryComplete()
 
-    case _ if shutdownStatus.initiated => sender() ! MatcherResponse(StatusCodes.ServiceUnavailable, "System is going shutdown")
+    case _ if shutdownStatus.initiated => sender() ! DuringShutdown
   }
 
   override def receiveCommand: Receive = forwardToOrderBook orElse snapshotsCommands
@@ -253,27 +224,24 @@ class MatcherActor(orderHistory: ActorRef,
 object MatcherActor {
   def name = "matcher"
 
-  def props(orderHistoryActor: ActorRef,
-            pairBuilder: AssetPairBuilder,
-            orderBooks: AtomicReference[Map[AssetPair, ActorRef]],
+  def props(validateAssetPair: AssetPair => Either[String, AssetPair],
+            orderBooks: AtomicReference[Map[AssetPair, Either[Unit, ActorRef]]],
             updateSnapshot: AssetPair => OrderBook => Unit,
-            wallet: Wallet,
+            updateMarketStatus: AssetPair => MarketStatus => Unit,
             utx: UtxPool,
             allChannels: ChannelGroup,
             settings: MatcherSettings,
-            blockchain: Blockchain,
-            functionalitySettings: FunctionalitySettings): Props =
+            time: Time,
+            assetDescription: ByteStr => Option[AssetDescription],
+            createTransaction: OrderExecuted => Either[ValidationError, ExchangeTransaction]): Props =
     Props(
-      new MatcherActor(orderHistoryActor,
-                       pairBuilder,
-                       orderBooks,
-                       updateSnapshot,
-                       wallet,
-                       utx,
-                       allChannels,
-                       settings,
-                       blockchain,
-                       functionalitySettings))
+      new MatcherActor(
+        orderBooks,
+        (assetPair, matcher) =>
+          OrderBookActor
+            .props(matcher, assetPair, updateSnapshot(assetPair), updateMarketStatus(assetPair), utx, allChannels, settings, createTransaction, time),
+        assetDescription
+      ))
 
   private case class ShutdownStatus(initiated: Boolean,
                                     oldMessagesDeleted: Boolean,
@@ -302,25 +270,6 @@ object MatcherActor {
 
   case object ShutdownComplete
 
-  case class GetMarketsResponse(publicKey: Array[Byte], markets: Seq[MarketData])
-      extends MatcherResponse(
-        StatusCodes.OK,
-        Json.obj(
-          "matcherPublicKey" -> Base58.encode(publicKey),
-          "markets" -> JsArray(
-            markets.map(m =>
-              Json.obj(
-                "amountAsset"     -> m.pair.amountAssetStr,
-                "amountAssetName" -> m.amountAssetName,
-                "amountAssetInfo" -> m.amountAssetInfo,
-                "priceAsset"      -> m.pair.priceAssetStr,
-                "priceAssetName"  -> m.priceAssetName,
-                "priceAssetInfo"  -> m.priceAssetinfo,
-                "created"         -> m.created
-            )))
-        )
-      )
-
   case class AssetInfo(decimals: Int)
   implicit val assetInfoFormat: Format[AssetInfo] = Json.format[AssetInfo]
 
@@ -339,7 +288,7 @@ object MatcherActor {
   }
 
   class GracefulShutdownActor(children: Vector[ActorRef], receiver: ActorRef) extends Actor {
-    children.map(context.watch).foreach(_ ! Shutdown)
+    children.map(context.watch).foreach(_ ! PoisonPill)
 
     override def receive: Receive = state(children.size)
 

@@ -1,23 +1,22 @@
-package com.zbsplatform.it.sync.matcher.config
+package com.zbsnetwork.it.sync.matcher.config
 
 import com.typesafe.config.Config
 import com.typesafe.config.ConfigFactory.{empty, parseString}
-import com.zbsplatform.account.PrivateKeyAccount
-import com.zbsplatform.api.http.assets.SignedIssueV1Request
-import com.zbsplatform.it.NodeConfigs.Default
-import com.zbsplatform.it.sync.CustomFeeTransactionSuite.defaultAssetQuantity
-import com.zbsplatform.it.sync.matcher.config.MatcherDefaultConfig._
-import com.zbsplatform.it.util._
-import com.zbsplatform.transaction.assets.IssueTransactionV1
-import com.zbsplatform.transaction.assets.exchange.AssetPair
-import com.zbsplatform.utils.Base58
-
+import com.zbsnetwork.account.{AddressScheme, PrivateKeyAccount}
+import com.zbsnetwork.it.NodeConfigs.Default
+import com.zbsnetwork.it.sync.CustomFeeTransactionSuite.defaultAssetQuantity
+import com.zbsnetwork.it.sync.matcher.config.MatcherDefaultConfig._
+import com.zbsnetwork.it.util._
+import com.zbsnetwork.matcher.AssetPairBuilder
+import com.zbsnetwork.transaction.assets.IssueTransactionV2
+import com.zbsnetwork.transaction.assets.exchange.AssetPair
 import scala.util.Random
 
+// TODO: Make it trait
 object MatcherPriceAssetConfig {
 
-  private val _Configs: Seq[Config] = (Default.last +: Random.shuffle(Default.init).take(3))
-    .zip(Seq(matcherConfig, minerDisabled, minerDisabled, empty()))
+  private val _Configs: Seq[Config] = (Default.last +: Random.shuffle(Default.init).take(2))
+    .zip(Seq(matcherConfig.withFallback(minerDisabled), minerDisabled, empty()))
     .map { case (n, o) => o.withFallback(n) }
 
   private val aliceSeed = _Configs(1).getString("account-seed")
@@ -30,57 +29,70 @@ object MatcherPriceAssetConfig {
   val usdAssetName = "USD-X"
   val wctAssetName = "WCT-X"
   val ethAssetName = "ETH-X"
+  val btcAssetName = "BTC-X"
 
-  val IssueUsdTx: IssueTransactionV1 = IssueTransactionV1
+  val IssueUsdTx: IssueTransactionV2 = IssueTransactionV2
     .selfSigned(
+      2,
+      AddressScheme.current.chainId,
       sender = alicePk,
       name = usdAssetName.getBytes(),
       description = "asset description".getBytes(),
       quantity = defaultAssetQuantity,
       decimals = Decimals,
       reissuable = false,
+      script = None,
       fee = 1.zbs,
       timestamp = System.currentTimeMillis()
     )
     .right
     .get
 
-  val IssueWctTx: IssueTransactionV1 = IssueTransactionV1
+  val IssueWctTx: IssueTransactionV2 = IssueTransactionV2
     .selfSigned(
+      2,
+      AddressScheme.current.chainId,
       sender = bobPk,
       name = wctAssetName.getBytes(),
       description = "asset description".getBytes(),
       quantity = defaultAssetQuantity,
       decimals = Decimals,
       reissuable = false,
+      script = None,
       fee = 1.zbs,
       timestamp = System.currentTimeMillis()
     )
     .right
     .get
 
-  val IssueEthTx: IssueTransactionV1 = IssueTransactionV1
+  val IssueEthTx: IssueTransactionV2 = IssueTransactionV2
     .selfSigned(
-      sender = bobPk,
+      2,
+      AddressScheme.current.chainId,
+      sender = alicePk,
       name = ethAssetName.getBytes(),
       description = "asset description".getBytes(),
       quantity = defaultAssetQuantity,
       decimals = 8,
       reissuable = false,
+      script = None,
       fee = 1.zbs,
       timestamp = System.currentTimeMillis()
     )
     .right
     .get
 
-  val IssueBtcTx: IssueTransactionV1 = IssueTransactionV1
+  val IssueBtcTx: IssueTransactionV2 = IssueTransactionV2
     .selfSigned(
-      sender = alicePk,
-      name = "BTC-X".getBytes(),
+      2,
+      AddressScheme.current.chainId,
+      sender = bobPk,
+      name = btcAssetName.getBytes(),
       description = "asset description".getBytes(),
       quantity = defaultAssetQuantity,
       decimals = 8,
       reissuable = false,
+      script = None,
       fee = 1.zbs,
       timestamp = System.currentTimeMillis()
     )
@@ -117,30 +129,31 @@ object MatcherPriceAssetConfig {
     priceAsset = Some(UsdId)
   )
 
+  val ethUsdPair = AssetPair(
+    amountAsset = Some(EthId),
+    priceAsset = Some(UsdId)
+  )
+
+  val zbsBtcPair = AssetPair(
+    amountAsset = None,
+    priceAsset = Some(BtcId)
+  )
+
   val orderLimit = 10
 
-  private val updatedMatcherConfig = parseString(s"""
-                                                    |zbs.matcher {
+  private val updatedMatcherConfig = parseString(s"""zbs.matcher {
                                                     |  price-assets = [ "$UsdId", "$BtcId", "ZBS" ]
-                                                    |  rest-order-limit=$orderLimit
-                                                    |}
-     """.stripMargin)
+                                                    |  rest-order-limit = $orderLimit
+                                                    |}""".stripMargin)
 
   val Configs: Seq[Config] = _Configs.map(updatedMatcherConfig.withFallback(_))
 
-  def createSignedIssueRequest(tx: IssueTransactionV1): SignedIssueV1Request = {
-    import tx._
-    SignedIssueV1Request(
-      Base58.encode(tx.sender.publicKey),
-      new String(name),
-      new String(description),
-      quantity,
-      decimals,
-      reissuable,
-      fee,
-      timestamp,
-      signature.base58
-    )
+  def createAssetPair(asset1: String, asset2: String): AssetPair = {
+    val (a1, a2) = (AssetPair.extractAssetId(asset1).get, AssetPair.extractAssetId(asset2).get)
+    if (AssetPairBuilder.assetIdOrdering.compare(a1, a2) > 0)
+      AssetPair(a1, a2)
+    else
+      AssetPair(a2, a1)
   }
 
 }

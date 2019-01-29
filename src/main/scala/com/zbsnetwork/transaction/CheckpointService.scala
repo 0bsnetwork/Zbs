@@ -1,7 +1,7 @@
-package com.zbsplatform.transaction
+package com.zbsnetwork.transaction
 
-import com.zbsplatform.network.{BlockCheckpoint, Checkpoint}
-import com.zbsplatform.state.ByteStr
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.network.{BlockCheckpoint, Checkpoint}
 
 trait CheckpointService {
 

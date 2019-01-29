@@ -1,27 +1,28 @@
-package com.zbsplatform.state.diffs.smart.scenarios
+package com.zbsnetwork.state.diffs.smart.scenarios
 
-import com.zbsplatform.lang.v1.compiler.CompilerV1
-import com.zbsplatform.lang.v1.parser.Parser
-import com.zbsplatform.state.diffs.smart._
-import com.zbsplatform.state._
-import com.zbsplatform.state.diffs.{assertDiffAndState, assertDiffEi, produce}
-import com.zbsplatform.utils.dummyCompilerContext
-import com.zbsplatform.{NoShrink, TransactionGen}
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.lagonaki.mocks.TestBlock
+import com.zbsnetwork.lang.Version.ExprV1
+import com.zbsnetwork.lang.v1.compiler.ExpressionCompilerV1
+import com.zbsnetwork.lang.v1.parser.Parser
+import com.zbsnetwork.state.diffs.smart._
+import com.zbsnetwork.state.diffs.{assertDiffAndState, assertDiffEi, produce}
+import com.zbsnetwork.transaction.GenesisTransaction
+import com.zbsnetwork.transaction.lease.LeaseTransaction
+import com.zbsnetwork.transaction.smart.SetScriptTransaction
+import com.zbsnetwork.transaction.transfer._
+import com.zbsnetwork.utils.compilerContext
+import com.zbsnetwork.{NoShrink, TransactionGen}
 import org.scalacheck.Gen
 import org.scalatest.prop.PropertyChecks
 import org.scalatest.{Matchers, PropSpec}
-import com.zbsplatform.lagonaki.mocks.TestBlock
-import com.zbsplatform.transaction.GenesisTransaction
-import com.zbsplatform.transaction.lease.LeaseTransaction
-import com.zbsplatform.transaction.smart.SetScriptTransaction
-import com.zbsplatform.transaction.transfer._
 
 class TransactionFieldAccessTest extends PropSpec with PropertyChecks with Matchers with TransactionGen with NoShrink {
 
   private def preconditionsTransferAndLease(
       code: String): Gen[(GenesisTransaction, SetScriptTransaction, LeaseTransaction, TransferTransactionV2)] = {
-    val untyped = Parser(code).get.value
-    val typed   = CompilerV1(dummyCompilerContext, untyped).explicitGet()._1
+    val untyped = Parser.parseScript(code).get.value
+    val typed   = ExpressionCompilerV1(compilerContext(ExprV1, isAssetScript = false), untyped).explicitGet()._1
     preconditionsTransferAndLease(typed)
   }
 

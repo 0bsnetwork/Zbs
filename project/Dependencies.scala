@@ -5,7 +5,7 @@ object Dependencies {
 
   def akkaModule(module: String) = "com.typesafe.akka" %% s"akka-$module" % "2.5.16"
 
-  def swaggerModule(module: String) = ("io.swagger" % s"swagger-$module" % "1.5.21").exclude("com.google.guava", "guava")
+  def swaggerModule(module: String) = ("io.swagger.core.v3" % s"swagger-$module" % "2.0.5").exclude("com.google.guava", "guava")
 
   def akkaHttpModule(module: String) = "com.typesafe.akka" %% module % "10.1.4"
 
@@ -33,14 +33,15 @@ object Dependencies {
   lazy val itKit = scalatest ++ Seq(
     // Swagger is using Jersey 1.1, hence the shading (https://github.com/spotify/docker-client#a-note-on-shading)
     ("com.spotify" % "docker-client" % "8.11.3").classifier("shaded").exclude("com.google.guava", "guava"),
-    "com.fasterxml.jackson.dataformat" % "jackson-dataformat-properties" % "2.9.5",
+    "com.fasterxml.jackson.dataformat" % "jackson-dataformat-properties" % "2.9.6",
     asyncHttpClient.exclude("io.netty", "netty-handler")
   )
 
   lazy val serialization = Seq(
     "com.google.guava"  % "guava"      % "21.0",
-    "com.typesafe.play" %% "play-json" % "2.6.9"
+    "com.typesafe.play" %% "play-json" % "2.6.10"
   )
+
   lazy val akka = Seq("actor", "slf4j").map(akkaModule)
 
   lazy val db = Seq(
@@ -54,9 +55,11 @@ object Dependencies {
     "net.logstash.logback" % "logstash-logback-encoder" % "4.11"
   )
 
-  lazy val http = Seq("core", "annotations", "models", "jaxrs").map(swaggerModule) ++ Seq(
-    "io.swagger"                   %% "swagger-scala-module" % "1.0.4" exclude("com.fasterxml.jackson.module", "jackson-module-scala_2.12"),
+  lazy val http = Seq("core", "annotations", "models", "jaxrs2").map(swaggerModule) ++ Seq(
+    "io.swagger"                   %% "swagger-scala-module" % "1.0.4",
     "com.github.swagger-akka-http" %% "swagger-akka-http"    % "1.0.0",
+    "com.fasterxml.jackson.core"   % "jackson-databind"      % "2.9.6",
+    "com.fasterxml.jackson.module" %% "jackson-module-scala" % "2.9.6",
     akkaHttpModule("akka-http")
   )
 
@@ -99,8 +102,9 @@ object Dependencies {
   lazy val scalactic   = Seq("org.scalactic" %% "scalactic"  % "3.0.5")
   lazy val cats        = Seq("org.typelevel" %% "cats-core"  % "1.1.0")
   lazy val scalacheck = Seq(
-    "org.scalacheck"      %% "scalacheck"      % "1.13.5",
+    "org.scalacheck"      %% "scalacheck"      % "1.14.0",
     "io.github.amrhassan" %% "scalacheck-cats" % "0.4.0" % Test
   )
-  lazy val kindProjector = "org.spire-math" %% "kind-projector" % "0.9.6"
+  lazy val kindProjector = "org.spire-math" %% "kind-projector"     % "0.9.6"
+  lazy val betterFor     = "com.olegpy"     %% "better-monadic-for" % "0.3.0-M4"
 }

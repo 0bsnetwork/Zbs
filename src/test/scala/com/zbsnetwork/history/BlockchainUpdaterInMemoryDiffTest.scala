@@ -1,14 +1,14 @@
-package com.zbsplatform.history
+package com.zbsnetwork.history
 
-import com.zbsplatform.TransactionGen
-import com.zbsplatform.features.BlockchainFeatures
-import com.zbsplatform.state._
-import com.zbsplatform.state.diffs._
+import com.zbsnetwork.TransactionGen
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.features.BlockchainFeatures
+import com.zbsnetwork.state.diffs._
+import com.zbsnetwork.transaction._
+import com.zbsnetwork.transaction.transfer._
 import org.scalacheck.Gen
 import org.scalatest._
 import org.scalatest.prop.PropertyChecks
-import com.zbsplatform.transaction._
-import com.zbsplatform.transaction.transfer._
 
 class BlockchainUpdaterInMemoryDiffTest
     extends PropSpec

@@ -1,27 +1,30 @@
-package com.zbsplatform.state.appender
+package com.zbsnetwork.state.appender
 
 import cats.data.EitherT
-import com.zbsplatform.metrics.{BlockStats, Instrumented}
-import com.zbsplatform.network.MicroBlockSynchronizer.MicroblockData
-import com.zbsplatform.network._
-import com.zbsplatform.state.Blockchain
-import com.zbsplatform.utils.ScorexLogging
-import com.zbsplatform.utx.UtxPool
+import com.zbsnetwork.metrics.{BlockStats, Instrumented}
+import com.zbsnetwork.network.MicroBlockSynchronizer.MicroblockData
+import com.zbsnetwork.network._
+import com.zbsnetwork.state.Blockchain
+import com.zbsnetwork.utils.ScorexLogging
+import com.zbsnetwork.utx.UtxPool
 import io.netty.channel.Channel
 import io.netty.channel.group.ChannelGroup
 import kamon.Kamon
 import monix.eval.Task
 import monix.execution.Scheduler
-import com.zbsplatform.block.MicroBlock
-import com.zbsplatform.transaction.ValidationError.{InvalidSignature, MicroBlockAppendError}
-import com.zbsplatform.transaction.{BlockchainUpdater, CheckpointService, ValidationError}
+import com.zbsnetwork.block.MicroBlock
+import com.zbsnetwork.transaction.ValidationError.{InvalidSignature, MicroBlockAppendError}
+import com.zbsnetwork.transaction.{BlockchainUpdater, CheckpointService, ValidationError}
 
 import scala.util.{Left, Right}
 
 object MicroblockAppender extends ScorexLogging with Instrumented {
 
-  def apply(checkpoint: CheckpointService, blockchainUpdater: BlockchainUpdater with Blockchain, utxStorage: UtxPool, scheduler: Scheduler)(
-      microBlock: MicroBlock): Task[Either[ValidationError, Unit]] =
+  def apply(checkpoint: CheckpointService,
+            blockchainUpdater: BlockchainUpdater with Blockchain,
+            utxStorage: UtxPool,
+            scheduler: Scheduler,
+            verify: Boolean = true)(microBlock: MicroBlock): Task[Either[ValidationError, Unit]] =
     Task(
       measureSuccessful(
         microblockProcessingTimeStats,
@@ -31,7 +34,7 @@ object MicroblockAppender extends ScorexLogging with Instrumented {
             (),
             MicroBlockAppendError(s"[h = ${blockchainUpdater.height + 1}] is not valid with respect to checkpoint", microBlock)
           )
-          _ <- blockchainUpdater.processMicroBlock(microBlock)
+          _ <- blockchainUpdater.processMicroBlock(microBlock, verify)
         } yield utxStorage.removeAll(microBlock.transactionData)
       )).executeOn(scheduler)
 

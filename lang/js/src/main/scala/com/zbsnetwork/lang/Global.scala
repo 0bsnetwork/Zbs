@@ -1,6 +1,6 @@
-package com.zbsplatform.lang
+package com.zbsnetwork.lang
 
-import com.zbsplatform.lang.v1.BaseGlobal
+import com.zbsnetwork.lang.v1.BaseGlobal
 
 import scala.scalajs.js.JSConverters._
 import scala.scalajs.js.typedarray.{ArrayBuffer, Int8Array}

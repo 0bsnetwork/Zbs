@@ -1,16 +1,16 @@
-package com.zbsplatform.matcher.model
+package com.zbsnetwork.matcher.model
 
-import com.zbsplatform.NoShrink
-import com.zbsplatform.matcher.MatcherTestData
-import com.zbsplatform.matcher.market.MatcherActor.OrderBookCreated
-import com.zbsplatform.matcher.market.OrderBookActor.Snapshot
-import com.zbsplatform.matcher.model.EventSerializers._
-import com.zbsplatform.matcher.model.MatcherModel.{Level, Price}
+import com.zbsnetwork.NoShrink
+import com.zbsnetwork.matcher.MatcherTestData
+import com.zbsnetwork.matcher.market.MatcherActor.OrderBookCreated
+import com.zbsnetwork.matcher.market.OrderBookActor.Snapshot
+import com.zbsnetwork.matcher.model.EventSerializers._
+import com.zbsnetwork.matcher.model.MatcherModel.{Level, Price}
 import org.scalacheck.Gen
 import org.scalatest.prop.PropertyChecks
 import org.scalatest.{Matchers, PropSpec}
 import play.api.libs.json.Json
-import com.zbsplatform.transaction.assets.exchange.AssetPair
+import com.zbsnetwork.transaction.assets.exchange.AssetPair
 
 import scala.collection.immutable.TreeMap
 

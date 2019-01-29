@@ -1,18 +1,19 @@
-package com.zbsplatform
+package com.zbsnetwork
 
-import com.zbsplatform.state._
+import com.zbsnetwork.account.PrivateKeyAccount
+import com.zbsnetwork.block.Block
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.consensus.nxt.NxtLikeConsensusBlockData
+import com.zbsnetwork.transaction.{ProvenTransaction, Transaction}
 import org.scalacheck.Gen
 import org.scalatest.Suite
-import com.zbsplatform.account.PrivateKeyAccount
-import com.zbsplatform.block.Block
-import com.zbsplatform.consensus.nxt.NxtLikeConsensusBlockData
-import com.zbsplatform.transaction.{SignedTransaction, Transaction}
 
 trait BlockGen extends TransactionGen { _: Suite =>
 
   import BlockGen._
 
-  val blockParamGen: Gen[(Seq[SignedTransaction], PrivateKeyAccount)] = for {
+  val blockParamGen: Gen[(Seq[ProvenTransaction], PrivateKeyAccount)] = for {
     count        <- Gen.choose(minTransactionsInBlockCount, maxTransactionsInBlockCount)
     transactions <- randomTransactionsGen(count)
     signer       <- accountGen

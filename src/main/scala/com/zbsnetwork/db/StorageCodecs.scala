@@ -1,8 +1,8 @@
-package com.zbsplatform.db
+package com.zbsnetwork.db
 
 import com.google.common.primitives.Ints
-import com.zbsplatform.network.{BlockCheckpoint, Checkpoint}
-import com.zbsplatform.state.EitherExt2
+import com.zbsnetwork.network.{BlockCheckpoint, Checkpoint}
+import com.zbsnetwork.common.utils.EitherExt2
 
 import scala.collection.generic.CanBuildFrom
 import scala.util.Try

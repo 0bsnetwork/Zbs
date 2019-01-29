@@ -1,10 +1,11 @@
-package com.zbsplatform.network
+package com.zbsnetwork.network
 
 import com.google.common.primitives.{Bytes, Ints}
+import com.zbsnetwork.common.utils.Base58
 import io.swagger.annotations.ApiModelProperty
 import play.api.libs.json._
-import com.zbsplatform.utils.Base58
-import scorex.crypto.signatures.Curve25519._
+import com.zbsnetwork.crypto._
+
 import scala.collection.immutable.Stream
 import scala.util.{Failure, Success}
 

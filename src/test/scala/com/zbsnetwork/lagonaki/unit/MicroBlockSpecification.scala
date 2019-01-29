@@ -1,15 +1,16 @@
-package com.zbsplatform.lagonaki.unit
+package com.zbsnetwork.lagonaki.unit
 
-import com.zbsplatform.mining.Miner
-import com.zbsplatform.state._
-import com.zbsplatform.state.diffs.produce
+import com.zbsnetwork.account.PrivateKeyAccount
+import com.zbsnetwork.block.{Block, MicroBlock}
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.mining.Miner
+import com.zbsnetwork.state.diffs.produce
+import com.zbsnetwork.transaction._
+import com.zbsnetwork.transaction.transfer._
 import org.scalamock.scalatest.MockFactory
 import org.scalatest.words.ShouldVerb
 import org.scalatest.{FunSuite, Matchers}
-import com.zbsplatform.account.PrivateKeyAccount
-import com.zbsplatform.block.{Block, MicroBlock}
-import com.zbsplatform.transaction._
-import com.zbsplatform.transaction.transfer._
 
 import scala.util.Random
 

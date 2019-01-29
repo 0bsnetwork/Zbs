@@ -1,23 +1,23 @@
-package com.zbsplatform.dexgen
+package com.zbsnetwork.dexgen
 
 import java.util.concurrent.Executors
 
 import cats.implicits.showInterpolator
 import com.typesafe.config.ConfigFactory
-import com.zbsplatform.account.{AddressOrAlias, AddressScheme, PrivateKeyAccount}
-import com.zbsplatform.api.http.assets.{SignedIssueV1Request, SignedMassTransferRequest}
-import com.zbsplatform.dexgen.cli.ScoptImplicits
-import com.zbsplatform.dexgen.config.FicusImplicits
-import com.zbsplatform.dexgen.utils.{ApiRequests, GenOrderType}
-import com.zbsplatform.it.api.Transaction
-import com.zbsplatform.it.util.GlobalTimer
-import com.zbsplatform.network.client.NetworkSender
-import com.zbsplatform.state.ByteStr
-import com.zbsplatform.transaction.AssetId
-import com.zbsplatform.transaction.assets.IssueTransactionV1
-import com.zbsplatform.transaction.transfer.MassTransferTransaction
-import com.zbsplatform.transaction.transfer.MassTransferTransaction.ParsedTransfer
-import com.zbsplatform.utils.LoggerFacade
+import com.zbsnetwork.account.{AddressOrAlias, AddressScheme, PrivateKeyAccount}
+import com.zbsnetwork.api.http.assets.{SignedIssueV1Request, SignedMassTransferRequest}
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.dexgen.cli.ScoptImplicits
+import com.zbsnetwork.dexgen.config.FicusImplicits
+import com.zbsnetwork.dexgen.utils.{ApiRequests, GenOrderType}
+import com.zbsnetwork.it.api.Transaction
+import com.zbsnetwork.it.util.GlobalTimer
+import com.zbsnetwork.network.client.NetworkSender
+import com.zbsnetwork.transaction.AssetId
+import com.zbsnetwork.transaction.assets.IssueTransactionV1
+import com.zbsnetwork.transaction.transfer.MassTransferTransaction
+import com.zbsnetwork.transaction.transfer.MassTransferTransaction.ParsedTransfer
+import com.zbsnetwork.utils.LoggerFacade
 import net.ceedubs.ficus.Ficus._
 import net.ceedubs.ficus.readers.ArbitraryTypeReader._
 import net.ceedubs.ficus.readers.{EnumerationReader, NameMapper}

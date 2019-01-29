@@ -1,6 +1,6 @@
-package com.zbsplatform.lang.v1.parser
+package com.zbsnetwork.lang.v1.parser
 
-import com.zbsplatform.lang.v1.parser.Expressions._
+import com.zbsnetwork.lang.v1.parser.Expressions._
 import fastparse.all._
 
 sealed abstract class BinaryOperation {

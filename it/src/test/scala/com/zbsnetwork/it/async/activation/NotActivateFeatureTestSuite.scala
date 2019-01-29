@@ -1,12 +1,12 @@
-package com.zbsplatform.it.async.activation
+package com.zbsnetwork.it.async.activation
 
 import com.typesafe.config.Config
-import com.zbsplatform.features.BlockchainFeatureStatus
-import com.zbsplatform.features.api.{FeatureActivationStatus, NodeFeatureStatus}
-import com.zbsplatform.it.api.AsyncHttpApi._
-import com.zbsplatform.it.api.BlockHeaders
-import com.zbsplatform.it.transactions.NodesFromDocker
-import com.zbsplatform.it.{NodeConfigs, ReportingTestName}
+import com.zbsnetwork.features.BlockchainFeatureStatus
+import com.zbsnetwork.features.api.{FeatureActivationStatus, NodeFeatureStatus}
+import com.zbsnetwork.it.api.AsyncHttpApi._
+import com.zbsnetwork.it.api.BlockHeaders
+import com.zbsnetwork.it.transactions.NodesFromDocker
+import com.zbsnetwork.it.{NodeConfigs, ReportingTestName}
 import org.scalatest.{CancelAfterFailure, FreeSpec, Matchers}
 
 import scala.concurrent.Await

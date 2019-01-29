@@ -1,10 +1,11 @@
-package com.zbsplatform.matcher.api
+package com.zbsnetwork.matcher.api
 
 import akka.http.scaladsl.marshalling.ToResponseMarshaller
 import akka.http.scaladsl.model.{StatusCodes => C, _}
-import com.zbsplatform.state.ByteStr
-import com.zbsplatform.transaction.assets.exchange.Order
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.transaction.assets.exchange.Order
 import play.api.libs.json.{JsNull, JsValue, Json}
+import com.zbsnetwork.utils.byteStrWrites
 
 abstract class MatcherResponse(val statusCode: StatusCode, val json: JsValue) {
   def this(code: StatusCode, message: String) =
@@ -18,7 +19,7 @@ abstract class MatcherResponse(val statusCode: StatusCode, val json: JsValue) {
 
 object MatcherResponse {
   import akka.http.scaladsl.marshalling.PredefinedToResponseMarshallers._
-  import com.zbsplatform.http.ApiMarshallers._
+  import com.zbsnetwork.http.ApiMarshallers._
   implicit val trm: ToResponseMarshaller[MatcherResponse] =
     fromStatusCodeAndValue[StatusCode, JsValue].compose(mr => mr.statusCode -> mr.json)
 
@@ -46,3 +47,7 @@ case class OrderDeleted(orderId: ByteStr) extends MatcherResponse(C.OK, Json.obj
 
 case class OrderCancelRejected(message: String)
     extends MatcherResponse(C.BadRequest, Json.obj("status" -> "OrderCancelRejected", "message" -> message))
+
+case object OrderBookUnavailable extends MatcherResponse(C.ServiceUnavailable, "Order book is unavailable. Please contact the administrator")
+
+case object DuringShutdown extends MatcherResponse(C.ServiceUnavailable, "System is going shutdown")

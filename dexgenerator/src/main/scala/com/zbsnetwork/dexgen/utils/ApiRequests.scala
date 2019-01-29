@@ -1,13 +1,14 @@
-package com.zbsplatform.dexgen.utils
+package com.zbsnetwork.dexgen.utils
 
 import java.io.IOException
 import java.util.concurrent.TimeoutException
 
 import com.google.common.primitives.Longs
-import com.zbsplatform.account.PrivateKeyAccount
-import com.zbsplatform.api.http.assets.{SignedIssueV1Request, SignedMassTransferRequest, SignedTransferV1Request}
-import com.zbsplatform.crypto
-import com.zbsplatform.it.api.{
+import com.zbsnetwork.account.PrivateKeyAccount
+import com.zbsnetwork.api.http.assets.{SignedIssueV1Request, SignedMassTransferRequest, SignedTransferV1Request}
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.crypto
+import com.zbsnetwork.it.api.{
   AssetBalance,
   Balance,
   MatcherResponse,
@@ -18,16 +19,15 @@ import com.zbsplatform.it.api.{
   Transaction,
   UnexpectedStatusCodeException
 }
-import com.zbsplatform.it.util.GlobalTimer.{instance => timer}
-import com.zbsplatform.it.util._
-import com.zbsplatform.matcher.api.CancelOrderRequest
-import com.zbsplatform.state.ByteStr
-import com.zbsplatform.transaction.AssetId
-import com.zbsplatform.transaction.assets.IssueTransactionV1
-import com.zbsplatform.transaction.assets.exchange.{AssetPair, Order}
-import com.zbsplatform.transaction.transfer.MassTransferTransaction.{ParsedTransfer, Transfer}
-import com.zbsplatform.transaction.transfer.{MassTransferTransaction, TransferTransactionV1}
-import com.zbsplatform.utils.ScorexLogging
+import com.zbsnetwork.it.util.GlobalTimer.{instance => timer}
+import com.zbsnetwork.it.util._
+import com.zbsnetwork.matcher.api.CancelOrderRequest
+import com.zbsnetwork.transaction.AssetId
+import com.zbsnetwork.transaction.assets.IssueTransactionV1
+import com.zbsnetwork.transaction.assets.exchange.{AssetPair, Order}
+import com.zbsnetwork.transaction.transfer.MassTransferTransaction.{ParsedTransfer, Transfer}
+import com.zbsnetwork.transaction.transfer.{MassTransferTransaction, TransferTransactionV1}
+import com.zbsnetwork.utils.ScorexLogging
 import org.asynchttpclient.Dsl.{get => _get, post => _post}
 import org.asynchttpclient._
 import org.asynchttpclient.util.HttpConstants

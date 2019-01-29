@@ -1,19 +1,26 @@
-package com.zbsplatform.transaction.smart
+package com.zbsnetwork.transaction.smart
 
-import com.zbsplatform.lang.v1.traits.Recipient.{Address, Alias}
-import com.zbsplatform.lang.v1.traits.{DataType, Environment, Recipient, Tx => ContractTransaction}
-import com.zbsplatform.state._
+import com.zbsnetwork.account.AddressOrAlias
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.lang.v1.traits._
+import com.zbsnetwork.lang.v1.traits.domain.Recipient._
+import com.zbsnetwork.lang.v1.traits.domain.{Ord, Recipient, Tx}
+import com.zbsnetwork.state._
+import com.zbsnetwork.transaction.Transaction
+import com.zbsnetwork.transaction.assets.exchange.Order
 import monix.eval.Coeval
-import scodec.bits.ByteVector
-import com.zbsplatform.account.AddressOrAlias
-import com.zbsplatform.transaction.Transaction
+import shapeless._
 
-class ZbsEnvironment(nByte: Byte, tx: Coeval[Transaction], h: Coeval[Int], blockchain: Blockchain) extends Environment {
-  override def height: Int = h()
+class ZbsEnvironment(nByte: Byte, in: Coeval[Transaction :+: Order :+: CNil], h: Coeval[Int], blockchain: Blockchain) extends Environment {
+  override def height: Long = h()
 
-  override def transaction: ContractTransaction = RealTransactionWrapper(tx())
+  override def inputEntity: Tx :+: Ord :+: CNil = {
+    in.apply()
+      .map(InputPoly)
+  }
 
-  override def transactionById(id: Array[Byte]): Option[ContractTransaction] =
+  override def transactionById(id: Array[Byte]): Option[Tx] =
     blockchain
       .transactionInfo(ByteStr(id))
       .map(_._2)
@@ -23,12 +30,12 @@ class ZbsEnvironment(nByte: Byte, tx: Coeval[Transaction], h: Coeval[Int], block
     for {
       address <- recipient match {
         case Address(bytes) =>
-          com.zbsplatform.account.Address
-            .fromBytes(bytes.toArray)
+          com.zbsnetwork.account.Address
+            .fromBytes(bytes.arr)
             .toOption
         case Alias(name) =>
-          com.zbsplatform.account.Alias
-            .buildWithCurrentNetworkByte(name)
+          com.zbsnetwork.account.Alias
+            .buildWithCurrentChainId(name)
             .flatMap(blockchain.resolveAlias)
             .toOption
       }
@@ -38,7 +45,7 @@ class ZbsEnvironment(nByte: Byte, tx: Coeval[Transaction], h: Coeval[Int], block
         .flatMap {
           case (IntegerDataEntry(_, value), DataType.Long)     => Some(value)
           case (BooleanDataEntry(_, value), DataType.Boolean)  => Some(value)
-          case (BinaryDataEntry(_, value), DataType.ByteArray) => Some(ByteVector(value.arr))
+          case (BinaryDataEntry(_, value), DataType.ByteArray) => Some(ByteStr(value.arr))
           case (StringDataEntry(_, value), DataType.String)    => Some(value)
           case _                                               => None
         }
@@ -46,24 +53,24 @@ class ZbsEnvironment(nByte: Byte, tx: Coeval[Transaction], h: Coeval[Int], block
   }
   override def resolveAlias(name: String): Either[String, Recipient.Address] =
     blockchain
-      .resolveAlias(com.zbsplatform.account.Alias.buildWithCurrentNetworkByte(name).explicitGet())
+      .resolveAlias(com.zbsnetwork.account.Alias.buildWithCurrentChainId(name).explicitGet())
       .left
       .map(_.toString)
       .right
-      .map(a => Recipient.Address(ByteVector(a.bytes.arr)))
+      .map(a => Recipient.Address(ByteStr(a.bytes.arr)))
 
-  override def networkByte: Byte = nByte
+  override def chainId: Byte = nByte
 
   override def accountBalanceOf(addressOrAlias: Recipient, maybeAssetId: Option[Array[Byte]]): Either[String, Long] = {
     (for {
       aoa <- addressOrAlias match {
-        case Address(bytes) => AddressOrAlias.fromBytes(bytes.toArray, position = 0).map(_._1)
-        case Alias(name)    => com.zbsplatform.account.Alias.buildWithCurrentNetworkByte(name)
+        case Address(bytes) => AddressOrAlias.fromBytes(bytes.arr, position = 0).map(_._1)
+        case Alias(name)    => com.zbsnetwork.account.Alias.buildWithCurrentChainId(name)
       }
       address <- blockchain.resolveAlias(aoa)
       balance = blockchain.balance(address, maybeAssetId.map(ByteStr(_)))
     } yield balance).left.map(_.toString)
   }
-  override def transactionHeightById(id: Array[Byte]): Option[Int] =
-    blockchain.transactionHeight(ByteStr(id))
+  override def transactionHeightById(id: Array[Byte]): Option[Long] =
+    blockchain.transactionHeight(ByteStr(id)).map(_.toLong)
 }

@@ -1,7 +1,7 @@
-package com.zbsplatform.lang.v1
+package com.zbsnetwork.lang.v1
 
 import cats.data.EitherT
-import com.zbsplatform.lang.v1.compiler.Terms._
+import com.zbsnetwork.lang.v1.compiler.Terms._
 import monix.eval.Coeval
 
 object ScriptEstimator {
@@ -9,13 +9,16 @@ object ScriptEstimator {
     type Result[T] = EitherT[Coeval, String, T]
 
     def aux(t: Result[EXPR], syms: Map[String, (EXPR, Boolean)]): Result[(Long, Map[String, (EXPR, Boolean)])] = t.flatMap {
-      case _: CONST_LONG | _: CONST_BYTEVECTOR | _: CONST_STRING | TRUE | FALSE => EitherT.pure((1, syms))
-      case t: GETTER                                                            => aux(EitherT.pure(t.expr), syms).map { case (comp, out) => (comp + 2, out) }
+      case _: CONST_LONG | _: CONST_BYTESTR | _: CONST_STRING | _: CONST_BOOLEAN => EitherT.pure((1, syms))
+      case t: GETTER                                                                => aux(EitherT.pure(t.expr), syms).map { case (comp, out) => (comp + 2, out) }
 
-      case BLOCK(let, body) =>
+      case LET_BLOCK(let: LET, body) =>
         aux(EitherT.pure(body), syms + ((let.name, (let.value, false))))
           .map { case (comp, out) => (comp + 5, out) }
-
+      case BLOCK(let: LET, body) =>
+        aux(EitherT.pure(body), syms + ((let.name, (let.value, false))))
+          .map { case (comp, out) => (comp + 5, out) }
+      case BLOCK(f: FUNC, body) => ???
       case REF(key) =>
         val ei: EitherT[Coeval, String, (Long, Map[String, (EXPR, Boolean)])] = syms.get(key) match {
           case None                => EitherT.fromEither(Left(s"ScriptValidator: Undeclared variable '$key'"))
@@ -47,6 +50,8 @@ object ScriptEstimator {
           }
           (argsComp, argsSyms) = args
         } yield (callCost() + argsComp, argsSyms)
+
+      case _ => ??? //TODO: FIx exhaustivness
     }
 
     aux(EitherT.pure(t), declaredVals.map(_ -> ((TRUE, true))).toMap).value().map(_._1)

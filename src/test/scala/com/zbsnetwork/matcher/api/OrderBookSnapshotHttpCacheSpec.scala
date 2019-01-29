@@ -1,20 +1,21 @@
-package com.zbsplatform.matcher.api
+package com.zbsnetwork.matcher.api
 
 import java.nio.charset.StandardCharsets
 
 import akka.http.scaladsl.model.{HttpEntity, HttpResponse}
-import com.zbsplatform.TransactionGenBase
-import com.zbsplatform.matcher.model.MatcherModel.Price
-import com.zbsplatform.matcher.model._
-import com.zbsplatform.state.ByteStr
-import com.zbsplatform.transaction.assets.exchange.{AssetPair, Order}
+import com.zbsnetwork.OrderOps._
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.matcher.model.MatcherModel.Price
+import com.zbsnetwork.matcher.model._
+import com.zbsnetwork.transaction.assets.exchange.{AssetPair, Order}
+import com.zbsnetwork.{NTPTime, TransactionGenBase}
 import org.scalacheck.Gen
 import org.scalatest.{FreeSpec, Matchers}
 
 import scala.collection.immutable.TreeMap
 import scala.concurrent.duration._
 
-class OrderBookSnapshotHttpCacheSpec extends FreeSpec with Matchers with TransactionGenBase {
+class OrderBookSnapshotHttpCacheSpec extends FreeSpec with Matchers with TransactionGenBase with NTPTime {
 
   private val defaultAssetPair = AssetPair(None, Some(ByteStr("asset".getBytes)))
 
@@ -54,8 +55,8 @@ class OrderBookSnapshotHttpCacheSpec extends FreeSpec with Matchers with Transac
       val askLimitOrders = Gen
         .containerOfN[Vector, Order](2, orderGen)
         .map { xs =>
-          val r = xs.head +: xs.tail.map(_.copy(price = xs.head.price - 1))
-          r.map(x => SellLimitOrder(x.price, x.amount, x.matcherFee, x)).groupBy(_.price)
+          val r = xs.head +: xs.tail.map(_.updatePrice(price = xs.head.price - 1))
+          r.map(x => SellLimitOrder(x.amount, x.matcherFee, x)).groupBy(_.price)
         }
         .sample
         .get
@@ -63,15 +64,16 @@ class OrderBookSnapshotHttpCacheSpec extends FreeSpec with Matchers with Transac
       val bidLimitOrders = Gen
         .containerOfN[Vector, Order](2, orderGen)
         .map { xs =>
-          val r = xs.head +: xs.tail.map(_.copy(price = xs.head.price + 1))
-          r.map(x => BuyLimitOrder(x.price, x.amount, x.matcherFee, x)).groupBy(_.price)
+          val r = xs.head +: xs.tail.map(_.updatePrice(xs.head.price + 1))
+          r.map(x => BuyLimitOrder(x.amount, x.matcherFee, x)).groupBy(_.price)
         }
         .sample
         .get
 
       "asks" in using {
         new OrderBookSnapshotHttpCache(
-          OrderBookSnapshotHttpCache.Settings(1.minute, List(3, 9)), { _ =>
+          OrderBookSnapshotHttpCache.Settings(1.minute, List(3, 9)),
+          ntpTime, { _ =>
             Some(
               OrderBook(
                 bids = TreeMap.empty,
@@ -87,7 +89,7 @@ class OrderBookSnapshotHttpCacheSpec extends FreeSpec with Matchers with Transac
         withClue("asks size")(ob.asks.size shouldBe 2)
 
         def checkHasAggregatedAmount(x: LevelAgg): Unit = withClue(s"${x.price} should have the aggregated amount") {
-          x shouldBe LevelAgg(x.price, askLimitOrders(x.price).map(_.amount).sum)
+          x shouldBe LevelAgg(askLimitOrders(x.price).map(_.amount).sum, x.price)
         }
 
         ob.asks.foreach(checkHasAggregatedAmount)
@@ -101,7 +103,8 @@ class OrderBookSnapshotHttpCacheSpec extends FreeSpec with Matchers with Transac
 
       "bids" in using {
         new OrderBookSnapshotHttpCache(
-          OrderBookSnapshotHttpCache.Settings(1.minute, List(3, 9)), { _ =>
+          OrderBookSnapshotHttpCache.Settings(1.minute, List(3, 9)),
+          ntpTime, { _ =>
             Some(
               OrderBook(
                 bids = TreeMap(bidLimitOrders.toSeq: _*)(OrderBook.bidsOrdering),
@@ -117,7 +120,7 @@ class OrderBookSnapshotHttpCacheSpec extends FreeSpec with Matchers with Transac
         withClue("asks size")(ob.asks shouldBe empty)
 
         def checkHasAggregatedAmount(x: LevelAgg): Unit = withClue(s"${x.price} should have the aggregated amount") {
-          x shouldBe LevelAgg(x.price, bidLimitOrders(x.price).map(_.amount).sum)
+          x shouldBe LevelAgg(bidLimitOrders(x.price).map(_.amount).sum, x.price)
         }
 
         ob.bids.foreach(checkHasAggregatedAmount)
@@ -135,7 +138,8 @@ class OrderBookSnapshotHttpCacheSpec extends FreeSpec with Matchers with Transac
       val bidLimitOrders = randomBidLimitOrders
       using {
         new OrderBookSnapshotHttpCache(
-          OrderBookSnapshotHttpCache.Settings(1.minute, List(3, 9)), { _ =>
+          OrderBookSnapshotHttpCache.Settings(1.minute, List(3, 9)),
+          ntpTime, { _ =>
             Some(
               OrderBook(
                 bids = TreeMap(bidLimitOrders.toSeq: _*),
@@ -171,7 +175,8 @@ class OrderBookSnapshotHttpCacheSpec extends FreeSpec with Matchers with Transac
       val depths         = List(1, 3, 7, 9)
       using {
         new OrderBookSnapshotHttpCache(
-          OrderBookSnapshotHttpCache.Settings(1.minute, depths), { _ =>
+          OrderBookSnapshotHttpCache.Settings(1.minute, depths),
+          ntpTime, { _ =>
             Some(
               OrderBook(
                 bids = TreeMap(bidLimitOrders.toSeq: _*),
@@ -196,7 +201,7 @@ class OrderBookSnapshotHttpCacheSpec extends FreeSpec with Matchers with Transac
     }
   }
 
-  private def createDefaultCache = new OrderBookSnapshotHttpCache(OrderBookSnapshotHttpCache.Settings(50.millis, List(3, 9)), _ => None)
+  private def createDefaultCache = new OrderBookSnapshotHttpCache(OrderBookSnapshotHttpCache.Settings(50.millis, List(3, 9)), ntpTime, _ => None)
 
   private def orderBookFrom(x: HttpResponse): OrderBookResult = JsonSerializer.deserialize[OrderBookResult](
     x.entity
@@ -209,7 +214,7 @@ class OrderBookSnapshotHttpCacheSpec extends FreeSpec with Matchers with Transac
     Gen
       .containerOfN[Vector, Order](10, orderGen)
       .map { xs =>
-        xs.map(x => BuyLimitOrder(x.price, x.amount, x.matcherFee, x)).groupBy(_.price)
+        xs.map(x => BuyLimitOrder(x.amount, x.matcherFee, x)).groupBy(_.price)
       }
       .sample
       .get

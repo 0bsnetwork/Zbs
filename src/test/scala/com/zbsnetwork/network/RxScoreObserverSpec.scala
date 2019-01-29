@@ -1,7 +1,7 @@
-package com.zbsplatform.network
+package com.zbsnetwork.network
 
-import com.zbsplatform.network.RxScoreObserver.{BestChannel, SyncWith}
-import com.zbsplatform.{RxScheduler, TransactionGen}
+import com.zbsnetwork.network.RxScoreObserver.{BestChannel, SyncWith}
+import com.zbsnetwork.{RxScheduler, TransactionGen}
 import io.netty.channel.Channel
 import io.netty.channel.local.LocalChannel
 import monix.eval.Coeval

@@ -1,15 +1,17 @@
-package com.zbsplatform.state.diffs
+package com.zbsnetwork.state.diffs
 
-import com.zbsplatform.features.BlockchainFeatures
-import com.zbsplatform.state.{BinaryDataEntry, BooleanDataEntry, ByteStr, DataEntry, EitherExt2, IntegerDataEntry}
-import com.zbsplatform.{NoShrink, TransactionGen, WithDB}
+import com.zbsnetwork.account.PrivateKeyAccount
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.features.BlockchainFeatures
+import com.zbsnetwork.lagonaki.mocks.TestBlock.{create => block}
+import com.zbsnetwork.settings.TestFunctionalitySettings
+import com.zbsnetwork.state.{BinaryDataEntry, BooleanDataEntry, DataEntry, IntegerDataEntry}
+import com.zbsnetwork.transaction.{DataTransaction, GenesisTransaction}
+import com.zbsnetwork.{NoShrink, TransactionGen, WithDB}
 import org.scalacheck.{Arbitrary, Gen}
 import org.scalatest.prop.PropertyChecks
 import org.scalatest.{Matchers, PropSpec}
-import com.zbsplatform.account.PrivateKeyAccount
-import com.zbsplatform.settings.TestFunctionalitySettings
-import com.zbsplatform.lagonaki.mocks.TestBlock.{create => block}
-import com.zbsplatform.transaction.{DataTransaction, GenesisTransaction}
 
 class DataTransactionDiffTest extends PropSpec with PropertyChecks with Matchers with TransactionGen with NoShrink with WithDB {
 
@@ -118,7 +120,7 @@ class DataTransactionDiffTest extends PropSpec with PropertyChecks with Matchers
     forAll(setup) {
       case (genesis, data) =>
         assertDiffEi(Seq(block(Seq(genesis))), block(Seq(data)), settings) { blockDiffEi =>
-          blockDiffEi should produce("DataTransaction transaction has not been activated")
+          blockDiffEi should produce("DataTransaction has not been activated")
         }
     }
   }

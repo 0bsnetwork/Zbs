@@ -1,15 +1,16 @@
-package com.zbsplatform.history
+package com.zbsnetwork.history
 
-import com.zbsplatform.state._
-import com.zbsplatform.state.diffs._
-import com.zbsplatform.{NoShrink, TransactionGen}
+import com.zbsnetwork.account.PrivateKeyAccount
+import com.zbsnetwork.block.{Block, MicroBlock}
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.state.diffs._
+import com.zbsnetwork.transaction._
+import com.zbsnetwork.transaction.transfer._
+import com.zbsnetwork.{NoShrink, TransactionGen}
 import org.scalacheck.Gen
 import org.scalatest._
 import org.scalatest.prop.PropertyChecks
-import com.zbsplatform.account.PrivateKeyAccount
-import com.zbsplatform.block.{Block, MicroBlock}
-import com.zbsplatform.transaction._
-import com.zbsplatform.transaction.transfer._
 
 class BlockchainUpdaterBlockMicroblockSequencesSameTransactionsTest
     extends PropSpec

@@ -1,12 +1,12 @@
-package com.zbsplatform.api.http
+package com.zbsnetwork.api.http
 
 import akka.http.scaladsl.model.{StatusCode, StatusCodes}
-import com.zbsplatform.lang.v1.evaluator.ctx.LazyVal
-import com.zbsplatform.state.diffs.TransactionDiffer.TransactionValidationError
+import com.zbsnetwork.lang.v1.evaluator.ctx.LazyVal
+import com.zbsnetwork.state.diffs.TransactionDiffer.TransactionValidationError
 import play.api.libs.json._
-import com.zbsplatform.account.{Address, AddressOrAlias, Alias}
-import com.zbsplatform.lang.ExprEvaluator.Log
-import com.zbsplatform.transaction.{Transaction, ValidationError}
+import com.zbsnetwork.account.{Address, AddressOrAlias, Alias}
+import com.zbsnetwork.lang.v1.evaluator.Log
+import com.zbsnetwork.transaction.{Transaction, ValidationError}
 
 case class ApiErrorResponse(error: Int, message: String)
 
@@ -264,7 +264,7 @@ case class TransactionNotAllowedByScript(tx: Transaction, log: Log, scriptSrc: S
 
   override val id: Int             = 307
   override val code: StatusCode    = StatusCodes.BadRequest
-  override val message: String     = s"Transaction not allowed by ${if (isTokenScript) "token" else "account"}-script"
+  override val message: String     = s"Transaction is not allowed by ${if (isTokenScript) "token" else "account"}-script"
   override lazy val json: JsObject = ScriptErrorJson(id, tx, message, scriptSrc, log)
 }
 

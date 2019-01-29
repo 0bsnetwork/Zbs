@@ -1,7 +1,7 @@
-package com.zbsplatform.state.diffs
+package com.zbsnetwork.state.diffs
 
-import com.zbsplatform.state._
-import com.zbsplatform.transaction.{DataTransaction, ValidationError}
+import com.zbsnetwork.state._
+import com.zbsnetwork.transaction.{DataTransaction, ValidationError}
 
 object DataTransactionDiff {
 

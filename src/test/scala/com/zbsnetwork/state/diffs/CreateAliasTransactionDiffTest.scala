@@ -1,17 +1,18 @@
-package com.zbsplatform.state.diffs
+package com.zbsnetwork.state.diffs
 
 import cats._
-import com.zbsplatform.features.BlockchainFeatures
-import com.zbsplatform.state._
-import com.zbsplatform.{NoShrink, TransactionGen}
+import com.zbsnetwork.account.PrivateKeyAccount
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.features.BlockchainFeatures
+import com.zbsnetwork.lagonaki.mocks.TestBlock
+import com.zbsnetwork.settings.TestFunctionalitySettings
+import com.zbsnetwork.state._
+import com.zbsnetwork.transaction.assets.IssueTransaction
+import com.zbsnetwork.transaction.{CreateAliasTransaction, CreateAliasTransactionV1, GenesisTransaction}
+import com.zbsnetwork.{NoShrink, TransactionGen}
 import org.scalacheck.Gen
 import org.scalatest.prop.PropertyChecks
 import org.scalatest.{Matchers, PropSpec}
-import com.zbsplatform.account.PrivateKeyAccount
-import com.zbsplatform.settings.TestFunctionalitySettings
-import com.zbsplatform.lagonaki.mocks.TestBlock
-import com.zbsplatform.transaction.assets.IssueTransaction
-import com.zbsplatform.transaction.{CreateAliasTransaction, CreateAliasTransactionV1, GenesisTransaction}
 
 class CreateAliasTransactionDiffTest extends PropSpec with PropertyChecks with Matchers with TransactionGen with NoShrink {
 

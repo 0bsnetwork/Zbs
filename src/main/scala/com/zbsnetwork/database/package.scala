@@ -1,16 +1,18 @@
-package com.zbsplatform
+package com.zbsnetwork
 
 import java.nio.ByteBuffer
+import java.util.{Map => JMap}
 
 import com.google.common.base.Charsets.UTF_8
 import com.google.common.io.ByteStreams.{newDataInput, newDataOutput}
 import com.google.common.io.{ByteArrayDataInput, ByteArrayDataOutput}
 import com.google.common.primitives.{Ints, Shorts}
-import com.zbsplatform.state._
-import com.zbsplatform.transaction.smart.script.{Script, ScriptReader}
-import com.zbsplatform.transaction.{Transaction, TransactionParsers}
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.state._
+import com.zbsnetwork.transaction.smart.script.{Script, ScriptReader}
+import com.zbsnetwork.transaction.{Transaction, TransactionParsers}
 import org.iq80.leveldb.{DB, ReadOptions}
-import java.util.{Map => JMap}
 
 package object database {
   implicit class ByteArrayDataOutputExt(val output: ByteArrayDataOutput) extends AnyVal {
@@ -210,20 +212,21 @@ package object database {
   }
 
   def readAssetInfo(data: Array[Byte]): AssetInfo = {
-    val ndi = newDataInput(data)
-    AssetInfo(ndi.readBoolean(), ndi.readBigInt(), ndi.readScriptOption())
+    val ndi     = newDataInput(data)
+    val reissue = ndi.readBoolean()
+    val volume  = ndi.readBigInt()
+    AssetInfo(reissue, volume)
   }
 
   def writeAssetInfo(ai: AssetInfo): Array[Byte] = {
     val ndo = newDataOutput()
     ndo.writeBoolean(ai.isReissuable)
     ndo.writeBigInt(ai.volume)
-    ndo.writeScriptOption(ai.script)
     ndo.toByteArray
   }
 
   implicit class EntryExt(val e: JMap.Entry[Array[Byte], Array[Byte]]) extends AnyVal {
-    import com.zbsplatform.crypto.DigestSize
+    import com.zbsnetwork.crypto.DigestSize
     def extractId(offset: Int = 2, length: Int = DigestSize): ByteStr = {
       val id = ByteStr(new Array[Byte](length))
       Array.copy(e.getKey, offset, id.arr, 0, length)
@@ -242,9 +245,18 @@ package object database {
       * @note Runs operations in batch, so keep in mind, that previous changes don't appear lately in f
       */
     def readWrite[A](f: RW => A): A = {
-      val rw = new RW(db)
-      try f(rw)
-      finally rw.close()
+      val snapshot    = db.getSnapshot
+      val readOptions = new ReadOptions().snapshot(snapshot)
+      val batch       = db.createWriteBatch()
+      val rw          = new RW(db, readOptions, batch)
+      try {
+        val r = f(rw)
+        db.write(batch)
+        r
+      } finally {
+        batch.close()
+        snapshot.close()
+      }
     }
 
     def get[A](key: Key[A]): A = key.parse(db.get(key.keyBytes))

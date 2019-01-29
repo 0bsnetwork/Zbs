@@ -1,11 +1,11 @@
-package com.zbsplatform.transaction
+package com.zbsnetwork.transaction
 
-import com.zbsplatform.TransactionGen
-import com.zbsplatform.state.EitherExt2
+import com.zbsnetwork.TransactionGen
+import com.zbsnetwork.account.PrivateKeyAccount
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.transaction.transfer._
 import org.scalatest.prop.PropertyChecks
 import org.scalatest.{Matchers, PropSpec}
-import com.zbsplatform.account.PrivateKeyAccount
-import com.zbsplatform.transaction.transfer._
 
 class TransactionSpecification extends PropSpec with PropertyChecks with Matchers with TransactionGen {
 

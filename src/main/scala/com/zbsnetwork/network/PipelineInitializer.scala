@@ -1,6 +1,6 @@
-package com.zbsplatform.network
+package com.zbsnetwork.network
 
-import com.zbsplatform.network.PipelineInitializer.HandlerWrapper
+import com.zbsnetwork.network.PipelineInitializer.HandlerWrapper
 import io.netty.channel.{Channel, ChannelHandler, ChannelInitializer}
 import io.netty.util.concurrent.EventExecutorGroup
 

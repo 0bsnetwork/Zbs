@@ -1,8 +1,8 @@
-package com.zbsplatform.matcher
+package com.zbsnetwork.matcher
 
 import org.scalatest.enablers.Containing
 import org.scalatest.matchers.{BeMatcher, MatchResult}
-import com.zbsplatform.transaction.assets.exchange.Validation
+import com.zbsnetwork.transaction.assets.exchange.Validation
 
 trait ValidationMatcher {
   class ValidationMatcher extends BeMatcher[Validation] {

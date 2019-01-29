@@ -1,9 +1,9 @@
-package com.zbsplatform.it.async.activation
+package com.zbsnetwork.it.async.activation
 
-import com.zbsplatform.features.BlockchainFeatureStatus
-import com.zbsplatform.features.api.{ActivationStatus, FeatureActivationStatus, NodeFeatureStatus}
-import com.zbsplatform.it.Node
-import com.zbsplatform.it.api.AsyncHttpApi._
+import com.zbsnetwork.features.BlockchainFeatureStatus
+import com.zbsnetwork.features.api.{ActivationStatus, FeatureActivationStatus, NodeFeatureStatus}
+import com.zbsnetwork.it.Node
+import com.zbsnetwork.it.api.AsyncHttpApi._
 import org.scalactic.source.Position
 import org.scalatest.Matchers
 

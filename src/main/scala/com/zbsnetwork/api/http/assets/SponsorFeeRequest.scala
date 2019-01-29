@@ -1,12 +1,12 @@
-package com.zbsplatform.api.http.assets
+package com.zbsnetwork.api.http.assets
 
 import cats.implicits._
 import io.swagger.annotations.{ApiModel, ApiModelProperty}
 import play.api.libs.json.Json
-import com.zbsplatform.account.PublicKeyAccount
-import com.zbsplatform.api.http.BroadcastRequest
-import com.zbsplatform.transaction.assets.SponsorFeeTransaction
-import com.zbsplatform.transaction.{AssetIdStringLength, Proofs, ValidationError}
+import com.zbsnetwork.account.PublicKeyAccount
+import com.zbsnetwork.api.http.BroadcastRequest
+import com.zbsnetwork.transaction.assets.SponsorFeeTransaction
+import com.zbsnetwork.transaction.{AssetIdStringLength, Proofs, ValidationError}
 
 object SponsorFeeRequest {
   implicit val unsignedSponsorRequestFormat = Json.format[SponsorFeeRequest]

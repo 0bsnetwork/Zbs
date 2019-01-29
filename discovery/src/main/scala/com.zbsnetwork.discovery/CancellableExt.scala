@@ -1,4 +1,4 @@
-package com.zbsplatform.discovery
+package com.zbsnetwork.discovery
 
 import akka.actor.Cancellable
 

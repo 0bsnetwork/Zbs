@@ -1,17 +1,18 @@
-package com.zbsplatform.network
+package com.zbsnetwork.network
 
 import java.net.{InetAddress, InetSocketAddress}
 import java.util
 
 import com.google.common.primitives.{Bytes, Ints}
-import com.zbsplatform.mining.Miner.MaxTransactionsPerMicroblock
-import com.zbsplatform.state.ByteStr
-import com.zbsplatform.account.PublicKeyAccount
-import com.zbsplatform.block.{Block, MicroBlock}
-import com.zbsplatform.network.message.Message._
-import com.zbsplatform.network.message._
-import com.zbsplatform.transaction.{Transaction, TransactionParsers}
-import scorex.crypto.signatures.Curve25519._
+import com.zbsnetwork.mining.Miner.MaxTransactionsPerMicroblock
+import com.zbsnetwork.account.PublicKeyAccount
+import com.zbsnetwork.block.{Block, MicroBlock}
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.network.message.Message._
+import com.zbsnetwork.network.message._
+import com.zbsnetwork.transaction.{Transaction, TransactionParsers}
+import com.zbsnetwork.crypto._
+
 import scala.util.Try
 
 object GetPeersSpec extends MessageSpec[GetPeers.type] {
@@ -189,7 +190,7 @@ object CheckpointSpec extends MessageSpec[Checkpoint] {
 object TransactionSpec extends MessageSpec[Transaction] {
   override val messageCode: MessageCode = 25: Byte
 
-  // Modeled after Data Transaction https://zbsplatform.atlassian.net/wiki/spaces/MAIN/pages/119734321/Data+Transaction
+  // Modeled after Data Transaction
   override val maxLength: Int = 150 * 1024
 
   override def deserializeData(bytes: Array[Byte]): Try[Transaction] =

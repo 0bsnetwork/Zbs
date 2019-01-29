@@ -1,12 +1,12 @@
-package com.zbsplatform.dexgen.utils
+package com.zbsnetwork.dexgen.utils
 
 import java.util.concurrent.ThreadLocalRandom
 
-import com.zbsplatform.account.{Address, PrivateKeyAccount}
-import com.zbsplatform.dexgen.utils.Implicits._
-import com.zbsplatform.transaction.transfer.MassTransferTransaction.ParsedTransfer
-import com.zbsplatform.transaction.transfer.{MassTransferTransaction, TransferTransactionV1}
-import com.zbsplatform.transaction.{Proofs, Transaction}
+import com.zbsnetwork.account.{Address, PrivateKeyAccount}
+import com.zbsnetwork.dexgen.utils.Implicits._
+import com.zbsnetwork.transaction.transfer.MassTransferTransaction.ParsedTransfer
+import com.zbsnetwork.transaction.transfer.{MassTransferTransaction, TransferTransactionV1}
+import com.zbsnetwork.transaction.{Proofs, Transaction}
 import scorex.crypto.signatures.Curve25519.KeyLength
 
 object Gen {

@@ -1,12 +1,12 @@
-package com.zbsplatform.transaction.assets
+package com.zbsnetwork.transaction.assets
 
 import com.google.common.primitives.{Bytes, Longs}
-import com.zbsplatform.state.ByteStr
 import monix.eval.Coeval
 import play.api.libs.json.{JsObject, Json}
-import com.zbsplatform.account.PublicKeyAccount
-import com.zbsplatform.transaction._
-import scorex.crypto.signatures.Curve25519._
+import com.zbsnetwork.account.PublicKeyAccount
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.transaction._
+import com.zbsnetwork.crypto._
 
 trait BurnTransaction extends ProvenTransaction with VersionedTransaction {
 
@@ -41,6 +41,7 @@ trait BurnTransaction extends ProvenTransaction with VersionedTransaction {
       Longs.toByteArray(timestamp)
     )
   }
+  override def checkedAssets(): Seq[AssetId] = Seq(assetId)
 }
 
 object BurnTransaction {

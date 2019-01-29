@@ -1,21 +1,21 @@
-package com.zbsplatform.http
+package com.zbsnetwork.http
 
-import com.zbsplatform.http.ApiMarshallers._
-import com.zbsplatform.lang.v1.compiler.Terms._
-import com.zbsplatform.state.diffs.CommonValidation
-import com.zbsplatform.state.{Blockchain, EitherExt2}
-import com.zbsplatform.utils.Base58
-import com.zbsplatform.utx.UtxPool
-import com.zbsplatform.{NoShrink, TestTime, TestWallet, crypto}
+import com.zbsnetwork.account.Address
+import com.zbsnetwork.api.http.{AddressApiRoute, ApiKeyNotValid}
+import com.zbsnetwork.common.utils.{Base58, Base64, EitherExt2}
+import com.zbsnetwork.http.ApiMarshallers._
+import com.zbsnetwork.lang.v1.compiler.Terms._
+import com.zbsnetwork.settings.TestFunctionalitySettings
+import com.zbsnetwork.state.Blockchain
+import com.zbsnetwork.state.diffs.CommonValidation
+import com.zbsnetwork.transaction.smart.script.v1.ExprScript
+import com.zbsnetwork.utx.UtxPool
+import com.zbsnetwork.{NoShrink, TestTime, TestWallet, crypto}
 import io.netty.channel.group.ChannelGroup
 import org.scalacheck.Gen
 import org.scalamock.scalatest.PathMockFactory
 import org.scalatest.prop.PropertyChecks
 import play.api.libs.json._
-import com.zbsplatform.account.Address
-import com.zbsplatform.api.http.{AddressApiRoute, ApiKeyNotValid}
-import com.zbsplatform.settings.TestFunctionalitySettings
-import com.zbsplatform.transaction.smart.script.v1.ScriptV1
 
 class AddressRouteSpec
     extends RouteSpec("/addresses")
@@ -107,13 +107,13 @@ class AddressRouteSpec
 
   private def testVerify(path: String, encode: Boolean): Unit = {
 
-    forAll(generatedMessages) {
-      case (account, message) =>
+    forAll(generatedMessages.flatMap(m => Gen.oneOf(true, false).map(b => (m, b)))) {
+      case ((account, message), b58) =>
         val uri          = routePath(s"/$path/${account.address}")
         val messageBytes = message.getBytes()
         val signature    = crypto.sign(account, messageBytes)
         val validBody = Json.obj(
-          "message"   -> JsString(if (encode) Base58.encode(messageBytes) else message),
+          "message"   -> JsString(if (encode) if (b58) Base58.encode(messageBytes) else ("base64:" ++ Base64.encode(messageBytes)) else message),
           "publickey" -> JsString(Base58.encode(account.publicKey)),
           "signature" -> JsString(Base58.encode(signature))
         )
@@ -148,7 +148,7 @@ class AddressRouteSpec
   }
 
   routePath(s"/scriptInfo/${allAddresses(1)}") in {
-    (blockchain.accountScript _).when(allAccounts(1).toAddress).onCall((_: Address) => Some(ScriptV1(TRUE).explicitGet()))
+    (blockchain.accountScript _).when(allAccounts(1).toAddress).onCall((_: Address) => Some(ExprScript(TRUE).explicitGet()))
     Get(routePath(s"/scriptInfo/${allAddresses(1)}")) ~> route ~> check {
       val response = responseAs[JsObject]
       (response \ "address").as[String] shouldBe allAddresses(1)

@@ -1,17 +1,15 @@
-package com.zbsplatform.it.sync.transactions
+package com.zbsnetwork.it.sync.transactions
 
 import com.typesafe.config.Config
-import com.zbsplatform.api.http.assets.SignedSponsorFeeRequest
-import com.zbsplatform.it.api.SyncHttpApi._
-import com.zbsplatform.it.sync._
-import com.zbsplatform.it.transactions.NodesFromDocker
-import com.zbsplatform.it.util._
-import com.zbsplatform.it.{NodeConfigs, ReportingTestName}
-import com.zbsplatform.state.{ByteStr, Sponsorship}
-import com.zbsplatform.transaction.assets.SponsorFeeTransaction
-import com.zbsplatform.utils.Base58
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.it.api.SyncHttpApi._
+import com.zbsnetwork.it.sync._
+import com.zbsnetwork.it.transactions.NodesFromDocker
+import com.zbsnetwork.it.util._
+import com.zbsnetwork.it.{NodeConfigs, ReportingTestName}
+import com.zbsnetwork.state.diffs.CommonValidation
+import com.zbsnetwork.transaction.assets.SponsorFeeTransaction
 import org.scalatest.{Assertion, CancelAfterFailure, FreeSpec, Matchers}
-import play.api.libs.json.{JsNumber, JsObject, Json}
 
 import scala.concurrent.duration._
 
@@ -85,32 +83,19 @@ class SponsorshipSuite extends FreeSpec with NodesFromDocker with Matchers with 
     "sender cannot make transfer" - {
       "invalid tx timestamp" in {
 
-        def invalidTx(timestamp: Long) =
+        def invalidTx(timestamp: Long): SponsorFeeTransaction.TransactionT =
           SponsorFeeTransaction
             .selfSigned(1, sponsor.privateKey, ByteStr.decodeBase58(sponsorAssetId).get, Some(SmallFee), minFee, timestamp + 1.day.toMillis)
             .right
             .get
 
-        def request(tx: SponsorFeeTransaction): SignedSponsorFeeRequest =
-          SignedSponsorFeeRequest(
-            tx.version,
-            Base58.encode(tx.sender.publicKey),
-            tx.assetId.base58,
-            tx.minSponsoredAssetFee,
-            tx.fee,
-            tx.timestamp,
-            tx.proofs.base58().toList
-          )
-        implicit val w =
-          Json.writes[SignedSponsorFeeRequest].transform((jsobj: JsObject) => jsobj + ("type" -> JsNumber(SponsorFeeTransaction.typeId.toInt)))
-
         val iTx = invalidTx(timestamp = System.currentTimeMillis + 1.day.toMillis)
-        assertBadRequestAndResponse(sponsor.broadcastRequest(request(iTx)), "Transaction .* is from far future")
+        assertBadRequestAndResponse(sponsor.broadcastRequest(iTx.json()), "Transaction timestamp .* is more than .*ms in the future")
       }
     }
 
-    val minerZbsBalanceAfterFirstXferTest   = minerZbsBalance + 2.zbs + minFee + Sponsorship.FeeUnit * SmallFee / minSponsorFee
-    val sponsorZbsBalanceAfterFirstXferTest = sponsorZbsBalance - 2.zbs - minFee - Sponsorship.FeeUnit * SmallFee / minSponsorFee
+    val minerZbsBalanceAfterFirstXferTest   = minerZbsBalance + 2.zbs + minFee + CommonValidation.FeeUnit * SmallFee / minSponsorFee
+    val sponsorZbsBalanceAfterFirstXferTest = sponsorZbsBalance - 2.zbs - minFee - CommonValidation.FeeUnit * SmallFee / minSponsorFee
 
     "fee should be written off in issued asset" - {
 
@@ -173,10 +158,10 @@ class SponsorshipSuite extends FreeSpec with NodesFromDocker with Matchers with 
       miner.assertAssetBalance(bob.address, sponsorAssetId, 10 * Token)
       miner.assertBalances(
         sponsor.address,
-        sponsorZbsBalanceAfterFirstXferTest - Sponsorship.FeeUnit * LargeFee / Token - leasingFee,
-        sponsorZbsBalanceAfterFirstXferTest - Sponsorship.FeeUnit * LargeFee / Token - leasingFee - leasingAmount
+        sponsorZbsBalanceAfterFirstXferTest - CommonValidation.FeeUnit * LargeFee / Token - leasingFee,
+        sponsorZbsBalanceAfterFirstXferTest - CommonValidation.FeeUnit * LargeFee / Token - leasingFee - leasingAmount
       )
-      miner.assertBalances(miner.address, minerZbsBalanceAfterFirstXferTest + Sponsorship.FeeUnit * LargeFee / Token + leasingFee)
+      miner.assertBalances(miner.address, minerZbsBalanceAfterFirstXferTest + CommonValidation.FeeUnit * LargeFee / Token + leasingFee)
     }
 
     "cancel sponsorship" - {
@@ -207,10 +192,10 @@ class SponsorshipSuite extends FreeSpec with NodesFromDocker with Matchers with 
       "check sponsor and miner balances after cancel" in {
         miner.assertBalances(
           sponsor.address,
-          sponsorZbsBalanceAfterFirstXferTest - Sponsorship.FeeUnit * LargeFee / Token - leasingFee - issueFee,
-          sponsorZbsBalanceAfterFirstXferTest - Sponsorship.FeeUnit * LargeFee / Token - leasingFee - leasingAmount - issueFee
+          sponsorZbsBalanceAfterFirstXferTest - CommonValidation.FeeUnit * LargeFee / Token - leasingFee - issueFee,
+          sponsorZbsBalanceAfterFirstXferTest - CommonValidation.FeeUnit * LargeFee / Token - leasingFee - leasingAmount - issueFee
         )
-        miner.assertBalances(miner.address, minerZbsBalanceAfterFirstXferTest + Sponsorship.FeeUnit * LargeFee / Token + leasingFee + issueFee)
+        miner.assertBalances(miner.address, minerZbsBalanceAfterFirstXferTest + CommonValidation.FeeUnit * LargeFee / Token + leasingFee + issueFee)
       }
 
       "cancel sponsopship again" in {
@@ -245,7 +230,7 @@ class SponsorshipSuite extends FreeSpec with NodesFromDocker with Matchers with 
         nodes.waitForHeightAriseAndTxPresent(transferTxCustomFeeAlice)
         nodes.waitForHeightArise()
 
-        val zbsFee = Sponsorship.FeeUnit * TinyFee / TinyFee
+        val zbsFee = CommonValidation.FeeUnit * TinyFee / TinyFee
         sponsor.assertBalances(sponsor.address, sponsoredBalance._1 - zbsFee, sponsoredBalance._2 - zbsFee)
         sponsor.assertAssetBalance(sponsor.address, sponsorAssetId, sponsorAssetBalance + TinyFee)
         alice.assertAssetBalance(alice.address, sponsorAssetId, aliceAssetBalance - TinyFee)
@@ -286,7 +271,7 @@ class SponsorshipSuite extends FreeSpec with NodesFromDocker with Matchers with 
 
         val transferTxCustomFeeAlice = alice.transfer(alice.address, bob.address, 1.zbs, LargeFee, None, Some(sponsorAssetId)).id
         nodes.waitForHeightAriseAndTxPresent(transferTxCustomFeeAlice)
-        val zbsFee = Sponsorship.FeeUnit * LargeFee / LargeFee
+        val zbsFee = CommonValidation.FeeUnit * LargeFee / LargeFee
         nodes.waitForHeightArise()
 
         sponsor.assertBalances(sponsor.address, sponsoredBalance._1 - zbsFee, sponsoredBalance._2 - zbsFee)
@@ -331,7 +316,7 @@ class SponsorshipSuite extends FreeSpec with NodesFromDocker with Matchers with 
       nodes.waitForHeightAriseAndTxPresent(aliceTransferZbs)
       nodes.waitForHeightArise()
 
-      val totalZbsFee = Sponsorship.FeeUnit * SmallFee / Token + issueFee + sponsorFee + burnFee + minFee + issueFee
+      val totalZbsFee = CommonValidation.FeeUnit * SmallFee / Token + issueFee + sponsorFee + burnFee + minFee + issueFee
       miner.assertBalances(miner.address, minerBalance._1 + totalZbsFee)
       sponsor.assertBalances(sponsor.address, sponsorBalance._1 - totalZbsFee, sponsorBalance._2 - totalZbsFee)
       sponsor.assertAssetBalance(sponsor.address, sponsorAssetId2, SmallFee + sponsorAssetTotal)

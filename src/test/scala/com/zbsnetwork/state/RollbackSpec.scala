@@ -1,27 +1,29 @@
-package com.zbsplatform.state
+package com.zbsnetwork.state
 
-import com.zbsplatform.account.{Address, PrivateKeyAccount}
-import com.zbsplatform.crypto.SignatureLength
-import com.zbsplatform.db.WithState
-import com.zbsplatform.features._
-import com.zbsplatform.features.BlockchainFeatures._
-import com.zbsplatform.lagonaki.mocks.TestBlock
-import com.zbsplatform.lang.v1.compiler.Terms.TRUE
-import com.zbsplatform.settings.{TestFunctionalitySettings, ZbsSettings}
-import com.zbsplatform.state.reader.LeaseDetails
-import com.zbsplatform.transaction.ValidationError.AliasDoesNotExist
-import com.zbsplatform.transaction.assets.{IssueTransactionV1, ReissueTransactionV1}
-import com.zbsplatform.transaction.lease.{LeaseCancelTransactionV1, LeaseTransactionV1}
-import com.zbsplatform.transaction.smart.SetScriptTransaction
-import com.zbsplatform.transaction.smart.script.v1.ScriptV1
-import com.zbsplatform.transaction.transfer._
-import com.zbsplatform.transaction.{CreateAliasTransactionV1, DataTransaction, GenesisTransaction, Transaction}
-import com.zbsplatform.{NoShrink, TestTime, TransactionGen, history}
+import com.zbsnetwork.account.{Address, PrivateKeyAccount}
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.crypto.SignatureLength
+import com.zbsnetwork.db.WithDomain
+import com.zbsnetwork.features.BlockchainFeatures._
+import com.zbsnetwork.features._
+import com.zbsnetwork.lagonaki.mocks.TestBlock
+import com.zbsnetwork.lang.v1.compiler.Terms.TRUE
+import com.zbsnetwork.settings.{TestFunctionalitySettings, ZbsSettings}
+import com.zbsnetwork.state.reader.LeaseDetails
+import com.zbsnetwork.transaction.ValidationError.AliasDoesNotExist
+import com.zbsnetwork.transaction.assets.{IssueTransactionV1, ReissueTransactionV1}
+import com.zbsnetwork.transaction.lease.{LeaseCancelTransactionV1, LeaseTransactionV1}
+import com.zbsnetwork.transaction.smart.SetScriptTransaction
+import com.zbsnetwork.transaction.smart.script.v1.ExprScript
+import com.zbsnetwork.transaction.transfer._
+import com.zbsnetwork.transaction.{CreateAliasTransactionV1, DataTransaction, GenesisTransaction, Transaction}
+import com.zbsnetwork.{NoShrink, TestTime, TransactionGen, history}
 import org.scalacheck.Gen
 import org.scalatest.prop.PropertyChecks
-import org.scalatest.{FreeSpec, Matchers}
+import org.scalatest.{Assertions, FreeSpec, Matchers}
 
-class RollbackSpec extends FreeSpec with Matchers with WithState with TransactionGen with PropertyChecks with NoShrink {
+class RollbackSpec extends FreeSpec with Matchers with WithDomain with TransactionGen with PropertyChecks with NoShrink {
   private val time   = new TestTime
   private def nextTs = time.getTimestamp()
 
@@ -32,14 +34,14 @@ class RollbackSpec extends FreeSpec with Matchers with WithState with Transactio
   )
 
   private def transfer(sender: PrivateKeyAccount, recipient: Address, amount: Long) =
-    TransferTransactionV1.selfSigned(None, sender, recipient, amount, nextTs, None, 100000, Array.empty[Byte]).explicitGet()
+    TransferTransactionV1.selfSigned(None, sender, recipient, amount, nextTs, None, 1, Array.empty[Byte]).explicitGet()
 
-  private def randomOp(sender: PrivateKeyAccount, recipient: Address, amount: Long, op: Int) = {
-    import com.zbsplatform.transaction.transfer.MassTransferTransaction.ParsedTransfer
+  private def randomOp(sender: PrivateKeyAccount, recipient: Address, amount: Long, op: Int, nextTs: => Long = nextTs) = {
+    import com.zbsnetwork.transaction.transfer.MassTransferTransaction.ParsedTransfer
     op match {
       case 1 =>
         val lease = LeaseTransactionV1.selfSigned(sender, amount, 100000, nextTs, recipient).explicitGet()
-        List(lease, LeaseCancelTransactionV1.selfSigned(sender, lease.id(), 10000, nextTs).explicitGet())
+        List(lease, LeaseCancelTransactionV1.selfSigned(sender, lease.id(), 1, nextTs).explicitGet())
       case 2 =>
         List(
           MassTransferTransaction
@@ -75,7 +77,7 @@ class RollbackSpec extends FreeSpec with Matchers with WithState with Transactio
     "forget rollbacked transaction for querying" in forAll(accountGen, accountGen, Gen.nonEmptyListOf(Gen.choose(1, 10))) {
       case (sender, recipient, txCount) =>
         withDomain(createSettings(MassTransfer -> 0)) { d =>
-          d.appendBlock(genesisBlock(nextTs, sender, com.zbsplatform.state.diffs.ENOUGH_AMT))
+          d.appendBlock(genesisBlock(nextTs, sender, com.zbsnetwork.state.diffs.ENOUGH_AMT))
 
           val genesisSignature = d.lastBlockId
 
@@ -92,8 +94,8 @@ class RollbackSpec extends FreeSpec with Matchers with WithState with Transactio
               ))
           }
 
-          val stransactions1 = d.addressTransactions(sender).sortBy(_._2.timestamp)
-          val rtransactions1 = d.addressTransactions(recipient).sortBy(_._2.timestamp)
+          val stransactions1 = d.addressTransactions(sender).explicitGet().sortBy(_._2.timestamp)
+          val rtransactions1 = d.addressTransactions(recipient).explicitGet().sortBy(_._2.timestamp)
 
           d.removeAfter(genesisSignature)
 
@@ -106,8 +108,8 @@ class RollbackSpec extends FreeSpec with Matchers with WithState with Transactio
               ))
           }
 
-          val stransactions2 = d.addressTransactions(sender).sortBy(_._2.timestamp)
-          val rtransactions2 = d.addressTransactions(recipient).sortBy(_._2.timestamp)
+          val stransactions2 = d.addressTransactions(sender).explicitGet().sortBy(_._2.timestamp)
+          val rtransactions2 = d.addressTransactions(recipient).explicitGet().sortBy(_._2.timestamp)
 
           stransactions1 shouldBe stransactions2
           rtransactions1 shouldBe rtransactions2
@@ -137,7 +139,7 @@ class RollbackSpec extends FreeSpec with Matchers with WithState with Transactio
           }
 
           d.portfolio(recipient).balance shouldBe (transferAmount * totalTxCount)
-          d.portfolio(sender).balance shouldBe (initialBalance - (transferAmount + 100000) * totalTxCount)
+          d.portfolio(sender).balance shouldBe (initialBalance - (transferAmount + 1) * totalTxCount)
 
           d.removeAfter(genesisSignature)
 
@@ -307,7 +309,7 @@ class RollbackSpec extends FreeSpec with Matchers with WithState with Transactio
       case (sender, initialBalance) =>
         withDomain(createSettings(SmartAccounts -> 0)) { d =>
           d.appendBlock(genesisBlock(nextTs, sender, initialBalance))
-          val script = ScriptV1(TRUE).explicitGet()
+          val script = ExprScript(TRUE).explicitGet()
 
           val genesisBlockId = d.lastBlockId
           d.blockchainUpdater.accountScript(sender) shouldBe 'empty
@@ -454,6 +456,46 @@ class RollbackSpec extends FreeSpec with Matchers with WithState with Transactio
 
           d.removeAfter(transferBlockId)
           d.carryFee shouldBe carry(transfer.fee)
+        }
+    }
+
+    "relean rollbacked transaction" in forAll(accountGen, accountGen, Gen.listOfN(66, Gen.choose(1, 10))) {
+      case (sender, recipient, txCount) =>
+        withDomain(createSettings(MassTransfer -> 0)) { d =>
+          val ts = nextTs
+
+          d.appendBlock(genesisBlock(ts, sender, com.zbsnetwork.state.diffs.ENOUGH_AMT))
+
+          val transferAmount = 100
+
+          val interval = (3 * 60 * 60 * 1000 + 30 * 60 * 1000) / txCount.size
+
+          val transfers =
+            txCount.zipWithIndex.map(tc =>
+              Range(0, tc._1).map(i => randomOp(sender, recipient, transferAmount, tc._1 % 3, ts + interval * tc._2 + i)).flatten)
+
+          val blocks = for ((transfer, i) <- transfers.zipWithIndex) yield {
+            val tsb   = ts + interval * i
+            val block = TestBlock.create(tsb, d.lastBlockId, transfer)
+            d.appendBlock(block)
+            (d.lastBlockId, tsb)
+          }
+
+          val middleBlock = blocks(txCount.size / 2)
+
+          d.removeAfter(middleBlock._1)
+
+          try {
+            d.appendBlock(
+              TestBlock.create(
+                middleBlock._2 + 10,
+                middleBlock._1,
+                transfers(0)
+              ))
+            throw new Exception("Duplicate transaction wasn't checked")
+          } catch {
+            case e: Throwable => Assertions.assert(e.getMessage().contains("AlreadyInTheState"))
+          }
         }
     }
   }

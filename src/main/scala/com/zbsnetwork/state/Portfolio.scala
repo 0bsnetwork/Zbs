@@ -1,9 +1,10 @@
-package com.zbsplatform.state
+package com.zbsnetwork.state
 
 import cats._
 import cats.kernel.instances.map._
-import com.zbsplatform.block.Block.Fraction
-import com.zbsplatform.transaction.AssetId
+import com.zbsnetwork.block.Block.Fraction
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.transaction.AssetId
 
 case class Portfolio(balance: Long, lease: LeaseBalance, assets: Map[ByteStr, Long]) {
   lazy val effectiveBalance: Long = safeSum(balance, lease.in) - lease.out
@@ -11,7 +12,7 @@ case class Portfolio(balance: Long, lease: LeaseBalance, assets: Map[ByteStr, Lo
 
   lazy val isEmpty: Boolean = this == Portfolio.empty
 
-  def balanceOf(assetId: Option[AssetId]): Long = assetId.flatMap(assets.get).getOrElse(balance)
+  def balanceOf(assetId: Option[AssetId]): Long = assetId.fold(balance)(assets.getOrElse(_, 0))
   def remove(assetId: Option[AssetId], amount: Long): Option[Portfolio] = {
     val origAmount = assetId match {
       case None    => balance
@@ -29,6 +30,12 @@ case class Portfolio(balance: Long, lease: LeaseBalance, assets: Map[ByteStr, Lo
 }
 
 object Portfolio {
+
+  def build(a: Option[AssetId], amount: Long): Portfolio = a match {
+    case None    => Portfolio(amount, LeaseBalance.empty, Map.empty)
+    case Some(t) => Portfolio(0L, LeaseBalance.empty, Map(t -> amount))
+  }
+
   val empty = Portfolio(0L, Monoid[LeaseBalance].empty, Map.empty)
 
   implicit val longSemigroup: Semigroup[Long] = (x: Long, y: Long) => safeSum(x, y)
@@ -58,6 +65,8 @@ object Portfolio {
 
     def minus(other: Portfolio): Portfolio =
       Portfolio(self.balance - other.balance, LeaseBalance.empty, Monoid.combine(self.assets, other.assets.mapValues(-_)))
+
+    def negate = Portfolio.empty minus self
   }
 
 }

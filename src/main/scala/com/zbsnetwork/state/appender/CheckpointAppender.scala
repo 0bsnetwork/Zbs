@@ -1,15 +1,16 @@
-package com.zbsplatform.state.appender
+package com.zbsnetwork.state.appender
 
-import com.zbsplatform.mining.Miner
-import com.zbsplatform.network.{BlockCheckpoint, Checkpoint, PeerDatabase, id}
-import com.zbsplatform.state.{Blockchain, ByteStr}
-import com.zbsplatform.utils.ScorexLogging
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.mining.Miner
+import com.zbsnetwork.network.{BlockCheckpoint, Checkpoint, PeerDatabase, id}
+import com.zbsnetwork.state.Blockchain
+import com.zbsnetwork.utils.ScorexLogging
 import io.netty.channel.Channel
 import io.netty.channel.group.ChannelGroup
 import kamon.Kamon
 import monix.eval.Task
 import monix.execution.Scheduler
-import com.zbsplatform.transaction.{BlockchainUpdater, CheckpointService, ValidationError}
+import com.zbsnetwork.transaction.{BlockchainUpdater, CheckpointService, ValidationError}
 
 object CheckpointAppender extends ScorexLogging {
   def apply(checkpointService: CheckpointService,

@@ -39,7 +39,7 @@ inTask(docker)(
 
         add((assembly in LocalProject("node")).value, "/opt/zbs/zbs.jar")
         add(Seq(configTemplate, startZbs), "/opt/zbs/")
-        run("chmod", "+x", "/opt/zbs/start-zbs.sh")
+        runShell("chmod", "+x", "/opt/zbs/start-zbs.sh")
         entryPoint("/opt/zbs/start-zbs.sh")
         expose(10001)
       }

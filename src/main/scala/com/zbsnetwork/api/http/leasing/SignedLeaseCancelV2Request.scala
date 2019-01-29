@@ -1,14 +1,14 @@
-package com.zbsplatform.api.http.leasing
+package com.zbsnetwork.api.http.leasing
 
 import cats.implicits._
 import io.swagger.annotations.ApiModelProperty
 import play.api.libs.json._
 import play.api.libs.functional.syntax._
-import com.zbsplatform.account.PublicKeyAccount
-import com.zbsplatform.api.http.BroadcastRequest
-import com.zbsplatform.transaction.TransactionParsers.SignatureStringLength
-import com.zbsplatform.transaction.lease.LeaseCancelTransactionV2
-import com.zbsplatform.transaction.{Proofs, ValidationError}
+import com.zbsnetwork.account.PublicKeyAccount
+import com.zbsnetwork.api.http.BroadcastRequest
+import com.zbsnetwork.transaction.TransactionParsers.SignatureStringLength
+import com.zbsnetwork.transaction.lease.LeaseCancelTransactionV2
+import com.zbsnetwork.transaction.{Proofs, ValidationError}
 
 case class SignedLeaseCancelV2Request(@ApiModelProperty(required = true)
                                       version: Byte,

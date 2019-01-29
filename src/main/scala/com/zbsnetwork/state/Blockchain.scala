@@ -1,11 +1,12 @@
-package com.zbsplatform.state
+package com.zbsnetwork.state
 
-import com.zbsplatform.account.{Address, Alias}
-import com.zbsplatform.block.{Block, BlockHeader}
-import com.zbsplatform.state.reader.LeaseDetails
-import com.zbsplatform.transaction.lease.LeaseTransaction
-import com.zbsplatform.transaction.smart.script.Script
-import com.zbsplatform.transaction.{AssetId, Transaction, ValidationError}
+import com.zbsnetwork.account.{Address, Alias}
+import com.zbsnetwork.block.{Block, BlockHeader}
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.state.reader.LeaseDetails
+import com.zbsnetwork.transaction.lease.LeaseTransaction
+import com.zbsnetwork.transaction.smart.script.Script
+import com.zbsnetwork.transaction.{AssetId, Transaction, ValidationError}
 
 trait Blockchain {
   def height: Int
@@ -40,11 +41,12 @@ trait Blockchain {
   def transactionInfo(id: ByteStr): Option[(Int, Transaction)]
   def transactionHeight(id: ByteStr): Option[Int]
 
-  def addressTransactions(address: Address, types: Set[Transaction.Type], count: Int, from: Int): Seq[(Int, Transaction)]
+  def addressTransactions(address: Address,
+                          types: Set[Transaction.Type],
+                          count: Int,
+                          fromId: Option[ByteStr]): Either[String, Seq[(Int, Transaction)]]
 
-  def containsTransaction(id: ByteStr): Boolean
-  def forgetTransactions(pred: (ByteStr, Long) => Boolean): Map[ByteStr, Long]
-  def learnTransactions(values: Map[ByteStr, Long]): Unit
+  def containsTransaction(tx: Transaction): Boolean
 
   def assetDescription(id: ByteStr): Option[AssetDescription]
 
@@ -60,12 +62,21 @@ trait Blockchain {
   def accountScript(address: Address): Option[Script]
   def hasScript(address: Address): Boolean
 
+  def assetScript(id: ByteStr): Option[Script]
+  def hasAssetScript(id: ByteStr): Boolean
+
   def accountData(acc: Address): AccountDataInfo
   def accountData(acc: Address, key: String): Option[DataEntry[_]]
 
+  def leaseBalance(address: Address): LeaseBalance
+
   def balance(address: Address, mayBeAssetId: Option[AssetId]): Long
 
-  def assetDistribution(assetId: ByteStr): Map[Address, Long]
+  def assetDistribution(assetId: ByteStr): AssetDistribution
+  def assetDistributionAtHeight(assetId: AssetId,
+                                height: Int,
+                                count: Int,
+                                fromAddress: Option[Address]): Either[ValidationError, AssetDistributionPage]
   def zbsDistribution(height: Int): Map[Address, Long]
 
   // the following methods are used exclusively by patches
@@ -76,5 +87,5 @@ trait Blockchain {
   def collectLposPortfolios[A](pf: PartialFunction[(Address, Portfolio), A]): Map[Address, A]
 
   def append(diff: Diff, carryFee: Long, block: Block): Unit
-  def rollbackTo(targetBlockId: ByteStr): Seq[Block]
+  def rollbackTo(targetBlockId: ByteStr): Either[String, Seq[Block]]
 }

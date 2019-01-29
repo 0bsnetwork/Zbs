@@ -1,7 +1,7 @@
-package com.zbsplatform.transaction
+package com.zbsnetwork.transaction
 
-import com.zbsplatform.crypto
-import com.zbsplatform.state.ByteStr
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.crypto
 import monix.eval.Coeval
 
 trait FastHashId extends ProvenTransaction {

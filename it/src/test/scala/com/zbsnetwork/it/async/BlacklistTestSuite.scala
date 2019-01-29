@@ -1,10 +1,10 @@
-package com.zbsplatform.it.async
+package com.zbsnetwork.it.async
 
 import com.typesafe.config.Config
-import com.zbsplatform.it.api.AsyncHttpApi._
-import com.zbsplatform.it.api._
-import com.zbsplatform.it.transactions.NodesFromDocker
-import com.zbsplatform.it.{NodeConfigs, ReportingTestName}
+import com.zbsnetwork.it.api.AsyncHttpApi._
+import com.zbsnetwork.it.api._
+import com.zbsnetwork.it.transactions.NodesFromDocker
+import com.zbsnetwork.it.{NodeConfigs, ReportingTestName}
 import org.scalatest._
 
 import scala.concurrent.Await
@@ -16,8 +16,8 @@ class BlacklistTestSuite extends FreeSpec with Matchers with CancelAfterFailure 
 
   override protected def nodeConfigs: Seq[Config] =
     NodeConfigs.newBuilder
-      .overrideBase(_.quorum(2))
-      .withDefault(3)
+      .overrideBase(_.quorum(1))
+      .withDefault(2)
       .withSpecial(_.quorum(0))
       .buildNonConflicting()
 

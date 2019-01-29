@@ -1,10 +1,10 @@
-package com.zbsplatform.it.async.activation
+package com.zbsnetwork.it.async.activation
 
 import com.typesafe.config.Config
-import com.zbsplatform.features.api.NodeFeatureStatus
-import com.zbsplatform.features.{BlockchainFeatureStatus, BlockchainFeatures}
-import com.zbsplatform.it.transactions.NodesFromDocker
-import com.zbsplatform.it.{NodeConfigs, ReportingTestName}
+import com.zbsnetwork.features.api.NodeFeatureStatus
+import com.zbsnetwork.features.{BlockchainFeatureStatus, BlockchainFeatures}
+import com.zbsnetwork.it.transactions.NodesFromDocker
+import com.zbsnetwork.it.{NodeConfigs, ReportingTestName}
 import org.scalatest.{CancelAfterFailure, FreeSpec, Matchers}
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -34,9 +34,9 @@ class FeatureActivationTestSuite
                                |    blocks-for-feature-activation = $blocksForActivation
                                |  }
                                |  features.supported = [$featureNum]
-                               |  miner.quorum = 3
+                               |  miner.quorum = 1
                                |}""".stripMargin))
-      .withDefault(4)
+      .withDefault(2)
       .buildNonConflicting()
   }
 

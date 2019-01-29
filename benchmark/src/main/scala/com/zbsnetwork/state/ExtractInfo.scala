@@ -1,21 +1,21 @@
-package com.zbsplatform.state
+package com.zbsnetwork.state
 
 import java.io.{File, PrintWriter}
 import java.util.concurrent.ThreadLocalRandom
 
 import com.typesafe.config.ConfigFactory
-import com.zbsplatform.database.LevelDBWriter
-import com.zbsplatform.db.LevelDBFactory
-import com.zbsplatform.lang.v1.traits.DataType
-import com.zbsplatform.settings.{ZbsSettings, loadConfig}
-import com.zbsplatform.state.bench.DataTestData
+import com.zbsnetwork.account.AddressScheme
+import com.zbsnetwork.block.Block
+import com.zbsnetwork.database.LevelDBWriter
+import com.zbsnetwork.db.LevelDBFactory
+import com.zbsnetwork.lang.v1.traits.DataType
+import com.zbsnetwork.settings.{ZbsSettings, loadConfig}
+import com.zbsnetwork.state.bench.DataTestData
+import com.zbsnetwork.transaction.assets.IssueTransaction
+import com.zbsnetwork.transaction.{Authorized, CreateAliasTransactionV1, DataTransaction, Transaction}
+import com.zbsnetwork.utils.ScorexLogging
 import org.iq80.leveldb.{DB, Options}
-import scodec.bits.{BitVector, ByteVector}
-import com.zbsplatform.account.AddressScheme
-import com.zbsplatform.utils.ScorexLogging
-import com.zbsplatform.block.Block
-import com.zbsplatform.transaction.assets.IssueTransaction
-import com.zbsplatform.transaction.{Authorized, CreateAliasTransactionV1, DataTransaction, Transaction}
+import scodec.bits.BitVector
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -49,7 +49,7 @@ object ExtractInfo extends App with ScorexLogging {
   }
 
   try {
-    val state = new LevelDBWriter(db, zbsSettings.blockchainSettings.functionalitySettings)
+    val state = new LevelDBWriter(db, zbsSettings.blockchainSettings.functionalitySettings, 100000, 2000, 120 * 60 * 1000)
 
     def nonEmptyBlockHeights(from: Int): Iterator[Integer] =
       for {
@@ -102,7 +102,7 @@ object ExtractInfo extends App with ScorexLogging {
       test <- b.transactionData
         .collect {
           case tx: DataTransaction =>
-            val addr = ByteVector(tx.sender.toAddress.bytes.arr)
+            val addr = tx.sender.toAddress.bytes
             tx.data.collectFirst {
               case x: IntegerDataEntry => DataTestData(addr, x.key, DataType.Long)
               case x: BooleanDataEntry => DataTestData(addr, x.key, DataType.Boolean)

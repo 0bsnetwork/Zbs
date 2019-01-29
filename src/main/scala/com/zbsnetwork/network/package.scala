@@ -1,11 +1,10 @@
-package com.zbsplatform
+package com.zbsnetwork
 
 import java.net.{InetSocketAddress, SocketAddress, URI}
 import java.util.concurrent.Callable
 
 import cats.Eq
-import com.zbsplatform.state.ByteStr
-import com.zbsplatform.utils.ScorexLogging
+import com.zbsnetwork.utils.ScorexLogging
 import io.netty.channel.group.{ChannelGroup, ChannelGroupFuture, ChannelMatcher}
 import io.netty.channel.local.LocalAddress
 import io.netty.channel.socket.nio.NioSocketChannel
@@ -15,8 +14,9 @@ import io.netty.util.concurrent.{EventExecutorGroup, ScheduledFuture}
 import monix.eval.Coeval
 import monix.execution.Scheduler
 import monix.reactive.Observable
-import com.zbsplatform.block.Block
-import com.zbsplatform.transaction.Transaction
+import com.zbsnetwork.block.Block
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.transaction.Transaction
 
 import scala.concurrent.duration._
 

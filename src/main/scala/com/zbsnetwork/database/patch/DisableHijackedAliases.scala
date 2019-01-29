@@ -1,14 +1,14 @@
-package com.zbsplatform.database.patch
+package com.zbsnetwork.database.patch
 
 import java.nio.ByteBuffer
 import java.util
 
 import com.google.common.primitives.Shorts
-import com.zbsplatform.database.{Keys, RW}
-import com.zbsplatform.account.Alias
-import com.zbsplatform.utils.ScorexLogging
-import com.zbsplatform.block.BlockHeader
-import com.zbsplatform.transaction.{CreateAliasTransaction, TransactionParsers}
+import com.zbsnetwork.database.{Keys, RW}
+import com.zbsnetwork.account.Alias
+import com.zbsnetwork.utils.ScorexLogging
+import com.zbsnetwork.block.BlockHeader
+import com.zbsnetwork.transaction.{CreateAliasTransaction, TransactionParsers}
 
 import scala.collection.JavaConverters._
 
@@ -64,7 +64,7 @@ object DisableHijackedAliases extends ScorexLogging {
     try {
       iterator.seek(prefixBytes)
       while (iterator.hasNext && iterator.peekNext().getKey.startsWith(prefixBytes)) {
-        rw.delete(iterator.next().getKey)
+        rw.delete(iterator.next().getKey, "hijacked-aliases")
       }
     } finally {
       iterator.close()

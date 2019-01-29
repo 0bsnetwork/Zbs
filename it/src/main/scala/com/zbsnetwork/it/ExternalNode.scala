@@ -1,4 +1,4 @@
-package com.zbsplatform.it
+package com.zbsnetwork.it
 
 import java.net.{InetSocketAddress, URL}
 

@@ -1,8 +1,9 @@
-package com.zbsplatform.state.patch
+package com.zbsnetwork.state.patch
 
-import com.zbsplatform.state.{Blockchain, Diff, LeaseBalance, Portfolio}
-import com.zbsplatform.utils.ScorexLogging
-import com.zbsplatform.transaction.lease.{LeaseTransaction, LeaseTransactionV1}
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.state.{Blockchain, Diff, LeaseBalance, Portfolio}
+import com.zbsnetwork.transaction.lease.{LeaseTransaction, LeaseTransactionV1}
+import com.zbsnetwork.utils.ScorexLogging
 
 object CancelLeaseOverflow extends ScorexLogging {
   def apply(blockchain: Blockchain): Diff = {
@@ -14,9 +15,10 @@ object CancelLeaseOverflow extends ScorexLogging {
     addressesWithLeaseOverflow.keys.foreach(addr => log.info(s"Resetting lease overflow for $addr"))
 
     val leasesToCancel = addressesWithLeaseOverflow.keys.flatMap { a =>
-      blockchain.addressTransactions(a, Set(LeaseTransactionV1.typeId), Int.MaxValue, 0).collect {
-        case (_, lt: LeaseTransaction) if lt.sender.toAddress == a => lt.id()
-      }
+      blockchain
+        .addressTransactions(a, Set(LeaseTransactionV1.typeId), Int.MaxValue, None)
+        .explicitGet()
+        .collect { case (_, lt: LeaseTransaction) if lt.sender.toAddress == a => lt.id() }
     }
     leasesToCancel.foreach(id => log.info(s"Cancelling lease $id"))
 

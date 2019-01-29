@@ -1,12 +1,13 @@
-package com.zbsplatform.transaction
+package com.zbsnetwork.transaction
 
-import com.zbsplatform.TransactionGen
-import com.zbsplatform.state.{ByteStr, EitherExt2}
+import com.zbsnetwork.TransactionGen
+import com.zbsnetwork.account.{Address, PublicKeyAccount}
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.transaction.lease.{LeaseTransaction, LeaseTransactionV1, LeaseTransactionV2}
 import org.scalatest._
 import org.scalatest.prop.PropertyChecks
 import play.api.libs.json.Json
-import com.zbsplatform.account.{Address, PublicKeyAccount}
-import com.zbsplatform.transaction.lease.{LeaseTransaction, LeaseTransactionV1, LeaseTransactionV2}
 
 class LeaseTransactionSpecification extends PropSpec with PropertyChecks with Matchers with TransactionGen {
 
@@ -42,6 +43,7 @@ class LeaseTransactionSpecification extends PropSpec with PropertyChecks with Ma
                        "fee": 1000000,
                        "timestamp": 1526646300260,
                        "signature": "iy3TmfbFds7pc9cDDqfjEJhfhVyNtm3GcxoVz8L3kJFvgRPUmiqqKLMeJGYyN12AhaQ6HvE7aF1tFgaAoCCgNJJ",
+                       "proofs": ["iy3TmfbFds7pc9cDDqfjEJhfhVyNtm3GcxoVz8L3kJFvgRPUmiqqKLMeJGYyN12AhaQ6HvE7aF1tFgaAoCCgNJJ"],
                        "version": 1,
                        "amount": 10000000,
                        "recipient": "3NCBMxgdghg4tUhEEffSXy11L6hUi6fcBpd"
@@ -96,9 +98,9 @@ class LeaseTransactionSpecification extends PropSpec with PropertyChecks with Ma
     js shouldEqual tx.json()
   }
 
-  ignore("forbid assetId in LeaseTransactionV2") {
+  property("forbid assetId in LeaseTransactionV2") {
     val leaseV2Gen      = leaseGen.filter(_.version == 2)
-    val assetIdBytesGen = assetIdGen.filter(_.nonEmpty).map(_.get.arr)
+    val assetIdBytesGen = bytes32gen
     forAll(leaseV2Gen, assetIdBytesGen) { (tx, assetId) =>
       val bytes = tx.bytes()
       // hack in an assetId
