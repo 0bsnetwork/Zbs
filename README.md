@@ -39,8 +39,16 @@ java -jar zbs-all-0.*.jar zbs-testnet.conf
 # Feature Voting
 
 To vote for a feature, add the feature number into your config file as below; 
+
 ![Image of Voting Feature](features.png)
 
+Mutiple features can be seperated by commas; 
+
+```
+features = [9,10,11]
+```
+
+Note: Features < 9 have been pre-activated on this current node version. 
 
 # Tests & Coverage
 
