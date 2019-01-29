@@ -36,6 +36,11 @@ Option 2: Run as a Java file
 java -jar zbs-all-0.*.jar zbs-testnet.conf
 ```
 
+# Feature Voting
+
+To vote for a feature, add the feature number into your config file as below; 
+![Image of Voting Feature](features.png)
+
 
 # Tests & Coverage
 
