@@ -1,13 +1,12 @@
-package com.zbsplatform.api.http
+package com.zbsnetwork.api.http
 
 import javax.ws.rs.Path
-
 import akka.http.scaladsl.server.Route
-import com.zbsplatform.settings.RestAPISettings
+import com.zbsnetwork.common.utils.Base58
+import com.zbsnetwork.settings.RestAPISettings
 import io.swagger.annotations._
 import play.api.libs.json.Json
-import com.zbsplatform.utils.Base58
-import com.zbsplatform.wallet.Wallet
+import com.zbsnetwork.wallet.Wallet
 
 @Path("/wallet")
 @Api(value = "/wallet")

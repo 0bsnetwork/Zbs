@@ -1,16 +1,16 @@
-package com.zbsplatform
+package com.zbsnetwork
 
+import com.zbsnetwork.account.Alias
+import com.zbsnetwork.api.http.alias.SignedCreateAliasV1Request
+import com.zbsnetwork.api.http.assets._
+import com.zbsnetwork.api.http.leasing.{SignedLeaseCancelV1Request, SignedLeaseV1Request}
+import com.zbsnetwork.common.utils.Base58
+import com.zbsnetwork.crypto._
+import com.zbsnetwork.transaction.assets._
+import com.zbsnetwork.transaction.transfer._
 import org.scalacheck.Gen.{alphaNumChar, choose, listOfN, oneOf}
 import org.scalacheck.{Arbitrary, Gen => G}
 import org.scalatest.Suite
-import com.zbsplatform.account.Alias
-import com.zbsplatform.api.http.alias.SignedCreateAliasV1Request
-import com.zbsplatform.api.http.assets._
-import com.zbsplatform.api.http.leasing.{SignedLeaseCancelV1Request, SignedLeaseV1Request}
-import com.zbsplatform.utils.Base58
-import com.zbsplatform.transaction.assets._
-import com.zbsplatform.transaction.transfer._
-import scorex.crypto.signatures.Curve25519._
 
 trait RequestGen extends TransactionGen { _: Suite =>
   val nonPositiveLong: G[Long] = choose(Long.MinValue, 0).label("non-positive value")

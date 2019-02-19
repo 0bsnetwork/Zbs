@@ -1,17 +1,18 @@
-package com.zbsplatform.network
+package com.zbsnetwork.network
 
 import java.net.{InetAddress, InetSocketAddress}
 import java.util
 
 import com.google.common.primitives.{Bytes, Ints}
-import com.zbsplatform.mining.Miner.MaxTransactionsPerMicroblock
-import com.zbsplatform.state.ByteStr
-import com.zbsplatform.account.PublicKeyAccount
-import com.zbsplatform.block.{Block, MicroBlock}
-import com.zbsplatform.network.message.Message._
-import com.zbsplatform.network.message._
-import com.zbsplatform.transaction.{Transaction, TransactionParsers}
-import scorex.crypto.signatures.Curve25519._
+import com.zbsnetwork.account.PublicKeyAccount
+import com.zbsnetwork.block.{Block, MicroBlock}
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.crypto._
+import com.zbsnetwork.mining.Miner.MaxTransactionsPerMicroblock
+import com.zbsnetwork.network.message.Message._
+import com.zbsnetwork.network.message._
+import com.zbsnetwork.transaction.{Transaction, TransactionParsers}
+
 import scala.util.Try
 
 object GetPeersSpec extends MessageSpec[GetPeers.type] {
@@ -156,40 +157,10 @@ object ScoreSpec extends MessageSpec[BigInt] {
   }
 }
 
-object CheckpointSpec extends MessageSpec[Checkpoint] {
-  override val messageCode: MessageCode = 100: Byte
-
-  private val HeightLength = Ints.BYTES
-
-  override val maxLength: Int = 4 + Checkpoint.MaxCheckpoints * (HeightLength + SignatureLength)
-
-  override def serializeData(checkpoint: Checkpoint): Array[Byte] =
-    Bytes.concat(checkpoint.toSign, checkpoint.signature)
-
-  override def deserializeData(bytes: Array[Byte]): Try[Checkpoint] = Try {
-    val lengthBytes = util.Arrays.copyOfRange(bytes, 0, Ints.BYTES)
-    val length      = Ints.fromByteArray(lengthBytes)
-
-    require(length <= Checkpoint.MaxCheckpoints)
-
-    val items = (0 until length).map { i =>
-      val position       = lengthBytes.length + (i * (HeightLength + SignatureLength))
-      val heightBytes    = util.Arrays.copyOfRange(bytes, position, position + HeightLength)
-      val height         = Ints.fromByteArray(heightBytes)
-      val blockSignature = util.Arrays.copyOfRange(bytes, position + HeightLength, position + HeightLength + SignatureLength)
-      BlockCheckpoint(height, blockSignature)
-    }
-
-    val signature = bytes.takeRight(SignatureLength)
-
-    Checkpoint(items, signature)
-  }
-}
-
 object TransactionSpec extends MessageSpec[Transaction] {
   override val messageCode: MessageCode = 25: Byte
 
-  // Modeled after Data Transaction https://zbsplatform.atlassian.net/wiki/spaces/MAIN/pages/119734321/Data+Transaction
+  // Modeled after Data Transaction https://zbsnetwork.atlassian.net/wiki/spaces/MAIN/pages/119734321/Data+Transaction
   override val maxLength: Int = 150 * 1024
 
   override def deserializeData(bytes: Array[Byte]): Try[Transaction] =
@@ -256,7 +227,6 @@ object BasicMessagesRepo {
     GetBlockSpec,
     BlockSpec,
     ScoreSpec,
-    CheckpointSpec,
     TransactionSpec,
     MicroBlockInvSpec,
     MicroBlockRequestSpec,

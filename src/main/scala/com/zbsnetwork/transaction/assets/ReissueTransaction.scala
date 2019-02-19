@@ -1,14 +1,14 @@
-package com.zbsplatform.transaction.assets
+package com.zbsnetwork.transaction.assets
 
 import cats.implicits._
 import com.google.common.primitives.{Bytes, Longs}
-import com.zbsplatform.state.ByteStr
 import monix.eval.Coeval
 import play.api.libs.json.{JsObject, Json}
-import com.zbsplatform.account.PublicKeyAccount
-import com.zbsplatform.transaction.validation._
-import com.zbsplatform.transaction.{AssetId, ProvenTransaction, ValidationError, _}
-import scorex.crypto.signatures.Curve25519._
+import com.zbsnetwork.account.PublicKeyAccount
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.transaction.validation._
+import com.zbsnetwork.transaction.{AssetId, ProvenTransaction, ValidationError, _}
+import com.zbsnetwork.crypto._
 
 trait ReissueTransaction extends ProvenTransaction with VersionedTransaction {
   def assetId: ByteStr
@@ -38,9 +38,13 @@ trait ReissueTransaction extends ProvenTransaction with VersionedTransaction {
       Longs.toByteArray(timestamp)
     )
   }
+  override def checkedAssets(): Seq[AssetId] = Seq(assetId)
 }
 
 object ReissueTransaction {
+
+  val typeId: Byte = 5
+
   def validateReissueParams(quantity: Long, fee: Long): Either[ValidationError, Unit] =
     (validateAmount(quantity, "assets"), validateFee(fee))
       .mapN { case _ => () }

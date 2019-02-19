@@ -1,24 +1,31 @@
-package com.zbsplatform.transaction.smart.script
+package com.zbsnetwork.transaction.smart.script
 
-import com.zbsplatform.lang.ScriptVersion.Versions.V1
-import com.zbsplatform.lang.Versioned
-import com.zbsplatform.lang.v1.compiler.Terms
-import com.zbsplatform.state.ByteStr
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.Base64
+import com.zbsnetwork.lang.StdLibVersion._
+import com.zbsnetwork.lang.v1.compiler.Decompiler
+import com.zbsnetwork.transaction.ValidationError.ScriptParseError
+import com.zbsnetwork.transaction.smart.script.v1.ExprScript.ExprScriprImpl
 import monix.eval.Coeval
-import com.zbsplatform.utils.Base64
-import com.zbsplatform.transaction.ValidationError.ScriptParseError
 
-trait Script extends Versioned {
-  val expr: version.ExprT
-  val text: String
+trait Script {
+  type Expr
+
+  val stdLibVersion: StdLibVersion
+
+  val expr: Expr
+
   val bytes: Coeval[ByteStr]
+  val complexity: Long
+
+  val containsBlockV2: Coeval[Boolean]
 
   override def equals(obj: scala.Any): Boolean = obj match {
-    case that: Script => version == that.version && expr == that.expr
+    case that: Script => stdLibVersion == that.stdLibVersion && expr == that.expr
     case _            => false
   }
 
-  override def hashCode(): Int = version.value * 31 + expr.hashCode()
+  override def hashCode(): Int = stdLibVersion * 31 + expr.hashCode()
 }
 
 object Script {
@@ -31,10 +38,9 @@ object Script {
       script <- ScriptReader.fromBytes(bytes)
     } yield script
 
-  object Expr {
-    def unapply(arg: Script): Option[Terms.EXPR] = {
-      if (arg.version == V1) Some(arg.expr.asInstanceOf[Terms.EXPR])
-      else None
-    }
+  def decompile(s: Script): String = s match {
+    case ExprScriprImpl(_, expr, _) => Decompiler(expr, com.zbsnetwork.utils.defaultDecompilerContext)
+    case com.zbsnetwork.transaction.smart.script.ContractScript.ContractScriptImpl(_, contract, _) =>
+      Decompiler(contract, com.zbsnetwork.utils.defaultDecompilerContext)
   }
 }

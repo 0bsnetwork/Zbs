@@ -1,4 +1,4 @@
-package com.zbsplatform.dexgen
+package com.zbsnetwork.dexgen
 
 object Mode extends Enumeration {
   type Mode = Value

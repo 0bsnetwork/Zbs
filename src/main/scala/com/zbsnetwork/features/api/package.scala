@@ -1,7 +1,7 @@
-package com.zbsplatform.features
+package com.zbsnetwork.features
 
-import com.zbsplatform.features.BlockchainFeatureStatus.{Activated, Approved, Undefined}
-import com.zbsplatform.features.api.NodeFeatureStatus.{Implemented, NotImplemented, Voted}
+import com.zbsnetwork.features.BlockchainFeatureStatus.{Activated, Approved, Undefined}
+import com.zbsnetwork.features.api.NodeFeatureStatus.{Implemented, NotImplemented, Voted}
 import play.api.libs.json._
 
 package object api {

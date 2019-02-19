@@ -1,3 +1,3 @@
-package com.zbsplatform.lang.v1.task
+package com.zbsnetwork.lang.v1.task
 
 object imports extends TaskMFunctions with TaskMInstances

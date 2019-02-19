@@ -1,9 +1,9 @@
-package com.zbsplatform.network.message
+package com.zbsnetwork.network.message
 
 import com.google.common.primitives.{Bytes, Ints}
-import com.zbsplatform.crypto
+import com.zbsnetwork.crypto
 import monix.eval.Coeval
-import com.zbsplatform.serialization.BytesSerializable
+import com.zbsnetwork.serialization.BytesSerializable
 
 import scala.util.{Success, Try}
 

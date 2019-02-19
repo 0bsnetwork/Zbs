@@ -1,4 +1,4 @@
-package com.zbsplatform.http
+package com.zbsnetwork.http
 
 import akka.http.scaladsl.model.headers._
 

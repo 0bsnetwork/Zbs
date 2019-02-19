@@ -1,9 +1,9 @@
-package com.zbsplatform.network
+package com.zbsnetwork.network
 
 import com.google.common.cache.CacheBuilder
-import com.zbsplatform.network.InvalidBlockStorageImpl._
-import com.zbsplatform.state.ByteStr
-import com.zbsplatform.transaction.ValidationError
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.network.InvalidBlockStorageImpl._
+import com.zbsnetwork.transaction.ValidationError
 
 import scala.concurrent.duration.FiniteDuration
 

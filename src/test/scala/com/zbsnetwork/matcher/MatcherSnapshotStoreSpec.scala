@@ -1,12 +1,12 @@
-package com.zbsplatform.matcher
+package com.zbsnetwork.matcher
 
 import java.io.File
 import java.nio.file.Files.createTempDirectory
 
 import akka.persistence.snapshot.SnapshotStoreSpec
 import com.typesafe.config.ConfigFactory.parseString
-import com.zbsplatform.TestHelpers.deleteRecursively
-import com.zbsplatform.settings.loadConfig
+import com.zbsnetwork.TestHelpers.deleteRecursively
+import com.zbsnetwork.settings.loadConfig
 import MatcherSnapshotStoreSpec.DirKey
 
 class MatcherSnapshotStoreSpec extends SnapshotStoreSpec(loadConfig(parseString(s"""$DirKey = ${createTempDirectory("matcher").toAbsolutePath}

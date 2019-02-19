@@ -1,8 +1,8 @@
-package com.zbsplatform.network
+package com.zbsnetwork.network
 
 import java.io.IOException
 
-import com.zbsplatform.utils.{ScorexLogging, forceStopApplication}
+import com.zbsnetwork.utils.{ScorexLogging, forceStopApplication}
 import io.netty.channel.ChannelHandler.Sharable
 import io.netty.channel.{ChannelHandlerContext, ChannelInboundHandlerAdapter}
 

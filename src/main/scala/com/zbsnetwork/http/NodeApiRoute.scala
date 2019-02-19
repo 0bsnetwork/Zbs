@@ -1,16 +1,16 @@
-package com.zbsplatform.http
+package com.zbsnetwork.http
 
 import java.time.Instant
 
 import akka.http.scaladsl.server.Route
-import com.zbsplatform.Shutdownable
-import com.zbsplatform.settings.{Constants, RestAPISettings}
-import com.zbsplatform.state.Blockchain
+import com.zbsnetwork.Shutdownable
+import com.zbsnetwork.settings.{Constants, RestAPISettings}
+import com.zbsnetwork.state.Blockchain
 import io.swagger.annotations._
 import javax.ws.rs.Path
 import play.api.libs.json.Json
-import com.zbsplatform.api.http.{ApiRoute, CommonApiFunctions}
-import com.zbsplatform.utils.ScorexLogging
+import com.zbsnetwork.api.http.{ApiRoute, CommonApiFunctions}
+import com.zbsnetwork.utils.ScorexLogging
 
 @Path("/node")
 @Api(value = "node")

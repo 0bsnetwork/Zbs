@@ -1,15 +1,15 @@
-package com.zbsplatform.http
+package com.zbsnetwork.http
 
 import akka.http.scaladsl.server.Route
-import com.zbsplatform.BlockGen
-import com.zbsplatform.db.WithState
-import com.zbsplatform.http.ApiMarshallers._
-import com.zbsplatform.settings.FunctionalitySettings
-import com.zbsplatform.state._
+import com.zbsnetwork.BlockGen
+import com.zbsnetwork.api.http.BlockDoesNotExist
+import com.zbsnetwork.consensus.nxt.api.http.NxtConsensusApiRoute
+import com.zbsnetwork.db.WithDomain
+import com.zbsnetwork.http.ApiMarshallers._
+import com.zbsnetwork.settings.FunctionalitySettings
+import com.zbsnetwork.state._
 import org.scalatest.prop.PropertyChecks
 import play.api.libs.json.JsObject
-import com.zbsplatform.api.http.BlockDoesNotExist
-import com.zbsplatform.consensus.nxt.api.http.NxtConsensusApiRoute
 
 class ConsensusRouteSpec
     extends RouteSpec("/consensus")
@@ -17,7 +17,7 @@ class ConsensusRouteSpec
     with PropertyChecks
     with BlockGen
     with HistoryTest
-    with WithState {
+    with WithDomain {
 
   def routeTest(f: (Blockchain, Route) => Any) = withDomain() { d =>
     d.blockchainUpdater.processBlock(genesisBlock)

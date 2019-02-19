@@ -1,21 +1,21 @@
-package com.zbsplatform.state.diffs
+package com.zbsnetwork.state.diffs
 
 import cats.Monoid
 import cats.implicits._
 import cats.syntax.either.catsSyntaxEitherId
-import com.zbsplatform.features.BlockchainFeatures
-import com.zbsplatform.features.FeatureProvider._
-import com.zbsplatform.metrics.Instrumented
-import com.zbsplatform.mining.MiningConstraint
-import com.zbsplatform.settings.FunctionalitySettings
-import com.zbsplatform.state._
-import com.zbsplatform.state.patch.{CancelAllLeases, CancelInvalidLeaseIn, CancelLeaseOverflow}
-import com.zbsplatform.state.reader.CompositeBlockchain.composite
-import com.zbsplatform.account.Address
-import com.zbsplatform.utils.ScorexLogging
-import com.zbsplatform.block.{Block, MicroBlock}
-import com.zbsplatform.transaction.ValidationError.ActivationError
-import com.zbsplatform.transaction.{Transaction, ValidationError}
+import com.zbsnetwork.features.BlockchainFeatures
+import com.zbsnetwork.features.FeatureProvider._
+import com.zbsnetwork.metrics.Instrumented
+import com.zbsnetwork.mining.MiningConstraint
+import com.zbsnetwork.settings.FunctionalitySettings
+import com.zbsnetwork.state._
+import com.zbsnetwork.state.patch.{CancelAllLeases, CancelInvalidLeaseIn, CancelLeaseOverflow}
+import com.zbsnetwork.state.reader.CompositeBlockchain.composite
+import com.zbsnetwork.account.Address
+import com.zbsnetwork.utils.ScorexLogging
+import com.zbsnetwork.block.{Block, MicroBlock}
+import com.zbsnetwork.transaction.ValidationError.ActivationError
+import com.zbsnetwork.transaction.{Transaction, ValidationError}
 
 object BlockDiffer extends ScorexLogging with Instrumented {
 
@@ -23,7 +23,8 @@ object BlockDiffer extends ScorexLogging with Instrumented {
                                                 blockchain: Blockchain,
                                                 maybePrevBlock: Option[Block],
                                                 block: Block,
-                                                constraint: Constraint): Either[ValidationError, (Diff, Long, Constraint)] = {
+                                                constraint: Constraint,
+                                                verify: Boolean = true): Either[ValidationError, (Diff, Long, Constraint)] = {
     val stateHeight = blockchain.height
 
     // height switch is next after activation
@@ -55,7 +56,8 @@ object BlockDiffer extends ScorexLogging with Instrumented {
         currentBlockFeeDistr,
         block.timestamp,
         block.transactionData,
-        stateHeight + 1
+        stateHeight + 1,
+        verify
       )
     } yield r
   }
@@ -65,7 +67,8 @@ object BlockDiffer extends ScorexLogging with Instrumented {
                                                      prevBlockTimestamp: Option[Long],
                                                      micro: MicroBlock,
                                                      timestamp: Long,
-                                                     constraint: Constraint): Either[ValidationError, (Diff, Long, Constraint)] = {
+                                                     constraint: Constraint,
+                                                     verify: Boolean = true): Either[ValidationError, (Diff, Long, Constraint)] = {
     for {
       // microblocks are processed within block which is next after 40-only-block which goes on top of activated height
       _ <- Either.cond(blockchain.activatedFeatures.contains(BlockchainFeatures.NG.id), (), ActivationError(s"MicroBlocks are not yet activated"))
@@ -80,7 +83,8 @@ object BlockDiffer extends ScorexLogging with Instrumented {
         None,
         timestamp,
         micro.transactionData,
-        blockchain.height
+        blockchain.height,
+        verify
       )
     } yield r
   }
@@ -94,11 +98,12 @@ object BlockDiffer extends ScorexLogging with Instrumented {
                                                     currentBlockFeeDistr: Option[Portfolio],
                                                     timestamp: Long,
                                                     txs: Seq[Transaction],
-                                                    currentBlockHeight: Int): Either[ValidationError, (Diff, Long, Constraint)] = {
+                                                    currentBlockHeight: Int,
+                                                    verify: Boolean): Either[ValidationError, (Diff, Long, Constraint)] = {
     def updateConstraint(constraint: Constraint, blockchain: Blockchain, tx: Transaction): Constraint =
       constraint.put(blockchain, tx).asInstanceOf[Constraint]
 
-    val txDiffer       = TransactionDiffer(settings, prevBlockTimestamp, timestamp, currentBlockHeight) _
+    val txDiffer       = TransactionDiffer(settings, prevBlockTimestamp, timestamp, currentBlockHeight, verify) _
     val initDiff       = Diff.empty.copy(portfolios = Map(blockGenerator -> currentBlockFeeDistr.orElse(prevBlockFeeDistr).orEmpty))
     val hasNg          = currentBlockFeeDistr.isEmpty
     val hasSponsorship = currentBlockHeight >= Sponsorship.sponsoredFeesSwitchHeight(blockchain, settings)

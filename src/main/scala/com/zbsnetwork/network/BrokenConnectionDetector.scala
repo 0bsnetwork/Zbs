@@ -1,8 +1,8 @@
-package com.zbsplatform.network
+package com.zbsnetwork.network
 
 import java.util.concurrent.{ConcurrentHashMap, ScheduledFuture}
 
-import com.zbsplatform.utils.ScorexLogging
+import com.zbsnetwork.utils.ScorexLogging
 import io.netty.channel.ChannelHandler.Sharable
 import io.netty.channel._
 

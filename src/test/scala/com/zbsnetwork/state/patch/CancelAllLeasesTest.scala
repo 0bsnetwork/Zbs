@@ -1,15 +1,15 @@
-package com.zbsplatform.state.patch
+package com.zbsnetwork.state.patch
 
-import com.zbsplatform.settings.TestFunctionalitySettings
-import com.zbsplatform.state.EitherExt2
-import com.zbsplatform.state.diffs._
-import com.zbsplatform.{NoShrink, TransactionGen}
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.lagonaki.mocks.TestBlock
+import com.zbsnetwork.settings.TestFunctionalitySettings
+import com.zbsnetwork.state.diffs._
+import com.zbsnetwork.transaction.GenesisTransaction
+import com.zbsnetwork.transaction.lease.{LeaseCancelTransactionV1, LeaseTransaction}
+import com.zbsnetwork.{NoShrink, TransactionGen}
 import org.scalacheck.Gen
 import org.scalatest.prop.PropertyChecks
 import org.scalatest.{Matchers, PropSpec}
-import com.zbsplatform.lagonaki.mocks.TestBlock
-import com.zbsplatform.transaction.GenesisTransaction
-import com.zbsplatform.transaction.lease.{LeaseCancelTransactionV1, LeaseTransaction}
 
 class CancelAllLeasesTest extends PropSpec with PropertyChecks with Matchers with TransactionGen with NoShrink {
 

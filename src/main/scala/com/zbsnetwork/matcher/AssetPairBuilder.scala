@@ -1,12 +1,12 @@
-package com.zbsplatform.matcher
+package com.zbsnetwork.matcher
 
 import com.google.common.base.Charsets.UTF_8
-import com.zbsplatform.metrics._
-import com.zbsplatform.state.{Blockchain, ByteStr}
-import com.zbsplatform.transaction.AssetId
-import com.zbsplatform.transaction.assets.exchange.AssetPair
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.metrics._
+import com.zbsnetwork.state.Blockchain
+import com.zbsnetwork.transaction.AssetId
+import com.zbsnetwork.transaction.assets.exchange.AssetPair
 import kamon.Kamon
-import scorex.utils.ByteArray
 
 class AssetPairBuilder(settings: MatcherSettings, blockchain: Blockchain) {
   import AssetPairBuilder._
@@ -55,11 +55,5 @@ class AssetPairBuilder(settings: MatcherSettings, blockchain: Blockchain) {
 object AssetPairBuilder {
   private def errorMsg(assetId: String) = s"Invalid Asset ID: $assetId"
 
-  implicit val assetIdOrdering: Ordering[Option[ByteStr]] = (price: Option[ByteStr], amount: Option[ByteStr]) =>
-    (price, amount) match {
-      case (None, None)                           => 0
-      case (_, None)                              => 1
-      case (None, _)                              => -1
-      case (Some(ByteStr(b1)), Some(ByteStr(b2))) => ByteArray.compare(b1, b2)
-  }
+  val assetIdOrdering: Ordering[Option[ByteStr]] = Ordering.Option[ByteStr]
 }

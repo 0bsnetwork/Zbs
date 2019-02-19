@@ -1,20 +1,24 @@
-package com.zbsplatform.db
+package com.zbsnetwork.db
 
 import java.nio.file.Files
 
 import com.typesafe.config.ConfigFactory
-import com.zbsplatform.TestHelpers
-import com.zbsplatform.database.LevelDBWriter
-import com.zbsplatform.history.Domain
-import com.zbsplatform.settings.{FunctionalitySettings, ZbsSettings, loadConfig}
-import com.zbsplatform.state.{Blockchain, BlockchainUpdaterImpl}
-import com.zbsplatform.utils.{ScorexLogging, TimeImpl}
+import com.zbsnetwork.account.Address
+import com.zbsnetwork.database.LevelDBWriter
+import com.zbsnetwork.history.Domain
+import com.zbsnetwork.settings.{FunctionalitySettings, ZbsSettings, loadConfig}
+import com.zbsnetwork.state.{Blockchain, BlockchainUpdaterImpl}
+import com.zbsnetwork.utils.Implicits.SubjectOps
+import com.zbsnetwork.{NTPTime, TestHelpers}
+import monix.reactive.subjects.Subject
+import org.scalatest.Suite
 
-trait WithState extends ScorexLogging {
-  private def withState[A](fs: FunctionalitySettings)(f: Blockchain => A): A = {
+trait WithState extends DBCacheSettings {
+  protected val ignorePortfolioChanged: Subject[Address, Address] = Subject.empty[Address]
+  protected def withState[A](fs: FunctionalitySettings)(f: Blockchain => A): A = {
     val path = Files.createTempDirectory("leveldb-test")
     val db   = openDB(path.toAbsolutePath.toString)
-    try f(new LevelDBWriter(db, fs))
+    try f(new LevelDBWriter(db, ignorePortfolioChanged, fs, maxCacheSize, 2000, 120 * 60 * 1000))
     finally {
       db.close()
       TestHelpers.deleteRecursively(path)
@@ -22,16 +26,16 @@ trait WithState extends ScorexLogging {
   }
 
   def withStateAndHistory(fs: FunctionalitySettings)(test: Blockchain => Any): Unit = withState(fs)(test)
+}
+
+trait WithDomain extends WithState with NTPTime {
+  _: Suite =>
 
   def withDomain[A](settings: ZbsSettings = ZbsSettings.fromConfig(loadConfig(ConfigFactory.load())))(test: Domain => A): A = {
-    val time = new TimeImpl
-
     try withState(settings.blockchainSettings.functionalitySettings) { blockchain =>
-      val bcu = new BlockchainUpdaterImpl(blockchain, settings, time)
+      val bcu = new BlockchainUpdaterImpl(blockchain, ignorePortfolioChanged, settings, ntpTime)
       try test(Domain(bcu))
       finally bcu.shutdown()
-    } finally {
-      time.close()
-    }
+    } finally {}
   }
 }

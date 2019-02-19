@@ -1,12 +1,13 @@
-package com.zbsplatform.transaction
+package com.zbsnetwork.transaction
 
-import com.zbsplatform.TransactionGen
-import com.zbsplatform.state.{ByteStr, EitherExt2}
+import com.zbsnetwork.TransactionGen
+import com.zbsnetwork.account.PublicKeyAccount
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.transaction.assets.{BurnTransaction, BurnTransactionV1, BurnTransactionV2}
 import org.scalatest._
 import org.scalatest.prop.PropertyChecks
 import play.api.libs.json.Json
-import com.zbsplatform.account.PublicKeyAccount
-import com.zbsplatform.transaction.assets.{BurnTransaction, BurnTransactionV1, BurnTransactionV2}
 
 class BurnTransactionSpecification extends PropSpec with PropertyChecks with Matchers with TransactionGen {
 
@@ -33,7 +34,7 @@ class BurnTransactionSpecification extends PropSpec with PropertyChecks with Mat
                        "fee": 100000000,
                        "timestamp": 1526287561757,
                        "signature": "uapJcAJQryBhWThU43rYgMNmvdT7kY747vx5BBgxr2KvaeTRx8Vsuh4yu1JxBymU9LnAoo1zjQcPrWSuhi6dVPE",
-                       "chainId": null,
+                       "proofs": ["uapJcAJQryBhWThU43rYgMNmvdT7kY747vx5BBgxr2KvaeTRx8Vsuh4yu1JxBymU9LnAoo1zjQcPrWSuhi6dVPE"],
                        "version": 1,
                        "assetId": "9ekQuYn92natMnMq8KqeGK3Nn7cpKd3BvPEGgD6fFyyz",
                        "amount": 10000000000
@@ -74,7 +75,6 @@ class BurnTransactionSpecification extends PropSpec with PropertyChecks with Mat
 
     val tx = BurnTransactionV2
       .create(
-        2,
         'T',
         PublicKeyAccount.fromBase58String("FM5ojNqW7e9cZ9zhPYGkpSP1Pcd8Z3e3MNKYVS5pGJ8Z").explicitGet(),
         ByteStr.decodeBase58("9ekQuYn92natMnMq8KqeGK3Nn7cpKd3BvPEGgD6fFyyz").get,

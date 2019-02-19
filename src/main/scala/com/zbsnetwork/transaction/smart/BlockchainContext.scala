@@ -1,18 +1,31 @@
-package com.zbsplatform.transaction.smart
+package com.zbsnetwork.transaction.smart
 
 import cats.kernel.Monoid
-import com.zbsplatform.lang.Global
-import com.zbsplatform.lang.v1.evaluator.ctx.EvaluationContext
-import com.zbsplatform.lang.v1.evaluator.ctx.impl.zbs.ZbsContext
-import com.zbsplatform.lang.v1.evaluator.ctx.impl.{CryptoContext, PureContext}
-import com.zbsplatform.state._
+import com.zbsnetwork.lang.Global
+import com.zbsnetwork.lang.StdLibVersion._
+import com.zbsnetwork.lang.v1.evaluator.ctx.EvaluationContext
+import com.zbsnetwork.lang.v1.evaluator.ctx.impl.zbs.ZbsContext
+import com.zbsnetwork.lang.v1.evaluator.ctx.impl.{CryptoContext, PureContext}
+import com.zbsnetwork.state._
 import monix.eval.Coeval
-import com.zbsplatform.transaction._
 
 object BlockchainContext {
 
-  private val baseContext = Monoid.combine(PureContext.ctx, CryptoContext.build(Global)).evaluationContext
+  type In = ZbsEnvironment.In
+  def build(version: StdLibVersion,
+            nByte: Byte,
+            in: Coeval[In],
+            h: Coeval[Int],
+            blockchain: Blockchain,
+            isTokenContext: Boolean): EvaluationContext = {
+    Monoid
+      .combineAll(
+        Seq(
+          PureContext.build(version),
+          CryptoContext.build(Global),
+          ZbsContext.build(version, new ZbsEnvironment(nByte, in, h, blockchain), isTokenContext)
+        ))
+      .evaluationContext
+  }
 
-  def build(nByte: Byte, tx: Coeval[Transaction], h: Coeval[Int], blockchain: Blockchain): EvaluationContext =
-    Monoid.combine(baseContext, ZbsContext.build(new ZbsEnvironment(nByte, tx, h, blockchain)).evaluationContext)
 }

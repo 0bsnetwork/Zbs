@@ -1,35 +1,39 @@
-package com.zbsplatform.consensus
+package com.zbsnetwork.consensus
 
 import com.typesafe.config.ConfigFactory
-import com.zbsplatform.account.PrivateKeyAccount
-import com.zbsplatform.block.Block
-import com.zbsplatform.consensus.nxt.NxtLikeConsensusBlockData
-import com.zbsplatform.database.LevelDBWriter
-import com.zbsplatform.lagonaki.mocks.TestBlock
-import com.zbsplatform.settings.{ZbsSettings, _}
-import com.zbsplatform.state._
-import com.zbsplatform.state.diffs.{ENOUGH_AMT, ProduceError}
-import com.zbsplatform.transaction.{BlockchainUpdater, GenesisTransaction}
-import com.zbsplatform.utils.{Time, TimeImpl}
-import com.zbsplatform.{TransactionGen, WithDB}
+import com.zbsnetwork.account.PrivateKeyAccount
+import com.zbsnetwork.block.Block
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.state.diffs.ProduceError
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.consensus.nxt.NxtLikeConsensusBlockData
+import com.zbsnetwork.database.LevelDBWriter
+import com.zbsnetwork.db.DBCacheSettings
+import com.zbsnetwork.lagonaki.mocks.TestBlock
+import com.zbsnetwork.settings.{ZbsSettings, _}
+import com.zbsnetwork.state._
+import com.zbsnetwork.state.diffs.ENOUGH_AMT
+import com.zbsnetwork.transaction.{BlockchainUpdater, GenesisTransaction}
+import com.zbsnetwork.utils.Time
+import com.zbsnetwork.{TransactionGen, WithDB}
 import org.scalacheck.{Arbitrary, Gen}
 import org.scalatest.{FreeSpec, Matchers}
 
 import scala.concurrent.duration._
 import scala.util.Random
 
-class FPPoSSelectorTest extends FreeSpec with Matchers with WithDB with TransactionGen {
+class FPPoSSelectorTest extends FreeSpec with Matchers with WithDB with TransactionGen with DBCacheSettings {
 
   import FPPoSSelectorTest._
 
   "block delay" - {
     "same on the same height in different forks" in {
       withEnv(chainGen(List(ENOUGH_AMT / 2, ENOUGH_AMT / 3), 110)) {
-        case Env(pos, blockchain, miners) => {
+        case Env(_, blockchain, miners) =>
           val miner1 = miners.head
           val miner2 = miners.tail.head
 
-          val miner1Balance = blockchain.effectiveBalance(miner1.toAddress, blockchain.height, 0)
+          val miner1Balance = blockchain.effectiveBalance(miner1.toAddress, 0)
 
           val fork1 = mkFork(10, miner1, blockchain)
           val fork2 = mkFork(10, miner2, blockchain)
@@ -55,7 +59,6 @@ class FPPoSSelectorTest extends FreeSpec with Matchers with WithDB with Transact
           }
 
           fork1Delay shouldEqual fork2Delay
-        }
       }
     }
   }
@@ -66,7 +69,7 @@ class FPPoSSelectorTest extends FreeSpec with Matchers with WithDB with Transact
         case Env(pos, blockchain, miners) =>
           val miner        = miners.head
           val height       = blockchain.height
-          val minerBalance = blockchain.effectiveBalance(miner.toAddress, height, 0)
+          val minerBalance = blockchain.effectiveBalance(miner.toAddress, 0)
           val lastBlock    = blockchain.lastBlock.get
           val block        = forgeBlock(miner, blockchain, pos)()
 
@@ -81,7 +84,7 @@ class FPPoSSelectorTest extends FreeSpec with Matchers with WithDB with Transact
         case Env(pos, blockchain, miners) =>
           val miner        = miners.head
           val height       = blockchain.height
-          val minerBalance = blockchain.effectiveBalance(miner.toAddress, height, 0)
+          val minerBalance = blockchain.effectiveBalance(miner.toAddress, 0)
           val lastBlock    = blockchain.lastBlock.get
           val block        = forgeBlock(miner, blockchain, pos)(updateDelay = _ - 1)
 
@@ -200,14 +203,13 @@ class FPPoSSelectorTest extends FreeSpec with Matchers with WithDB with Transact
   }
 
   def withEnv(gen: Time => Gen[(Seq[PrivateKeyAccount], Seq[Block])])(f: Env => Unit): Unit = {
-    val time          = new TimeImpl
-    val defaultWriter = new LevelDBWriter(db, TestFunctionalitySettings.Stub)
+    val defaultWriter = new LevelDBWriter(db, ignorePortfolioChanged, TestFunctionalitySettings.Stub, maxCacheSize, 2000, 120 * 60 * 1000)
     val settings0     = ZbsSettings.fromConfig(loadConfig(ConfigFactory.load()))
     val settings      = settings0.copy(featuresSettings = settings0.featuresSettings.copy(autoShutdownOnUnsupportedFeature = false))
-    val bcu           = new BlockchainUpdaterImpl(defaultWriter, settings, time)
-    val pos           = new PoSSelector(bcu, settings.blockchainSettings)
+    val bcu           = new BlockchainUpdaterImpl(defaultWriter, ignorePortfolioChanged, settings, ntpTime)
+    val pos           = new PoSSelector(bcu, settings.blockchainSettings, settings.synchronizationSettings)
     try {
-      val (accounts, blocks) = gen(time).sample.get
+      val (accounts, blocks) = gen(ntpTime).sample.get
 
       blocks.foreach { block =>
         bcu.processBlock(block).explicitGet()
@@ -216,7 +218,6 @@ class FPPoSSelectorTest extends FreeSpec with Matchers with WithDB with Transact
       f(Env(pos, bcu, accounts))
       bcu.shutdown()
     } finally {
-      time.close()
       bcu.shutdown()
       db.close()
     }
@@ -288,7 +289,7 @@ object FPPoSSelectorTest {
     val height       = blockchain.height
     val lastBlock    = blockchain.lastBlock.get
     val ggParentTS   = blockchain.blockAt(height - 2).map(_.timestamp)
-    val minerBalance = blockchain.effectiveBalance(miner.toAddress, height, 0)
+    val minerBalance = blockchain.effectiveBalance(miner.toAddress, 0)
     val delay = updateDelay(
       pos
         .getValidBlockDelay(

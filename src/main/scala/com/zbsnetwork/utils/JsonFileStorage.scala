@@ -1,4 +1,4 @@
-package com.zbsplatform.utils
+package com.zbsnetwork.utils
 
 import java.io.{File, PrintWriter}
 import javax.crypto.Cipher
@@ -82,5 +82,5 @@ object JsonFileStorage {
   }
 
   def load[T](path: String)(implicit r: Reads[T]): T =
-    load(path, None)
+    load(path, Option.empty[SecretKeySpec])(r)
 }

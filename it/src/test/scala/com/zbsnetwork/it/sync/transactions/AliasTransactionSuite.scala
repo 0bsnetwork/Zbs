@@ -1,10 +1,10 @@
-package com.zbsplatform.it.sync.transactions
+package com.zbsnetwork.it.sync.transactions
 
-import com.zbsplatform.it.api.SyncHttpApi._
-import com.zbsplatform.it.transactions.BaseTransactionSuite
-import com.zbsplatform.it.util._
+import com.zbsnetwork.it.api.SyncHttpApi._
+import com.zbsnetwork.it.transactions.BaseTransactionSuite
+import com.zbsnetwork.it.util._
 import org.scalatest.prop.TableDrivenPropertyChecks
-import com.zbsplatform.it.sync._
+import com.zbsnetwork.it.sync._
 
 import scala.util.Random
 

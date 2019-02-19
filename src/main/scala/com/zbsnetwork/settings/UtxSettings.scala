@@ -1,9 +1,9 @@
-package com.zbsplatform.settings
+package com.zbsnetwork.settings
 
 import scala.concurrent.duration.FiniteDuration
 
 case class UtxSettings(maxSize: Int,
-                       maxTransactionAge: FiniteDuration,
+                       maxBytesSize: Long,
                        blacklistSenderAddresses: Set[String],
                        allowBlacklistedTransferTo: Set[String],
                        cleanupInterval: FiniteDuration,

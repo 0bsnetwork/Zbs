@@ -1,12 +1,12 @@
-package com.zbsplatform.api.http
+package com.zbsnetwork.api.http
 
 import akka.http.scaladsl.model.{StatusCode, StatusCodes}
-import com.zbsplatform.lang.v1.evaluator.ctx.LazyVal
-import com.zbsplatform.state.diffs.TransactionDiffer.TransactionValidationError
+import com.zbsnetwork.lang.v1.evaluator.ctx.LazyVal
+import com.zbsnetwork.state.diffs.TransactionDiffer.TransactionValidationError
 import play.api.libs.json._
-import com.zbsplatform.account.{Address, AddressOrAlias, Alias}
-import com.zbsplatform.lang.ExprEvaluator.Log
-import com.zbsplatform.transaction.{Transaction, ValidationError}
+import com.zbsnetwork.account.{Address, AddressOrAlias, Alias}
+import com.zbsnetwork.lang.v1.evaluator.Log
+import com.zbsnetwork.transaction.{Transaction, ValidationError}
 
 case class ApiErrorResponse(error: Int, message: String)
 
@@ -47,10 +47,11 @@ object ApiError {
       case TransactionValidationError(error, tx) =>
         error match {
           case ValidationError.Mistiming(errorMessage) => Mistiming(errorMessage)
-          case ValidationError.TransactionNotAllowedByScript(vars, scriptSrc, isTokenScript) =>
-            TransactionNotAllowedByScript(tx, vars, scriptSrc, isTokenScript)
-          case ValidationError.ScriptExecutionError(err, src, vars, isToken) =>
-            ScriptExecutionError(tx, err, src, vars, isToken)
+          case ValidationError.TransactionNotAllowedByScript(vars, isTokenScript) =>
+            if (isTokenScript) TransactionNotAllowedByAssetScript(tx, vars)
+            else TransactionNotAllowedByAccountScript(tx, vars)
+          case ValidationError.ScriptExecutionError(err, vars, isToken) =>
+            ScriptExecutionError(tx, err, vars, isToken)
           case _ => StateCheckFailed(tx, fromValidationError(error).message)
         }
       case error => CustomValidationError(error.toString)
@@ -252,29 +253,47 @@ case class ScriptCompilerError(errorMessage: String) extends ApiError {
   override val message: String  = errorMessage
 }
 
-case class ScriptExecutionError(tx: Transaction, error: String, scriptSrc: String, log: Log, isTokenScript: Boolean) extends ApiError {
+case class ScriptExecutionError(tx: Transaction, error: String, log: Log, isTokenScript: Boolean) extends ApiError {
   override val id: Int             = 306
   override val code: StatusCode    = StatusCodes.BadRequest
   override val message: String     = s"Error while executing ${if (isTokenScript) "token" else "account"}-script: $error"
-  override lazy val json: JsObject = ScriptErrorJson(id, tx, message, scriptSrc, log)
-
+  override lazy val json: JsObject = ScriptErrorJson(id, tx, message, log)
 }
 
-case class TransactionNotAllowedByScript(tx: Transaction, log: Log, scriptSrc: String, isTokenScript: Boolean) extends ApiError {
-
-  override val id: Int             = 307
+case class TransactionNotAllowedByAccountScript(tx: Transaction, log: Log) extends ApiError {
+  override val id: Int             = TransactionNotAllowedByAccountScript.ErrorCode
   override val code: StatusCode    = StatusCodes.BadRequest
-  override val message: String     = s"Transaction not allowed by ${if (isTokenScript) "token" else "account"}-script"
-  override lazy val json: JsObject = ScriptErrorJson(id, tx, message, scriptSrc, log)
+  override val message: String     = s"Transaction is not allowed by account-script"
+  override lazy val json: JsObject = ScriptErrorJson(id, tx, message, log)
+}
+
+object TransactionNotAllowedByAccountScript {
+  val ErrorCode = 307
+}
+
+case class TransactionNotAllowedByAssetScript(tx: Transaction, log: Log) extends ApiError {
+  override val id: Int             = TransactionNotAllowedByAssetScript.ErrorCode
+  override val code: StatusCode    = StatusCodes.BadRequest
+  override val message: String     = s"Transaction is not allowed by token-script"
+  override lazy val json: JsObject = ScriptErrorJson(id, tx, message, log)
+}
+
+object TransactionNotAllowedByAssetScript {
+  val ErrorCode = 308
+}
+
+case class SignatureError(error: String) extends ApiError {
+  override val id: Int          = 309
+  override val code: StatusCode = StatusCodes.InternalServerError
+  override val message: String  = s"Signature error: $error"
 }
 
 object ScriptErrorJson {
-  def apply(errId: Int, tx: Transaction, message: String, scriptSrc: String, log: Log): JsObject =
+  def apply(errId: Int, tx: Transaction, message: String, log: Log): JsObject =
     Json.obj(
       "error"       -> errId,
       "message"     -> message,
       "transaction" -> tx.json(),
-      "script"      -> scriptSrc,
       "vars" -> Json.arr(log.map {
         case (k, Right(v))  => Json.obj("name" -> k, "value" -> JsString(v.toString))
         case (k, Left(err)) => Json.obj("name" -> k, "error" -> JsString(err))

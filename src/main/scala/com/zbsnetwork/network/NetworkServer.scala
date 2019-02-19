@@ -1,16 +1,16 @@
-package com.zbsplatform.network
+package com.zbsnetwork.network
 
 import java.net.{InetSocketAddress, NetworkInterface}
 import java.nio.channels.ClosedChannelException
 import java.util.concurrent.ConcurrentHashMap
 
-import com.zbsplatform.Version
-import com.zbsplatform.metrics.Metrics
-import com.zbsplatform.network.MessageObserver.Messages
-import com.zbsplatform.settings._
-import com.zbsplatform.state.NG
-import com.zbsplatform.utils.ScorexLogging
-import com.zbsplatform.utx.UtxPool
+import com.zbsnetwork.Version
+import com.zbsnetwork.metrics.Metrics
+import com.zbsnetwork.network.MessageObserver.Messages
+import com.zbsnetwork.settings._
+import com.zbsnetwork.state.NG
+import com.zbsnetwork.utils.ScorexLogging
+import com.zbsnetwork.utx.UtxPool
 import io.netty.bootstrap.{Bootstrap, ServerBootstrap}
 import io.netty.channel._
 import io.netty.channel.group.ChannelGroup
@@ -21,7 +21,7 @@ import io.netty.handler.codec.{LengthFieldBasedFrameDecoder, LengthFieldPrepende
 import io.netty.util.concurrent.DefaultThreadFactory
 import monix.reactive.Observable
 import org.influxdb.dto.Point
-import com.zbsplatform.transaction._
+import com.zbsnetwork.transaction._
 
 import scala.collection.JavaConverters._
 import scala.concurrent.duration._

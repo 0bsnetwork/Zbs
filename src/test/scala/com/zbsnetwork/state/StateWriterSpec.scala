@@ -1,4 +1,4 @@
-package com.zbsplatform.state
+package com.zbsnetwork.state
 
 import org.scalatest.prop.GeneratorDrivenPropertyChecks
 import org.scalatest.{FunSuite, Matchers}

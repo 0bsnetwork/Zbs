@@ -1,11 +1,11 @@
-package com.zbsplatform.state.diffs
+package com.zbsnetwork.state.diffs
 
 import cats.implicits._
-import com.zbsplatform.settings.FunctionalitySettings
-import com.zbsplatform.state.{Blockchain, Diff, LeaseBalance, Portfolio}
-import com.zbsplatform.account.Address
-import com.zbsplatform.transaction.ValidationError.GenericError
-import com.zbsplatform.transaction.{PaymentTransaction, ValidationError}
+import com.zbsnetwork.settings.FunctionalitySettings
+import com.zbsnetwork.state.{Blockchain, Diff, LeaseBalance, Portfolio}
+import com.zbsnetwork.account.Address
+import com.zbsnetwork.transaction.ValidationError.GenericError
+import com.zbsnetwork.transaction.{PaymentTransaction, ValidationError}
 
 import scala.util.{Left, Right}
 

@@ -1,4 +1,4 @@
-package com.zbsplatform.dexgen.utils
+package com.zbsnetwork.dexgen.utils
 
 import java.util.concurrent.ThreadLocalRandom
 

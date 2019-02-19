@@ -1,11 +1,11 @@
-package com.zbsplatform.network
+package com.zbsnetwork.network
 
 import java.util.concurrent.TimeUnit
 
 import cats._
 import cats.implicits._
 import com.google.common.cache.CacheBuilder
-import com.zbsplatform.utils.ScorexLogging
+import com.zbsnetwork.utils.ScorexLogging
 import io.netty.channel._
 import monix.eval.Coeval
 import monix.execution.Scheduler

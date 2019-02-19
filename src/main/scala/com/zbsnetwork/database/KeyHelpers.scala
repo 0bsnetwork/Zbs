@@ -1,9 +1,10 @@
-package com.zbsplatform.database
+package com.zbsnetwork.database
 
 import java.nio.ByteBuffer
 
-import com.google.common.primitives.{Ints, Shorts}
-import com.zbsplatform.state.ByteStr
+import com.google.common.primitives.{Ints, Longs, Shorts}
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.state.TxNum
 
 object KeyHelpers {
   def h(prefix: Short, height: Int): Array[Byte] =
@@ -21,13 +22,18 @@ object KeyHelpers {
 
   def hAddr(prefix: Short, height: Int, addressId: BigInt): Array[Byte] = hBytes(prefix, height, addressId.toByteArray)
 
-  def historyKey(prefix: Short, b: Array[Byte]) = Key(bytes(prefix, b), readIntSeq, writeIntSeq)
+  def hNum(prefix: Short, height: Int, num: TxNum): Array[Byte] = hBytes(prefix, height, Shorts.toByteArray(num))
 
-  def intKey(prefix: Short, default: Int = 0): Key[Int] =
-    Key(Shorts.toByteArray(prefix), Option(_).fold(default)(Ints.fromByteArray), Ints.toByteArray)
+  def historyKey(name: String, prefix: Short, b: Array[Byte]) = Key(name, bytes(prefix, b), readIntSeq, writeIntSeq)
 
-  def bytesSeqNr(prefix: Short, b: Array[Byte], default: Int = 0): Key[Int] =
-    Key(bytes(prefix, b), Option(_).fold(default)(Ints.fromByteArray), Ints.toByteArray)
+  def intKey(name: String, prefix: Short, default: Int = 0): Key[Int] =
+    Key(name, Shorts.toByteArray(prefix), Option(_).fold(default)(Ints.fromByteArray), Ints.toByteArray)
+
+  def longKey(name: String, prefix: Short, default: Long = 0): Key[Long] =
+    Key(name, Longs.toByteArray(prefix), Option(_).fold(default)(Longs.fromByteArray), Longs.toByteArray)
+
+  def bytesSeqNr(name: String, prefix: Short, b: Array[Byte], default: Int = 0): Key[Int] =
+    Key(name, bytes(prefix, b), Option(_).fold(default)(Ints.fromByteArray), Ints.toByteArray)
 
   def unsupported[A](message: String): A => Array[Byte] = _ => throw new UnsupportedOperationException(message)
 }

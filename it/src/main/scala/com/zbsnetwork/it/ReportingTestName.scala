@@ -1,8 +1,8 @@
-package com.zbsplatform.it
+package com.zbsnetwork.it
 
-import com.zbsplatform.http.DebugMessage
-import com.zbsplatform.it.api.AsyncHttpApi._
-import com.zbsplatform.utils.ScorexLogging
+import com.zbsnetwork.http.DebugMessage
+import com.zbsnetwork.it.api.AsyncHttpApi._
+import com.zbsnetwork.utils.ScorexLogging
 import org.scalatest.{Args, Status, Suite, SuiteMixin}
 
 import scala.concurrent.duration._

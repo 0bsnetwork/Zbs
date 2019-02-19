@@ -1,12 +1,14 @@
-package com.zbsplatform.transaction
+package com.zbsnetwork.transaction
 
-import com.zbsplatform.state.{ByteStr, EitherExt2, HistoryTest}
-import com.zbsplatform.{TransactionGen, WithDB}
+import com.zbsnetwork.account.PublicKeyAccount
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.state.HistoryTest
+import com.zbsnetwork.transaction.assets.IssueTransactionV2
+import com.zbsnetwork.{TransactionGen, WithDB}
 import org.scalatest.prop.PropertyChecks
 import org.scalatest.{Matchers, PropSpec}
 import play.api.libs.json.Json
-import com.zbsplatform.account.PublicKeyAccount
-import com.zbsplatform.transaction.assets.IssueTransactionV2
 
 class IssueTransactionV2Specification extends PropSpec with PropertyChecks with Matchers with TransactionGen with WithDB with HistoryTest {
 
@@ -40,17 +42,18 @@ class IssueTransactionV2Specification extends PropSpec with PropertyChecks with 
                        ],
                        "version": 2,
                        "assetId": "2ykNAo5JrvNCcL8PtCmc9pTcNtKUy2PjJkrFdRvTfUf4",
+                       "chainId": 84,
                        "name": "Gigacoin",
                        "quantity": 10000000000,
                        "reissuable": true,
                        "decimals": 8,
-                       "description": "Gigacoin"
+                       "description": "Gigacoin",
+                       "script":null
                        }
     """)
 
     val tx = IssueTransactionV2
       .create(
-        2,
         'T',
         PublicKeyAccount.fromBase58String("FM5ojNqW7e9cZ9zhPYGkpSP1Pcd8Z3e3MNKYVS5pGJ8Z").explicitGet(),
         "Gigacoin".getBytes,

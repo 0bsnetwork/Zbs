@@ -1,14 +1,13 @@
-package com.zbsplatform.transaction
-
-import com.zbsplatform.state.ByteStr
+package com.zbsnetwork.transaction
 import monix.reactive.Observable
-import com.zbsplatform.block.Block.BlockId
-import com.zbsplatform.block.{Block, MicroBlock}
+import com.zbsnetwork.block.Block.BlockId
+import com.zbsnetwork.block.{Block, MicroBlock}
+import com.zbsnetwork.common.state.ByteStr
 
 trait BlockchainUpdater {
-  def processBlock(block: Block): Either[ValidationError, Option[DiscardedTransactions]]
+  def processBlock(block: Block, verify: Boolean = true): Either[ValidationError, Option[DiscardedTransactions]]
 
-  def processMicroBlock(microBlock: MicroBlock): Either[ValidationError, Unit]
+  def processMicroBlock(microBlock: MicroBlock, verify: Boolean = true): Either[ValidationError, Unit]
 
   def removeAfter(blockId: ByteStr): Either[ValidationError, DiscardedBlocks]
 

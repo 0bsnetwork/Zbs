@@ -1,19 +1,29 @@
-package com.zbsplatform
+package com.zbsnetwork
 
 import java.nio.ByteBuffer
+import java.util.{Map => JMap}
 
 import com.google.common.base.Charsets.UTF_8
 import com.google.common.io.ByteStreams.{newDataInput, newDataOutput}
 import com.google.common.io.{ByteArrayDataInput, ByteArrayDataOutput}
 import com.google.common.primitives.{Ints, Shorts}
-import com.zbsplatform.state._
-import com.zbsplatform.transaction.smart.script.{Script, ScriptReader}
-import com.zbsplatform.transaction.{Transaction, TransactionParsers}
+import com.zbsnetwork.account.PublicKeyAccount
+import com.zbsnetwork.block.{Block, BlockHeader, SignerData}
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.consensus.nxt.NxtLikeConsensusBlockData
+import com.zbsnetwork.crypto._
+import com.zbsnetwork.state._
+import com.zbsnetwork.transaction.smart.script.{Script, ScriptReader}
+import com.zbsnetwork.transaction.{Transaction, TransactionParsers}
 import org.iq80.leveldb.{DB, ReadOptions}
-import java.util.{Map => JMap}
 
 package object database {
   implicit class ByteArrayDataOutputExt(val output: ByteArrayDataOutput) extends AnyVal {
+    def writeByteStr(s: ByteStr) = {
+      output.write(s.arr)
+    }
+
     def writeBigInt(v: BigInt): Unit = {
       val b = v.toByteArray
       require(b.length <= Byte.MaxValue)
@@ -47,6 +57,19 @@ package object database {
         Some(ScriptReader.fromBytes(b).explicitGet())
       } else None
     }
+
+    def readBytes(len: Int): Array[Byte] = {
+      val arr = new Array[Byte](len)
+      input.readFully(arr)
+      arr
+    }
+
+    def readByteStr(len: Int): ByteStr = {
+      ByteStr(readBytes(len))
+    }
+
+    def readSignature: ByteStr          = readByteStr(SignatureLength)
+    def readPublicKey: PublicKeyAccount = PublicKeyAccount(readBytes(KeyLength))
   }
 
   def writeIntSeq(values: Seq[Int]): Array[Byte] = {
@@ -210,20 +233,126 @@ package object database {
   }
 
   def readAssetInfo(data: Array[Byte]): AssetInfo = {
-    val ndi = newDataInput(data)
-    AssetInfo(ndi.readBoolean(), ndi.readBigInt(), ndi.readScriptOption())
+    val ndi     = newDataInput(data)
+    val reissue = ndi.readBoolean()
+    val volume  = ndi.readBigInt()
+    AssetInfo(reissue, volume)
   }
 
   def writeAssetInfo(ai: AssetInfo): Array[Byte] = {
     val ndo = newDataOutput()
     ndo.writeBoolean(ai.isReissuable)
     ndo.writeBigInt(ai.volume)
-    ndo.writeScriptOption(ai.script)
+    ndo.toByteArray
+  }
+
+  def writeBlockHeaderAndSize(data: (BlockHeader, Int)): Array[Byte] = {
+    val (bh, size) = data
+
+    val ndo = newDataOutput()
+
+    ndo.writeInt(size)
+
+    ndo.writeByte(bh.version)
+    ndo.writeLong(bh.timestamp)
+    ndo.writeByteStr(bh.reference)
+    ndo.writeLong(bh.consensusData.baseTarget)
+    ndo.writeByteStr(bh.consensusData.generationSignature)
+
+    if (bh.version == 1 | bh.version == 2)
+      ndo.writeByte(bh.transactionCount)
+    else
+      ndo.writeInt(bh.transactionCount)
+
+    ndo.writeInt(bh.featureVotes.size)
+    bh.featureVotes.foreach(s => ndo.writeShort(s))
+    ndo.write(bh.signerData.generator.publicKey)
+    ndo.writeByteStr(bh.signerData.signature)
+
+    ndo.toByteArray
+  }
+
+  def readBlockHeaderAndSize(bs: Array[Byte]): (BlockHeader, Int) = {
+    val ndi = newDataInput(bs)
+
+    val size = ndi.readInt()
+
+    val version    = ndi.readByte()
+    val timestamp  = ndi.readLong()
+    val reference  = ndi.readSignature
+    val baseTarget = ndi.readLong()
+    val genSig     = ndi.readByteStr(Block.GeneratorSignatureLength)
+    val transactionCount = {
+      if (version == 1 || version == 2) ndi.readByte()
+      else ndi.readInt()
+    }
+    val featureVotesCount = ndi.readInt()
+    val featureVotes      = List.fill(featureVotesCount)(ndi.readShort()).toSet
+    val generator         = ndi.readPublicKey
+    val signature         = ndi.readSignature
+
+    val header = new BlockHeader(timestamp,
+                                 version,
+                                 reference,
+                                 SignerData(generator, signature),
+                                 NxtLikeConsensusBlockData(baseTarget, genSig),
+                                 transactionCount,
+                                 featureVotes)
+
+    (header, size)
+  }
+
+  def readTransactionHNSeqAndType(bs: Array[Byte]): (Height, Seq[(Byte, TxNum)]) = {
+    val ndi          = newDataInput(bs)
+    val height       = Height(ndi.readInt())
+    val numSeqLength = ndi.readInt()
+
+    (height, List.fill(numSeqLength) {
+      val tp  = ndi.readByte()
+      val num = TxNum(ndi.readShort())
+      (tp, num)
+    })
+  }
+
+  def writeTransactionHNSeqAndType(v: (Height, Seq[(Byte, TxNum)])): Array[Byte] = {
+    val (height, numSeq) = v
+    val numSeqLength     = numSeq.length
+
+    val outputLength = 4 + 4 + numSeqLength * (4 + 1)
+    val ndo          = newDataOutput(outputLength)
+
+    ndo.writeInt(height)
+    ndo.writeInt(numSeqLength)
+    numSeq.foreach {
+      case (tp, num) =>
+        ndo.writeByte(tp)
+        ndo.writeShort(num)
+    }
+
+    ndo.toByteArray
+  }
+
+  def readTransactionHN(bs: Array[Byte]): (Height, TxNum) = {
+    val ndi = newDataInput(bs)
+    val h   = Height(ndi.readInt())
+    val num = TxNum(ndi.readShort())
+
+    (h, num)
+  }
+
+  def writeTransactionHN(v: (Height, TxNum)): Array[Byte] = {
+    val ndo = newDataOutput(8)
+
+    val (h, num) = v
+
+    ndo.writeInt(h)
+    ndo.writeShort(num)
+
     ndo.toByteArray
   }
 
   implicit class EntryExt(val e: JMap.Entry[Array[Byte], Array[Byte]]) extends AnyVal {
-    import com.zbsplatform.crypto.DigestSize
+    import com.zbsnetwork.crypto.DigestSize
     def extractId(offset: Int = 2, length: Int = DigestSize): ByteStr = {
       val id = ByteStr(new Array[Byte](length))
       Array.copy(e.getKey, offset, id.arr, 0, length)
@@ -242,9 +371,18 @@ package object database {
       * @note Runs operations in batch, so keep in mind, that previous changes don't appear lately in f
       */
     def readWrite[A](f: RW => A): A = {
-      val rw = new RW(db)
-      try f(rw)
-      finally rw.close()
+      val snapshot    = db.getSnapshot
+      val readOptions = new ReadOptions().snapshot(snapshot)
+      val batch       = db.createWriteBatch()
+      val rw          = new RW(db, readOptions, batch)
+      try {
+        val r = f(rw)
+        db.write(batch)
+        r
+      } finally {
+        batch.close()
+        snapshot.close()
+      }
     }
 
     def get[A](key: Key[A]): A = key.parse(db.get(key.keyBytes))

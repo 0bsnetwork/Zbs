@@ -3,17 +3,19 @@ package tools
 import java.io.{File, FileNotFoundException}
 
 import com.typesafe.config.ConfigFactory
-import com.zbsplatform.crypto
-import com.zbsplatform.settings.{GenesisSettings, GenesisTransactionSettings}
-import com.zbsplatform.state._
+import com.zbsnetwork.account.{Address, AddressScheme, PrivateKeyAccount}
+import com.zbsnetwork.block.Block
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.consensus.nxt.NxtLikeConsensusBlockData
+import com.zbsnetwork.crypto
+import com.zbsnetwork.crypto._
+import com.zbsnetwork.settings.{GenesisSettings, GenesisTransactionSettings}
+import com.zbsnetwork.transaction.GenesisTransaction
+import com.zbsnetwork.wallet.Wallet
 import net.ceedubs.ficus.Ficus._
 import net.ceedubs.ficus.readers.ArbitraryTypeReader._
-import com.zbsplatform.account.{Address, AddressScheme, PrivateKeyAccount}
-import com.zbsplatform.block.Block
-import com.zbsplatform.consensus.nxt.NxtLikeConsensusBlockData
-import com.zbsplatform.transaction.GenesisTransaction
-import com.zbsplatform.wallet.Wallet
-import scorex.crypto.signatures.Curve25519._
+
 import scala.concurrent.duration._
 
 object GenesisBlockGenerator extends App {
@@ -27,14 +29,14 @@ object GenesisBlockGenerator extends App {
                       averageBlockDelay: FiniteDuration,
                       timestamp: Option[Long],
                       distributions: Map[SeedText, Share]) {
-    private val distributionsSum = distributions.values.sum
 
+    private[this] val distributionsSum = distributions.values.sum
     require(
-      distributionsSum <= initialBalance,
-      s"The sum of all balances should be <= $initialBalance, but it is $distributionsSum"
+      distributionsSum == initialBalance,
+      s"The sum of all balances should be == $initialBalance, but it is $distributionsSum"
     )
 
-    val networkByte: Byte = networkType.head.toByte
+    val chainId: Byte = networkType.head.toByte
   }
 
   case class FullAddressInfo(seedText: SeedText,
@@ -69,8 +71,8 @@ object GenesisBlockGenerator extends App {
     ConfigFactory.parseFile(file).as[Settings]("genesis-generator")
   }
 
-  com.zbsplatform.account.AddressScheme.current = new AddressScheme {
-    override val chainId: Byte = settings.networkByte
+  com.zbsnetwork.account.AddressScheme.current = new AddressScheme {
+    override val chainId: Byte = settings.chainId
   }
 
   val shares: Map[FullAddressInfo, Share] = {

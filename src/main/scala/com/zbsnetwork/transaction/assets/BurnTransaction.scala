@@ -1,12 +1,12 @@
-package com.zbsplatform.transaction.assets
+package com.zbsnetwork.transaction.assets
 
 import com.google.common.primitives.{Bytes, Longs}
-import com.zbsplatform.state.ByteStr
+import com.zbsnetwork.account.PublicKeyAccount
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.crypto._
+import com.zbsnetwork.transaction._
 import monix.eval.Coeval
 import play.api.libs.json.{JsObject, Json}
-import com.zbsplatform.account.PublicKeyAccount
-import com.zbsplatform.transaction._
-import scorex.crypto.signatures.Curve25519._
 
 trait BurnTransaction extends ProvenTransaction with VersionedTransaction {
 
@@ -24,12 +24,14 @@ trait BurnTransaction extends ProvenTransaction with VersionedTransaction {
 
   override val json: Coeval[JsObject] = Coeval.evalOnce {
     jsonBase() ++ Json.obj(
-      "chainId" -> chainByte,
       "version" -> version,
       "assetId" -> assetId.base58,
       "amount"  -> quantity,
       "fee"     -> fee
-    )
+    ) ++ (chainByte match {
+      case Some(chainByte) => Json.obj("chainId" -> chainByte)
+      case None            => JsObject.empty
+    })
   }
 
   val byteBase: Coeval[Array[Byte]] = Coeval.evalOnce {
@@ -41,6 +43,7 @@ trait BurnTransaction extends ProvenTransaction with VersionedTransaction {
       Longs.toByteArray(timestamp)
     )
   }
+  override def checkedAssets(): Seq[AssetId] = Seq(assetId)
 }
 
 object BurnTransaction {

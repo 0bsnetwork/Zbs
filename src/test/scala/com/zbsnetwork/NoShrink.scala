@@ -1,4 +1,4 @@
-package com.zbsplatform
+package com.zbsnetwork
 
 import org.scalacheck.Shrink
 

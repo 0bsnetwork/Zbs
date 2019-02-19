@@ -1,4 +1,4 @@
-package com.zbsplatform.api.http
+package com.zbsnetwork.api.http
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.HttpMethods._
@@ -9,11 +9,11 @@ import akka.http.scaladsl.server.RouteResult.Complete
 import akka.http.scaladsl.server.directives.{DebuggingDirectives, LoggingMagnet}
 import akka.http.scaladsl.server.{Directive0, Route, RouteResult}
 import akka.stream.ActorMaterializer
-import com.zbsplatform.settings.RestAPISettings
-import com.zbsplatform.api.http.swagger.SwaggerDocService
-import com.zbsplatform.utils.ScorexLogging
+import com.zbsnetwork.api.http.swagger.SwaggerDocService
+import com.zbsnetwork.settings.RestAPISettings
+import com.zbsnetwork.utils.ScorexLogging
 
-case class CompositeHttpService(system: ActorSystem, apiTypes: Set[Class[_]], routes: Seq[ApiRoute], settings: RestAPISettings)
+case class CompositeHttpService(apiTypes: Set[Class[_]], routes: Seq[ApiRoute], settings: RestAPISettings)(implicit system: ActorSystem)
     extends ScorexLogging {
 
   val swaggerService = new SwaggerDocService(system, ActorMaterializer()(system), apiTypes, settings)
@@ -27,6 +27,7 @@ case class CompositeHttpService(system: ActorSystem, apiTypes: Set[Class[_]], ro
                                                                                                "Content-Type",
                                                                                                "X-Requested-With",
                                                                                                "Timestamp",
+                                                                                               "x-api-key",
                                                                                                "Signature") ++
     (if (settings.apiKeyDifferentHost) Seq("api_key", "X-API-Key") else Seq.empty[String])
 

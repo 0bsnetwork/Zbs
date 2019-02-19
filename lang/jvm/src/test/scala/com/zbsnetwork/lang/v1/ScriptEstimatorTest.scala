@@ -1,17 +1,19 @@
-package com.zbsplatform.lang.v1
+package com.zbsnetwork.lang.v1
 
 import cats.data.EitherT
 import cats.kernel.Monoid
-import com.zbsplatform.lang.Common._
-import com.zbsplatform.lang._
-import com.zbsplatform.lang.v1.compiler.CompilerV1
-import com.zbsplatform.lang.v1.compiler.Terms._
-import com.zbsplatform.lang.v1.evaluator.FunctionIds._
-import com.zbsplatform.lang.v1.evaluator.ctx._
-import com.zbsplatform.lang.v1.evaluator.ctx.impl.PureContext
-import com.zbsplatform.lang.v1.evaluator.ctx.impl.zbs.Types.transferTransactionType
-import com.zbsplatform.lang.v1.parser.Parser
-import com.zbsplatform.lang.v1.testing.ScriptGen
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.lang.Common._
+import com.zbsnetwork.lang.StdLibVersion.V1
+import com.zbsnetwork.lang.v1.compiler.Terms._
+import com.zbsnetwork.lang.v1.compiler.{ExpressionCompiler, Terms}
+import com.zbsnetwork.lang.v1.evaluator.FunctionIds._
+import com.zbsnetwork.lang.v1.evaluator.ctx._
+import com.zbsnetwork.lang.v1.evaluator.ctx.impl.PureContext
+import com.zbsnetwork.lang.v1.evaluator.ctx.impl.PureContext.sumLong
+import com.zbsnetwork.lang.v1.evaluator.ctx.impl.zbs.Types
+import com.zbsnetwork.lang.v1.parser.Parser
+import com.zbsnetwork.lang.v1.testing.ScriptGen
 import monix.eval.Coeval
 import org.scalatest.prop.PropertyChecks
 import org.scalatest.{Matchers, PropSpec}
@@ -24,19 +26,22 @@ class ScriptEstimatorTest extends PropSpec with PropertyChecks with Matchers wit
   val FunctionCosts: Map[FunctionHeader, Coeval[Long]] = Map[FunctionHeader, Long](Plus -> 100, Minus -> 10, Gt -> 10).mapValues(Coeval.now)
 
   private val ctx = {
-    val tx = CaseObj(transferTransactionType.typeRef, Map("amount" -> 100000000L))
+    val transactionType = Types.buildTransferTransactionType(true)
+    val tx              = CaseObj(transactionType.typeRef, Map("amount" -> CONST_LONG(100000000L)))
     Monoid
-      .combine(PureContext.ctx,
-               CTX(
-                 Seq(transferTransactionType),
-                 Map(("tx", (transferTransactionType.typeRef, LazyVal(EitherT.pure(tx))))),
-                 Seq.empty
-               ))
+      .combine(
+        PureContext.build(V1),
+        CTX(
+          Seq(transactionType),
+          Map(("tx", ((transactionType.typeRef, "Fake transaction"), LazyVal(EitherT.pure(tx))))),
+          Array.empty
+        )
+      )
   }
 
   private def compile(code: String): EXPR = {
-    val untyped = Parser(code).get.value
-    CompilerV1(ctx.compilerContext, untyped).map(_._1).explicitGet()
+    val untyped = Parser.parseExpr(code).get.value
+    ExpressionCompiler(ctx.compilerContext, untyped).map(_._1).explicitGet()
   }
 
   private def estimate(functionCosts: collection.Map[FunctionHeader, Coeval[Long]], script: EXPR) =
@@ -82,5 +87,73 @@ class ScriptEstimatorTest extends PropSpec with PropertyChecks with Matchers wit
   property("evaluates if statement lazily") {
     val script = "let a = 1+2; let b = 3+4; let c = if (tx.amount > 5) then a else b; c"
     estimate(FunctionCosts, compile(script)).explicitGet() shouldBe (5 + 102) + 5 + (5 + 16 + 2) + 2
+  }
+
+  property("evaluates simple expression - const") {
+    val expr = CONST_LONG(42)
+    estimate(FunctionCosts, expr).explicitGet() shouldBe 1
+  }
+
+  property("evaluates simple expression - let + const + ref") {
+    val expr = BLOCK(
+      LET("x", CONST_LONG(42)),
+      REF("x")
+    )
+    estimate(FunctionCosts, expr).explicitGet() shouldBe 8
+  }
+
+  property("recursive let block") {
+    val expr = BLOCK(
+      LET("x", REF("y")),
+      BLOCK(LET("y", REF("x")), IF(TRUE, REF("x"), REF("y")))
+    )
+    estimate(FunctionCosts, expr).explicitGet() shouldBe 18
+  }
+
+  property("recursive func block") {
+    val expr = BLOCK(
+      FUNC("x", List.empty, FUNCTION_CALL(FunctionHeader.User("y"), List.empty)),
+      BLOCK(FUNC("y", List.empty, FUNCTION_CALL(FunctionHeader.User("x"), List.empty)), FUNCTION_CALL(FunctionHeader.User("y"), List.empty))
+    )
+    estimate(FunctionCosts, expr) shouldBe 'left
+  }
+
+  property("evaluates simple expression - let + func_call + ref") {
+    val functionCosts: Map[FunctionHeader, Coeval[Long]] = Map[FunctionHeader, Long](Plus -> 1).mapValues(Coeval.now)
+
+    val expr = BLOCK(
+      LET("x", FUNCTION_CALL(sumLong.header, List(CONST_LONG(1), CONST_LONG(2)))),
+      REF("x")
+    )
+    estimate(functionCosts, expr).explicitGet() shouldBe 10
+  }
+
+  property("estimate script with func statement") {
+    val exprWithoutFuncCall = BLOCK(
+      Terms.FUNC(
+        "first",
+        List("arg1", "arg2"),
+        LET_BLOCK(
+          LET("x", FUNCTION_CALL(sumLong.header, List(CONST_LONG(3), CONST_LONG(1)))),
+          REF("x")
+        )
+      ),
+      BLOCK(
+        LET("y", CONST_LONG(5)),
+        REF("y")
+      )
+    )
+
+    val exprWithFuncCall = BLOCK(
+      Terms.FUNC(
+        "first",
+        List("arg1"),
+        REF("arg1")
+      ),
+      FUNCTION_CALL(FunctionHeader.User("first"), List(CONST_LONG(1)))
+    )
+
+    estimate(FunctionCosts, exprWithoutFuncCall) shouldBe Right(5 + 5 + 1 + 2)
+    estimate(FunctionCosts, exprWithFuncCall) shouldBe Right(5 + 5 + 2 + 1 + 1)
   }
 }

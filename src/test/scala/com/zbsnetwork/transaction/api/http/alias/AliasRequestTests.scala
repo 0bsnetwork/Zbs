@@ -1,8 +1,8 @@
-package com.zbsplatform.transaction.api.http.alias
+package com.zbsnetwork.transaction.api.http.alias
 
 import org.scalatest.{FunSuite, Matchers}
 import play.api.libs.json.Json
-import com.zbsplatform.api.http.alias.{CreateAliasV1Request, SignedCreateAliasV1Request}
+import com.zbsnetwork.api.http.alias.{CreateAliasV1Request, SignedCreateAliasV1Request}
 
 class AliasRequestTests extends FunSuite with Matchers {
   test("CreateAliasRequest") {

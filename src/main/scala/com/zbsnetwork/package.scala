@@ -1,13 +1,14 @@
 package com
 
-import com.zbsplatform.block.Block
-import com.zbsplatform.settings.ZbsSettings
-import com.zbsplatform.state.{ByteStr, NG}
-import com.zbsplatform.transaction.ValidationError.GenericError
-import com.zbsplatform.transaction.{BlockchainUpdater, ValidationError}
-import com.zbsplatform.utils.ScorexLogging
+import com.zbsnetwork.block.Block
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.settings.ZbsSettings
+import com.zbsnetwork.state.NG
+import com.zbsnetwork.transaction.ValidationError.GenericError
+import com.zbsnetwork.transaction.{BlockchainUpdater, ValidationError}
+import com.zbsnetwork.utils.ScorexLogging
 
-package object zbsplatform extends ScorexLogging {
+package object zbsnetwork extends ScorexLogging {
   private def checkOrAppend(block: Block, blockchainUpdater: BlockchainUpdater with NG): Either[ValidationError, Unit] = {
     if (blockchainUpdater.isEmpty) {
       blockchainUpdater.processBlock(block).right.map { _ =>
@@ -25,7 +26,7 @@ package object zbsplatform extends ScorexLogging {
     Block.genesis(settings.blockchainSettings.genesisSettings).flatMap(b => checkOrAppend(b, blockchainUpdater)).left.foreach { e =>
       log.error("INCORRECT NODE CONFIGURATION!!! NODE STOPPED BECAUSE OF THE FOLLOWING ERROR:")
       log.error(e.toString)
-      com.zbsplatform.utils.forceStopApplication()
+      com.zbsnetwork.utils.forceStopApplication()
     }
   }
 }

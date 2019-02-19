@@ -1,5 +1,5 @@
-package com.zbsplatform.state.reader
+package com.zbsnetwork.state.reader
 
-import com.zbsplatform.account.{AddressOrAlias, PublicKeyAccount}
+import com.zbsnetwork.account.{AddressOrAlias, PublicKeyAccount}
 
 case class LeaseDetails(sender: PublicKeyAccount, recipient: AddressOrAlias, height: Int, amount: Long, isActive: Boolean)

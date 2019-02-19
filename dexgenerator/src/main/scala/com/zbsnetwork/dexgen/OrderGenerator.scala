@@ -1,4 +1,4 @@
-package com.zbsplatform.dexgen
+package com.zbsnetwork.dexgen
 
 import scala.concurrent.Future
 

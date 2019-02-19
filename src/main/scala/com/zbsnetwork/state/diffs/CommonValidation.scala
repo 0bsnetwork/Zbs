@@ -1,27 +1,48 @@
-package com.zbsplatform.state.diffs
+package com.zbsnetwork.state.diffs
 
 import cats._
-import com.zbsplatform.features.FeatureProvider._
-import com.zbsplatform.features.{BlockchainFeature, BlockchainFeatures}
-import com.zbsplatform.settings.FunctionalitySettings
-import com.zbsplatform.state._
-import com.zbsplatform.account.Address
-import com.zbsplatform.transaction.ValidationError._
-import com.zbsplatform.transaction._
-import com.zbsplatform.transaction.assets._
-import com.zbsplatform.transaction.assets.exchange.ExchangeTransaction
-import com.zbsplatform.transaction.lease._
-import com.zbsplatform.transaction.smart.SetScriptTransaction
-import com.zbsplatform.transaction.transfer._
+import com.zbsnetwork.account.Address
+import com.zbsnetwork.features.FeatureProvider._
+import com.zbsnetwork.features.{BlockchainFeature, BlockchainFeatures}
+import com.zbsnetwork.lang.StdLibVersion._
+import com.zbsnetwork.settings.FunctionalitySettings
+import com.zbsnetwork.state._
+import com.zbsnetwork.transaction.ValidationError._
+import com.zbsnetwork.transaction.assets._
+import com.zbsnetwork.transaction.assets.exchange._
+import com.zbsnetwork.transaction.lease._
+import com.zbsnetwork.transaction.smart.script.ContractScript
+import com.zbsnetwork.transaction.smart.script.Script
+import com.zbsnetwork.transaction.smart.script.v1.ExprScript.ExprScriprImpl
+import com.zbsnetwork.transaction.smart.{ContractInvocationTransaction, SetScriptTransaction}
+import com.zbsnetwork.transaction.transfer._
+import com.zbsnetwork.transaction.{smart, _}
 
-import scala.concurrent.duration._
 import scala.util.{Left, Right}
 
 object CommonValidation {
 
-  val MaxTimeTransactionOverBlockDiff: FiniteDuration     = 90.minutes
-  val MaxTimePrevBlockOverTransactionDiff: FiniteDuration = 2.hours
-  val ScriptExtraFee                                      = 400000L
+  val ScriptExtraFee = 400000L
+  val FeeUnit        = 100000
+
+  val FeeConstants: Map[Byte, Long] = Map(
+    GenesisTransaction.typeId                  -> 0,
+    PaymentTransaction.typeId                  -> 1,
+    IssueTransaction.typeId                    -> 1000,
+    ReissueTransaction.typeId                  -> 1000,
+    BurnTransaction.typeId                     -> 1,
+    TransferTransaction.typeId                 -> 1,
+    MassTransferTransaction.typeId             -> 1,
+    LeaseTransaction.typeId                    -> 1,
+    LeaseCancelTransaction.typeId              -> 1,
+    ExchangeTransaction.typeId                 -> 3,
+    CreateAliasTransaction.typeId              -> 1,
+    DataTransaction.typeId                     -> 1,
+    SetScriptTransaction.typeId                -> 10,
+    SponsorFeeTransaction.typeId               -> 1000,
+    SetAssetScriptTransaction.typeId           -> (1000 - 4),
+    smart.ContractInvocationTransaction.typeId -> 5
+  )
 
   def disallowSendingGreaterThanBalance[T <: Transaction](blockchain: Blockchain,
                                                           settings: FunctionalitySettings,
@@ -39,7 +60,7 @@ object CommonValidation {
         }
 
         val spendings     = Monoid.combine(amountDiff, feeDiff)
-        val oldZbsBalance = blockchain.portfolio(sender).balance
+        val oldZbsBalance = blockchain.balance(sender, None)
 
         val newZbsBalance = oldZbsBalance + spendings.balance
         if (newZbsBalance < 0) {
@@ -48,27 +69,25 @@ object CommonValidation {
               "Attempt to transfer unavailable funds: Transaction application leads to " +
                 s"negative zbs balance to (at least) temporary negative state, current balance equals $oldZbsBalance, " +
                 s"spends equals ${spendings.balance}, result is $newZbsBalance"))
-        } else if (spendings.assets.nonEmpty) {
-          val oldAssetBalances = blockchain.portfolio(sender).assets
+        } else {
           val balanceError = spendings.assets.collectFirst {
-            case (aid, delta) if oldAssetBalances.getOrElse(aid, 0L) + delta < 0 =>
-              val availableBalance = oldAssetBalances.getOrElse(aid, 0L)
+            case (aid, delta) if delta < 0 && blockchain.balance(sender, Some(aid)) + delta < 0 =>
+              val availableBalance = blockchain.balance(sender, Some(aid))
               GenericError(
                 "Attempt to transfer unavailable funds: Transaction application leads to negative asset " +
                   s"'$aid' balance to (at least) temporary negative state, current balance is $availableBalance, " +
                   s"spends equals $delta, result is ${availableBalance + delta}")
           }
-
           balanceError.fold[Either[ValidationError, T]](Right(tx))(Left(_))
-        } else Right(tx)
+        }
       }
 
       tx match {
-        case ptx: PaymentTransaction if blockchain.portfolio(ptx.sender).balance < (ptx.amount + ptx.fee) =>
+        case ptx: PaymentTransaction if blockchain.balance(ptx.sender, None) < (ptx.amount + ptx.fee) =>
           Left(
             GenericError(
               "Attempt to pay unavailable funds: balance " +
-                s"${blockchain.portfolio(ptx.sender).balance} is less than ${ptx.amount + ptx.fee}"))
+                s"${blockchain.balance(ptx.sender, None)} is less than ${ptx.amount + ptx.fee}"))
         case ttx: TransferTransaction     => checkTransfer(ttx.sender, ttx.assetId, ttx.amount, ttx.feeAssetId, ttx.fee)
         case mtx: MassTransferTransaction => checkTransfer(mtx.sender, mtx.assetId, mtx.transfers.map(_.amount).sum, None, mtx.fee)
         case _                            => Right(tx)
@@ -82,18 +101,35 @@ object CommonValidation {
     case _: PaymentTransaction => Right(tx)
     case _ =>
       val id = tx.id()
-      Either.cond(!blockchain.containsTransaction(id), tx, AlreadyInTheState(id, blockchain.transactionInfo(id).get._1))
+      Either.cond(!blockchain.containsTransaction(tx), tx, AlreadyInTheState(id, blockchain.transactionInfo(id).get._1))
   }
 
   def disallowBeforeActivationTime[T <: Transaction](blockchain: Blockchain, height: Int, tx: T): Either[ValidationError, T] = {
 
-    def activationBarrier(b: BlockchainFeature) =
+    def activationBarrier(b: BlockchainFeature, msg: Option[String] = None) =
       Either.cond(
         blockchain.isFeatureActivated(b, height),
         tx,
-        ValidationError.ActivationError(s"${tx.getClass.getSimpleName} transaction has not been activated yet")
+        ValidationError.ActivationError(msg.getOrElse(tx.getClass.getSimpleName) + " has not been activated yet")
       )
 
+    def scriptActivation(sc: Script) = {
+      val ab = activationBarrier(BlockchainFeatures.Ride4DApps, Some("Ride4DApps has not been activated yet"))
+      def scriptVersionActivation(sc: Script) = sc.stdLibVersion match {
+        case V1 | V2 if sc.containsBlockV2.value => ab
+        case V1 | V2                             => Right(tx)
+        case V3                                  => ab
+      }
+      def scriptTypeActivation(sc: Script) = sc match {
+        case e: ExprScriprImpl                    => Right(tx)
+        case c: ContractScript.ContractScriptImpl => ab
+      }
+      for {
+        _ <- scriptVersionActivation(sc)
+        _ <- scriptTypeActivation(sc)
+      } yield tx
+
+    }
     tx match {
       case _: BurnTransactionV1        => Right(tx)
       case _: PaymentTransaction       => Right(tx)
@@ -101,77 +137,92 @@ object CommonValidation {
       case _: TransferTransactionV1    => Right(tx)
       case _: IssueTransactionV1       => Right(tx)
       case _: ReissueTransactionV1     => Right(tx)
-      case _: ExchangeTransaction      => Right(tx)
+      case _: ExchangeTransactionV1    => Right(tx)
+      case _: ExchangeTransactionV2    => activationBarrier(BlockchainFeatures.SmartAccountTrading)
       case _: LeaseTransactionV1       => Right(tx)
       case _: LeaseCancelTransactionV1 => Right(tx)
       case _: CreateAliasTransactionV1 => Right(tx)
       case _: MassTransferTransaction  => activationBarrier(BlockchainFeatures.MassTransfer)
       case _: DataTransaction          => activationBarrier(BlockchainFeatures.DataTransaction)
-      case _: SetScriptTransaction     => activationBarrier(BlockchainFeatures.SmartAccounts)
-      case _: TransferTransactionV2    => activationBarrier(BlockchainFeatures.SmartAccounts)
-      case it: IssueTransactionV2      => activationBarrier(if (it.script.isEmpty) BlockchainFeatures.SmartAccounts else BlockchainFeatures.SmartAssets)
-      case _: ReissueTransactionV2     => activationBarrier(BlockchainFeatures.SmartAccounts)
-      case _: BurnTransactionV2        => activationBarrier(BlockchainFeatures.SmartAccounts)
-      case _: LeaseTransactionV2       => activationBarrier(BlockchainFeatures.SmartAccounts)
-      case _: LeaseCancelTransactionV2 => activationBarrier(BlockchainFeatures.SmartAccounts)
-      case _: CreateAliasTransactionV2 => activationBarrier(BlockchainFeatures.SmartAccounts)
-      case _: SponsorFeeTransaction    => activationBarrier(BlockchainFeatures.FeeSponsorship)
-      case _                           => Left(GenericError("Unknown transaction must be explicitly activated"))
+      case sst: SetScriptTransaction =>
+        sst.script match {
+          case None     => Right(tx)
+          case Some(sc) => scriptActivation(sc)
+        }
+      case _: TransferTransactionV2 => activationBarrier(BlockchainFeatures.SmartAccounts)
+      case it: IssueTransactionV2   => activationBarrier(if (it.script.isEmpty) BlockchainFeatures.SmartAccounts else BlockchainFeatures.SmartAssets)
+      case it: SetAssetScriptTransaction =>
+        it.script match {
+          case None     => Left(GenericError("Cannot set empty script"))
+          case Some(sc) => scriptActivation(sc)
+        }
+
+      case _: ReissueTransactionV2          => activationBarrier(BlockchainFeatures.SmartAccounts)
+      case _: BurnTransactionV2             => activationBarrier(BlockchainFeatures.SmartAccounts)
+      case _: LeaseTransactionV2            => activationBarrier(BlockchainFeatures.SmartAccounts)
+      case _: LeaseCancelTransactionV2      => activationBarrier(BlockchainFeatures.SmartAccounts)
+      case _: CreateAliasTransactionV2      => activationBarrier(BlockchainFeatures.SmartAccounts)
+      case _: SponsorFeeTransaction         => activationBarrier(BlockchainFeatures.FeeSponsorship)
+      case _: ContractInvocationTransaction => activationBarrier(BlockchainFeatures.Ride4DApps)
+      case _                                => Left(GenericError("Unknown transaction must be explicitly activated"))
     }
   }
 
   def disallowTxFromFuture[T <: Transaction](settings: FunctionalitySettings, time: Long, tx: T): Either[ValidationError, T] = {
     val allowTransactionsFromFutureByTimestamp = tx.timestamp < settings.allowTransactionsFromFutureUntil
-    if (!allowTransactionsFromFutureByTimestamp && tx.timestamp - time > MaxTimeTransactionOverBlockDiff.toMillis)
-      Left(Mistiming(s"Transaction ts ${tx.timestamp} is from far future. BlockTime: $time"))
+    if (!allowTransactionsFromFutureByTimestamp && tx.timestamp - time > settings.maxTransactionTimeForwardOffset.toMillis)
+      Left(Mistiming(s"""Transaction timestamp ${tx.timestamp}
+       |is more than ${settings.maxTransactionTimeForwardOffset.toMillis}ms in the future
+       |relative to block timestamp $time""".stripMargin.replaceAll("\n", " ")))
     else Right(tx)
   }
 
-  def disallowTxFromPast[T <: Transaction](prevBlockTime: Option[Long], tx: T): Either[ValidationError, T] =
+  def disallowTxFromPast[T <: Transaction](settings: FunctionalitySettings, prevBlockTime: Option[Long], tx: T): Either[ValidationError, T] =
     prevBlockTime match {
-      case Some(t) if (t - tx.timestamp) > MaxTimePrevBlockOverTransactionDiff.toMillis =>
-        Left(Mistiming(s"Transaction ts ${tx.timestamp} is too old. Previous block time: $prevBlockTime"))
+      case Some(t) if (t - tx.timestamp) > settings.maxTransactionTimeBackOffset.toMillis =>
+        Left(Mistiming(s"""Transaction timestamp ${tx.timestamp}
+         |is more than ${settings.maxTransactionTimeBackOffset.toMillis}ms in the past
+         |relative to previous block timestamp $prevBlockTime""".stripMargin.replaceAll("\n", " ")))
       case _ => Right(tx)
     }
 
-  private def feeInUnits(blockchain: Blockchain, height: Int, tx: Transaction): Either[ValidationError, Long] = tx match {
-    case _: GenesisTransaction       => Right(0)
-    case _: PaymentTransaction       => Right(1)
-    case _: IssueTransaction         => Right(1000)
-    case _: ReissueTransaction       => Right(1000)
-    case _: BurnTransaction          => Right(1)
-    case _: TransferTransaction      => Right(1)
-    case tx: MassTransferTransaction => Right(1 + (tx.transfers.size + 1) / 2)
-    case _: LeaseTransaction         => Right(1)
-    case _: LeaseCancelTransaction   => Right(1)
-    case _: ExchangeTransaction      => Right(3)
-    case _: CreateAliasTransaction   => Right(1)
-    case tx: DataTransaction =>
-      val base = if (blockchain.isFeatureActivated(BlockchainFeatures.SmartAccounts, height)) tx.bodyBytes() else tx.bytes()
-      Right(1 + (base.length - 1) / 1024)
-    case _: SetScriptTransaction  => Right(10)
-    case _: SponsorFeeTransaction => Right(1000)
-    case _                        => Left(UnsupportedTransactionType)
+  private def feeInUnits(blockchain: Blockchain, height: Int, tx: Transaction): Either[ValidationError, Long] = {
+    FeeConstants
+      .get(tx.builder.typeId)
+      .map { baseFee =>
+        tx match {
+          case tx: MassTransferTransaction =>
+            baseFee + (tx.transfers.size + 1) / 2
+          case tx: DataTransaction =>
+            val base = if (blockchain.isFeatureActivated(BlockchainFeatures.SmartAccounts, height)) tx.bodyBytes() else tx.bytes()
+            baseFee + (base.length - 1) / 1024
+          case _ => baseFee
+        }
+      }
+      .toRight(UnsupportedTransactionType)
   }
 
-  def getMinFee(blockchain: Blockchain, fs: FunctionalitySettings, height: Int, tx: Transaction): Either[ValidationError, (Option[AssetId], Long)] = {
+  def getMinFee(blockchain: Blockchain,
+                fs: FunctionalitySettings,
+                height: Int,
+                tx: Transaction): Either[ValidationError, (Option[AssetId], Long, Long)] = {
     type FeeInfo = (Option[(AssetId, AssetDescription)], Long)
 
     def feeAfterSponsorship(txAsset: Option[AssetId]): Either[ValidationError, FeeInfo] =
       if (height < Sponsorship.sponsoredFeesSwitchHeight(blockchain, fs)) {
         // This could be true for private blockchains
-        feeInUnits(blockchain, height, tx).map(x => (None, x * Sponsorship.FeeUnit))
+        feeInUnits(blockchain, height, tx).map(x => (None, x * FeeUnit))
       } else
         for {
           feeInUnits <- feeInUnits(blockchain, height, tx)
           r <- txAsset match {
-            case None => Right((None, feeInUnits * Sponsorship.FeeUnit))
+            case None => Right((None, feeInUnits * FeeUnit))
             case Some(assetId) =>
               for {
                 assetInfo <- blockchain.assetDescription(assetId).toRight(GenericError(s"Asset $assetId does not exist, cannot be used to pay fees"))
                 zbsFee <- Either.cond(
                   assetInfo.sponsorship > 0,
-                  feeInUnits * Sponsorship.FeeUnit,
+                  feeInUnits * FeeUnit,
                   GenericError(s"Asset $assetId is not sponsored, cannot be used to pay fees")
                 )
               } yield (Some((assetId, assetInfo)), zbsFee)
@@ -180,102 +231,59 @@ object CommonValidation {
 
     def isSmartToken(input: FeeInfo): Boolean = input._1.map(_._1).flatMap(blockchain.assetDescription).exists(_.script.isDefined)
 
-    def feeAfterSmartTokens(inputFee: FeeInfo): Either[ValidationError, FeeInfo] = Right {
+    def feeAfterSmartTokens(inputFee: FeeInfo): Either[ValidationError, FeeInfo] = {
+      val (feeAssetInfo, feeAmount) = inputFee
+      val assetsCount = tx match {
+        case tx: ExchangeTransaction => tx.checkedAssets().count(blockchain.hasAssetScript) /* *3 if we deside to check orders and transaction */
+        case _                       => tx.checkedAssets().count(blockchain.hasAssetScript)
+      }
       if (isSmartToken(inputFee)) {
-        val (feeAssetInfo, feeAmount) = inputFee
-        (feeAssetInfo, feeAmount + ScriptExtraFee)
-      } else inputFee
+        //Left(GenericError("Using smart asset for sponsorship is disabled."))
+        Right { (feeAssetInfo, feeAmount + ScriptExtraFee * (1 + assetsCount)) }
+      } else {
+        Right { (feeAssetInfo, feeAmount + ScriptExtraFee * assetsCount) }
+      }
     }
 
-    def hasSmartAccountScript: Boolean = tx match {
-      case tx: Transaction with Authorized => blockchain.hasScript(tx.sender)
-      case _                               => false
+    def smartAccountScriptsCount: Int = tx match {
+      case tx: Transaction with Authorized => cond(blockchain.hasScript(tx.sender))(1, 0)
+      case _                               => 0
     }
 
     def feeAfterSmartAccounts(inputFee: FeeInfo): Either[ValidationError, FeeInfo] = Right {
-      if (hasSmartAccountScript) {
-        val (feeAssetInfo, feeAmount) = inputFee
-        (feeAssetInfo, feeAmount + ScriptExtraFee)
-      } else inputFee
+      val extraFee                  = smartAccountScriptsCount * ScriptExtraFee
+      val (feeAssetInfo, feeAmount) = inputFee
+      (feeAssetInfo, feeAmount + extraFee)
     }
 
     feeAfterSponsorship(tx.assetFee._1)
       .flatMap(feeAfterSmartTokens)
       .flatMap(feeAfterSmartAccounts)
       .map {
-        case (Some((assetId, assetInfo)), amountInZbs) => (Some(assetId), Sponsorship.fromZbs(amountInZbs, assetInfo.sponsorship))
-        case (None, amountInZbs)                       => (None, amountInZbs)
+        case (Some((assetId, assetInfo)), amountInZbs) =>
+          (Some(assetId), Sponsorship.fromZbs(amountInZbs, assetInfo.sponsorship), amountInZbs)
+        case (None, amountInZbs) => (None, amountInZbs, amountInZbs)
       }
   }
 
   def checkFee(blockchain: Blockchain, fs: FunctionalitySettings, height: Int, tx: Transaction): Either[ValidationError, Unit] = {
-    def restFeeAfterSponsorship(inputFee: (Option[AssetId], Long)): Either[ValidationError, (Option[AssetId], Long)] =
-      if (height < Sponsorship.sponsoredFeesSwitchHeight(blockchain, fs)) Right(inputFee)
-      else {
-        val (feeAssetId, feeAmount) = inputFee
-        for {
-          feeInUnits <- feeInUnits(blockchain, height, tx)
-          feeAmount <- feeAssetId match {
-            case None => Right(feeAmount)
-            case Some(x) =>
-              for {
-                assetInfo <- blockchain.assetDescription(x).toRight(GenericError(s"Asset $x does not exist, cannot be used to pay fees"))
-                zbsFee <- Either.cond(
-                  assetInfo.sponsorship > 0,
-                  Sponsorship.toZbs(feeAmount, assetInfo.sponsorship),
-                  GenericError(s"Asset $x is not sponsored, cannot be used to pay fees")
-                )
-              } yield zbsFee
-          }
-          minimumFee    = feeInUnits * Sponsorship.FeeUnit
-          restFeeAmount = feeAmount - minimumFee
-          _ <- Either.cond(
-            restFeeAmount >= 0,
-            (),
-            GenericError(
-              s"Fee in ${feeAssetId.fold("ZBS")(_.toString)} for ${tx.builder.classTag} does not exceed minimal value of $minimumFee ZBS: $feeAmount")
-          )
-        } yield (None, restFeeAmount)
-      }
-
-    def isSmartToken: Boolean = tx.assetFee._1.flatMap(blockchain.assetDescription).exists(_.script.isDefined)
-
-    def restFeeAfterSmartTokens(inputFee: (Option[AssetId], Long)): Either[ValidationError, (Option[AssetId], Long)] =
-      if (isSmartToken) {
-        val (feeAssetId, feeAmount) = inputFee
-        for {
-          _ <- Either.cond(feeAssetId.isEmpty, (), GenericError("Transactions with smart tokens require Zbs as fee"))
-          restFeeAmount = feeAmount - ScriptExtraFee
-          _ <- Either.cond(
-            restFeeAmount >= 0,
-            (),
-            InsufficientFee(s"This transaction with a smart token requires ${-restFeeAmount} additional fee")
-          )
-        } yield (feeAssetId, restFeeAmount)
-      } else Right(inputFee)
-
-    def hasSmartAccountScript: Boolean = tx match {
-      case tx: Transaction with Authorized => blockchain.hasScript(tx.sender)
-      case _                               => false
+    if (height >= Sponsorship.sponsoredFeesSwitchHeight(blockchain, fs)) {
+      for {
+        minAFee <- getMinFee(blockchain, fs, height, tx)
+        minZbs     = minAFee._3
+        minFee     = minAFee._2
+        feeAssetId = minAFee._1
+        _ <- Either.cond(
+          minFee <= tx.assetFee._2,
+          (),
+          GenericError(
+            s"Fee in ${feeAssetId.fold("ZBS")(_.toString)} for ${tx.builder.classTag} does not exceed minimal value of $minZbs ZBS: ${tx.assetFee._2}")
+        )
+      } yield ()
+    } else {
+      Either.cond(tx.assetFee._2 > 0 || !tx.isInstanceOf[Authorized], (), GenericError(s"Fee must be positive."))
     }
-
-    def restFeeAfterSmartAccounts(inputFee: (Option[AssetId], Long)): Either[ValidationError, (Option[AssetId], Long)] =
-      if (hasSmartAccountScript) {
-        val (feeAssetId, feeAmount) = inputFee
-        for {
-          _ <- Either.cond(feeAssetId.isEmpty, (), GenericError("Transactions from scripted accounts require Zbs as fee"))
-          restFeeAmount = feeAmount - ScriptExtraFee
-          _ <- Either.cond(
-            restFeeAmount >= 0,
-            (),
-            InsufficientFee(s"Scripted account requires ${-restFeeAmount} additional fee for this transaction")
-          )
-        } yield (feeAssetId, restFeeAmount)
-      } else Right(inputFee)
-
-    restFeeAfterSponsorship(tx.assetFee)
-      .flatMap(restFeeAfterSmartTokens)
-      .flatMap(restFeeAfterSmartAccounts)
-      .map(_ => ())
   }
+
+  def cond[A](c: Boolean)(a: A, b: A): A = if (c) a else b
 }

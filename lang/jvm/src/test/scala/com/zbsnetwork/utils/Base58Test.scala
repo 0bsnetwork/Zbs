@@ -1,5 +1,6 @@
-package com.zbsplatform.utils
+package com.zbsnetwork.utils
 
+import com.zbsnetwork.common.utils.Base58
 import org.scalacheck.Gen
 import org.scalatest.{Matchers, PropSpec}
 import org.scalatest.prop.PropertyChecks

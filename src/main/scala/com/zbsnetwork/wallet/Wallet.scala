@@ -1,17 +1,17 @@
-package com.zbsplatform.wallet
+package com.zbsnetwork.wallet
 
 import java.io.File
 
 import com.google.common.primitives.{Bytes, Ints}
-import com.zbsplatform.crypto
-import com.zbsplatform.settings.WalletSettings
-import com.zbsplatform.state.ByteStr
-import com.zbsplatform.utils.{JsonFileStorage, _}
+import com.zbsnetwork.crypto
+import com.zbsnetwork.settings.WalletSettings
+import com.zbsnetwork.utils.{JsonFileStorage, _}
 import play.api.libs.json._
-import com.zbsplatform.account.{Address, PrivateKeyAccount}
-import com.zbsplatform.transaction.ValidationError
-import com.zbsplatform.transaction.ValidationError.MissingSenderPrivateKey
-import com.zbsplatform.utils.randomBytes
+import com.zbsnetwork.account.{Address, PrivateKeyAccount}
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.transaction.ValidationError
+import com.zbsnetwork.transaction.ValidationError.MissingSenderPrivateKey
+import com.zbsnetwork.utils.randomBytes
 
 import scala.collection.concurrent.TrieMap
 import scala.util.control.NonFatal
@@ -60,9 +60,14 @@ object Wallet extends ScorexLogging {
 
   def apply(settings: WalletSettings): Wallet = new WalletImpl(settings.file, settings.password, settings.seed)
 
-  private class WalletImpl(maybeFile: Option[File], password: String, maybeSeedFromConfig: Option[ByteStr]) extends ScorexLogging with Wallet {
+  private class WalletImpl(maybeFile: Option[File], passwordOpt: Option[String], maybeSeedFromConfig: Option[ByteStr])
+      extends ScorexLogging
+      with Wallet {
 
-    private val key = JsonFileStorage.prepareKey(password)
+    private lazy val key = {
+      val password = passwordOpt.getOrElse(PasswordProvider.askPassword())
+      JsonFileStorage.prepareKey(password)
+    }
 
     private def loadOrImport(f: File): Option[WalletData] =
       try {

@@ -1,12 +1,12 @@
-package com.zbsplatform.matcher.api
+package com.zbsnetwork.matcher.api
 import com.fasterxml.jackson.core.JsonParser
 import com.fasterxml.jackson.databind.deser.std.StdDeserializer
 import com.fasterxml.jackson.databind.module.SimpleModule
 import com.fasterxml.jackson.databind.{DeserializationContext, JsonNode, ObjectMapper}
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import com.fasterxml.jackson.module.scala.experimental.ScalaObjectMapper
-import com.zbsplatform.state.ByteStr
-import com.zbsplatform.transaction.assets.exchange.AssetPair
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.transaction.assets.exchange.AssetPair
 
 object JsonSerializer {
 

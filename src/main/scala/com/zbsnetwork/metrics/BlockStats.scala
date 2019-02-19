@@ -1,10 +1,10 @@
-package com.zbsplatform.metrics
+package com.zbsnetwork.metrics
 
-import com.zbsplatform.network.{HandshakeHandler, MicroBlockInv}
-import com.zbsplatform.state.ByteStr
+import com.zbsnetwork.network.{HandshakeHandler, MicroBlockInv}
 import io.netty.channel.Channel
 import org.influxdb.dto.Point
-import com.zbsplatform.block.{Block, MicroBlock}
+import com.zbsnetwork.block.{Block, MicroBlock}
+import com.zbsnetwork.common.state.ByteStr
 
 object BlockStats {
 

@@ -1,16 +1,16 @@
-package com.zbsplatform.http
+package com.zbsnetwork.http
 
 import java.net.{InetAddress, InetSocketAddress}
 import java.util.concurrent.ConcurrentHashMap
 
-import com.zbsplatform.http.ApiMarshallers._
-import com.zbsplatform.network.{PeerDatabase, PeerInfo}
+import com.zbsnetwork.http.ApiMarshallers._
+import com.zbsnetwork.network.{PeerDatabase, PeerInfo}
 import io.netty.channel.Channel
 import org.scalacheck.{Arbitrary, Gen}
 import org.scalamock.scalatest.MockFactory
 import org.scalatest.prop.PropertyChecks
 import play.api.libs.json.{Format, JsObject, JsValue, Json}
-import com.zbsplatform.api.http.{ApiKeyNotValid, PeersApiRoute}
+import com.zbsnetwork.api.http.{ApiKeyNotValid, PeersApiRoute}
 
 class PeersRouteSpec extends RouteSpec("/peers") with RestAPISettingsHelper with PropertyChecks with MockFactory {
 

@@ -1,0 +1,155 @@
+package com.zbsnetwork.lang.v1.compiler
+import cats.Show
+import cats.implicits._
+import com.zbsnetwork.lang.contract.Contract
+import com.zbsnetwork.lang.contract.Contract._
+import com.zbsnetwork.lang.v1.compiler.CompilationError.Generic
+import com.zbsnetwork.lang.v1.compiler.CompilerContext.vars
+import com.zbsnetwork.lang.v1.compiler.ExpressionCompiler._
+import com.zbsnetwork.lang.v1.compiler.Terms.DECLARATION
+import com.zbsnetwork.lang.v1.compiler.Types.{BOOLEAN, UNION}
+import com.zbsnetwork.lang.v1.evaluator.ctx.FunctionTypeSignature
+import com.zbsnetwork.lang.v1.evaluator.ctx.impl.zbs.{FieldNames, ZbsContext}
+import com.zbsnetwork.lang.v1.parser.Expressions.FUNC
+import com.zbsnetwork.lang.v1.parser.Expressions.Pos.AnyPos
+import com.zbsnetwork.lang.v1.parser.{Expressions, Parser}
+import com.zbsnetwork.lang.v1.task.imports._
+import com.zbsnetwork.lang.v1.{FunctionHeader, compiler}
+object ContractCompiler {
+
+  def compileAnnotatedFunc(af: Expressions.ANNOTATEDFUNC): CompileM[AnnotatedFunction] = {
+    val annotationsM: CompileM[List[Annotation]] = af.anns.toList.traverse[CompileM, Annotation] { ann =>
+      for {
+        n    <- handlePart(ann.name)
+        args <- ann.args.toList.traverse[CompileM, String](handlePart)
+        ann  <- Annotation.parse(n, args).toCompileM
+      } yield ann
+    }
+    val r = for {
+      annotations <- annotationsM
+      annotationBindings = annotations.flatMap(_.dic.toList).map { case (n, t) => (n, (t, "Annotation-bound value")) }
+      compiledBody <- local {
+        for {
+          _ <- modify[CompilerContext, CompilationError](vars.modify(_)(_ ++ annotationBindings))
+          r <- compiler.ExpressionCompiler.compileFunc(AnyPos, af.f)
+        } yield r
+      }
+    } yield (annotations, compiledBody)
+
+    r flatMap {
+      case (List(c: CallableAnnotation), (func, tpe, _)) =>
+        for {
+          _ <- Either
+            .cond(
+              tpe match {
+                case _
+                    if tpe <= UNION(ZbsContext.writeSetType.typeRef,
+                                    ZbsContext.contractTransferSetType.typeRef,
+                                    ZbsContext.contractResultType.typeRef) =>
+                  true
+                case _ => false
+              },
+              (),
+              Generic(0, 0, s"${FieldNames.Error}, but got '$tpe'")
+            )
+            .toCompileM
+        } yield CallableFunction(c, func)
+      case (List(c: VerifierAnnotation), (func, tpe, _)) =>
+        for {
+          _ <- Either
+            .cond(tpe match {
+              case _ if tpe <= BOOLEAN => true
+              case _                   => false
+            }, (), Generic(0, 0, s"VerifierFunction must return BOOLEAN or it super type, but got '$tpe'"))
+            .toCompileM
+        } yield VerifierFunction(c, func)
+    }
+  }
+
+  def compileDeclaration(dec: Expressions.Declaration): CompileM[DECLARATION] = {
+    dec match {
+      case l: Expressions.LET =>
+        for {
+          compiledLet <- compileLet(dec.position, l)
+          (letName, letType, letExpr) = compiledLet
+          _ <- updateCtx(letName, letType, dec.position)
+        } yield Terms.LET(letName, letExpr)
+      case f: FUNC =>
+        for {
+          cf <- compileFunc(dec.position, f)
+          (func, compiledFuncBodyType, argTypes) = cf
+          typeSig                                = FunctionTypeSignature(compiledFuncBodyType, argTypes, FunctionHeader.User(func.name))
+          _ <- updateCtx(func.name, typeSig)
+        } yield func
+    }
+  }
+
+  private def compileContract(contract: Expressions.CONTRACT): CompileM[Contract] = {
+    for {
+      ds <- contract.decs.traverse[CompileM, DECLARATION](compileDeclaration)
+      _  <- validateDuplicateVarsInContract(contract)
+      l  <- contract.fs.traverse[CompileM, AnnotatedFunction](af => local(compileAnnotatedFunc(af)))
+      _ <- Either
+        .cond(
+          l.map(_.u.name).toSet.size == l.size,
+          (),
+          Generic(contract.position.start, contract.position.start, "Contract functions must have unique names")
+        )
+        .toCompileM
+      verifierFunctions = l.filter(_.isInstanceOf[VerifierFunction]).map(_.asInstanceOf[VerifierFunction])
+      v <- verifierFunctions match {
+        case Nil => Option.empty[VerifierFunction].pure[CompileM]
+        case vf :: Nil =>
+          if (vf.u.args.isEmpty)
+            Option.apply(vf).pure[CompileM]
+          else
+            raiseError[CompilerContext, CompilationError, Option[VerifierFunction]](
+              Generic(contract.position.start, contract.position.start, "Verifier function must have 0 arguments"))
+        case _ =>
+          raiseError[CompilerContext, CompilationError, Option[VerifierFunction]](
+            Generic(contract.position.start, contract.position.start, "Can't have more than 1 verifier function defined"))
+      }
+      fs = l.filter(_.isInstanceOf[CallableFunction]).map(_.asInstanceOf[CallableFunction])
+    } yield Contract(ds, fs, v)
+  }
+
+  private def validateDuplicateVarsInContract(contract: Expressions.CONTRACT): CompileM[Any] = {
+    for {
+      ctx <- get[CompilerContext, CompilationError]
+      annotationVars = contract.fs.flatMap(_.anns.flatMap(_.args)).traverse[CompileM, String](handlePart)
+      annotatedFuncArgs: Seq[(Seq[Expressions.PART[String]], Seq[Expressions.PART[String]])] = contract.fs.map(af =>
+        (af.anns.flatMap(_.args), af.f.args.map(_._1)))
+      annAndFuncArgsIntersection = annotatedFuncArgs.toVector.traverse[CompileM, Boolean] {
+        case (annSeq, argSeq) =>
+          for {
+            anns <- annSeq.toList.traverse[CompileM, String](handlePart)
+            args <- argSeq.toList.traverse[CompileM, String](handlePart)
+          } yield anns.forall(a => args.contains(a))
+      }
+      _ <- annotationVars
+        .ensure(Generic(contract.position.start, contract.position.start, "Annotation bindings overrides already defined var"))(aVs =>
+          aVs.forall(!ctx.varDefs.contains(_)))
+      _ <- annAndFuncArgsIntersection
+        .ensure(Generic(contract.position.start, contract.position.start, "Contract func args override annotation bindings")) { is =>
+          !(is contains true)
+        }
+    } yield ()
+  }
+
+  def apply(c: CompilerContext, contract: Expressions.CONTRACT): Either[String, Contract] =
+    compileContract(contract)
+      .run(c)
+      .map(_._2.leftMap(e => s"Compilation failed: ${Show[CompilationError].show(e)}"))
+      .value
+
+  def compile(input: String, ctx: CompilerContext): Either[String, Contract] = {
+    Parser.parseContract(input) match {
+      case fastparse.core.Parsed.Success(xs, _) =>
+        ContractCompiler(ctx, xs) match {
+          case Left(err) => Left(err.toString)
+          case Right(c)  => Right(c)
+        }
+      case f @ fastparse.core.Parsed.Failure(_, _, _) => Left(f.toString)
+    }
+  }
+}

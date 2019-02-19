@@ -1,7 +1,7 @@
-package com.zbsplatform.account
+package com.zbsnetwork.account
 
-import com.zbsplatform.TransactionGen
-import com.zbsplatform.state.EitherExt2
+import com.zbsnetwork.TransactionGen
+import com.zbsnetwork.common.utils.EitherExt2
 import org.scalatest.prop.PropertyChecks
 import org.scalatest.{Matchers, PropSpec}
 

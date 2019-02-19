@@ -1,8 +1,8 @@
-package com.zbsplatform.lang.v1.compiler
+package com.zbsnetwork.lang.v1.compiler
 
-import com.zbsplatform.lang.v1.compiler.Types._
-import com.zbsplatform.lang._
-import com.zbsplatform.lang.v1.evaluator.ctx.DefinedType
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.lang.v1.compiler.Types._
+import com.zbsnetwork.lang.v1.evaluator.ctx.DefinedType
 
 object TypeInferrer {
 

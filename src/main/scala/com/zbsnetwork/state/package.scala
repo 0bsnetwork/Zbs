@@ -1,10 +1,18 @@
-package com.zbsplatform
+package com.zbsnetwork
 
-import com.zbsplatform.account.{Address, AddressOrAlias, Alias}
-import com.zbsplatform.block.Block
-import com.zbsplatform.transaction.ValidationError.{AliasDoesNotExist, GenericError}
-import com.zbsplatform.transaction._
-import com.zbsplatform.transaction.lease.{LeaseTransaction, LeaseTransactionV1}
+import cats.kernel.Monoid
+import com.zbsnetwork.account.{Address, AddressOrAlias, Alias}
+import com.zbsnetwork.block.Block
+import com.zbsnetwork.block.Block.BlockId
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.transaction.Transaction.Type
+import com.zbsnetwork.transaction.ValidationError.{AliasDoesNotExist, GenericError}
+import com.zbsnetwork.transaction._
+import com.zbsnetwork.transaction.lease.{LeaseTransaction, LeaseTransactionV1}
+import com.zbsnetwork.utils.Paged
+import play.api.libs.json._
+import supertagged.TaggedType
 
 import scala.reflect.ClassTag
 import scala.util.Try
@@ -12,16 +20,48 @@ import scala.util.Try
 package object state {
   def safeSum(x: Long, y: Long): Long = Try(Math.addExact(x, y)).getOrElse(Long.MinValue)
 
-  implicit class EitherExt[L <: ValidationError, R](ei: Either[L, R]) {
-    def liftValidationError[T <: Transaction](t: T): Either[ValidationError, R] = {
-      ei.left.map(e => GenericError(e.toString))
+  // common logic for addressTransactions method of BlockchainUpdaterImpl and CompositeBlockchain
+  def addressTransactionsFromDiff(
+      b: Blockchain,
+      d: Option[Diff])(address: Address, types: Set[Type], count: Int, fromId: Option[ByteStr]): Either[String, Seq[(Int, Transaction)]] = {
+
+    def transactionsFromDiff(d: Diff): Seq[(Int, Transaction, Set[Address])] = d.transactions.values.view.toSeq.reverse
+
+    def withPagination(s: Seq[(Int, Transaction, Set[Address])]): Seq[(Int, Transaction, Set[Address])] =
+      fromId match {
+        case None     => s
+        case Some(id) => s.dropWhile(_._2.id() != id).drop(1)
+      }
+
+    def withFilterAndLimit(txs: Seq[(Int, Transaction, Set[Address])]): Seq[(Int, Transaction)] =
+      txs
+        .collect {
+          case (height, tx, addresses) if addresses(address) && (types.isEmpty || types.contains(tx.builder.typeId)) => (height, tx)
+        }
+        .take(count)
+
+    def withRestFromBlockchain(s: Seq[(Int, Transaction)]): Either[String, Seq[(Int, Transaction)]] =
+      s.length match {
+        case `count`        => Right(s)
+        case l if l < count => b.addressTransactions(address, types, count - l, None).map(s ++ _)
+        case _              => Right(s.take(count))
+      }
+
+    def transactions: Diff => Either[String, Seq[(Int, Transaction)]] =
+      withRestFromBlockchain _ compose withFilterAndLimit compose withPagination compose transactionsFromDiff
+
+    d.fold(b.addressTransactions(address, types, count, fromId)) { diff =>
+      fromId match {
+        case Some(id) if !diff.transactions.contains(id) =>
+          b.addressTransactions(address, types, count, fromId)
+        case _ => transactions(diff)
+      }
     }
   }
 
-  implicit class EitherExt2[A, B](ei: Either[A, B]) {
-    def explicitGet(): B = ei match {
-      case Left(value)  => throw new Exception(value.toString)
-      case Right(value) => value
+  implicit class EitherExt[L <: ValidationError, R](ei: Either[L, R]) {
+    def liftValidationError[T <: Transaction](t: T): Either[ValidationError, R] = {
+      ei.left.map(e => GenericError(e.toString))
     }
   }
 
@@ -63,26 +103,30 @@ package object state {
       case _                          => false
     }
 
-    def effectiveBalance(address: Address, atHeight: Int, confirmations: Int): Long = {
-      val bottomLimit = (atHeight - confirmations + 1).max(1).min(atHeight)
-      val balances    = blockchain.balanceSnapshots(address, bottomLimit, atHeight)
+    def effectiveBalance(address: Address, confirmations: Int, block: BlockId = blockchain.lastBlockId.getOrElse(ByteStr.empty)): Long = {
+      val blockHeight = blockchain.heightOf(block).getOrElse(blockchain.height)
+      val bottomLimit = (blockHeight - confirmations + 1).max(1).min(blockHeight)
+      val balances    = blockchain.balanceSnapshots(address, bottomLimit, block)
       if (balances.isEmpty) 0L else balances.view.map(_.effectiveBalance).min
     }
 
     def balance(address: Address, atHeight: Int, confirmations: Int): Long = {
       val bottomLimit = (atHeight - confirmations + 1).max(1).min(atHeight)
-      val balances    = blockchain.balanceSnapshots(address, bottomLimit, atHeight)
+      val block       = blockchain.blockAt(atHeight).getOrElse(throw new IllegalArgumentException(s"Invalid block height: $atHeight"))
+      val balances    = blockchain.balanceSnapshots(address, bottomLimit, block.uniqueId)
       if (balances.isEmpty) 0L else balances.view.map(_.regularBalance).min
     }
 
     def aliasesOfAddress(address: Address): Seq[Alias] =
       blockchain
-        .addressTransactions(address, Set(CreateAliasTransactionV1.typeId), Int.MaxValue, 0)
+        .addressTransactions(address, Set(CreateAliasTransactionV1.typeId), Int.MaxValue, None)
+        .explicitGet()
         .collect { case (_, a: CreateAliasTransaction) => a.alias }
 
     def activeLeases(address: Address): Seq[(Int, LeaseTransaction)] =
       blockchain
-        .addressTransactions(address, Set(LeaseTransactionV1.typeId), Int.MaxValue, 0)
+        .addressTransactions(address, Set(LeaseTransactionV1.typeId), Int.MaxValue, None)
+        .explicitGet()
         .collect { case (h, l: LeaseTransaction) if blockchain.leaseDetails(l.id()).exists(_.isActive) => h -> l }
 
     def unsafeHeightOf(id: ByteStr): Int =
@@ -91,4 +135,46 @@ package object state {
         .getOrElse(throw new IllegalStateException(s"Can't find a block: $id"))
   }
 
+  object AssetDistribution extends TaggedType[Map[Address, Long]]
+  type AssetDistribution = AssetDistribution.Type
+
+  implicit val dstMonoid: Monoid[AssetDistribution] = new Monoid[AssetDistribution] {
+    override def empty: AssetDistribution = AssetDistribution(Map.empty[Address, Long])
+
+    override def combine(x: AssetDistribution, y: AssetDistribution): AssetDistribution = {
+      AssetDistribution(x ++ y)
+    }
+  }
+
+  implicit val dstWrites: Writes[AssetDistribution] = Writes { dst =>
+    Json
+      .toJson(dst.map {
+        case (addr, balance) => addr.stringRepr -> balance
+      })
+  }
+
+  object AssetDistributionPage extends TaggedType[Paged[Address, AssetDistribution]]
+  type AssetDistributionPage = AssetDistributionPage.Type
+
+  implicit val dstPageWrites: Writes[AssetDistributionPage] = Writes { page =>
+    JsObject(
+      Map(
+        "hasNext"  -> JsBoolean(page.hasNext),
+        "lastItem" -> Json.toJson(page.lastItem.map(_.stringRepr)),
+        "items"    -> Json.toJson(page.items)
+      )
+    )
+  }
+
+  object Height extends TaggedType[Int]
+  type Height = Height.Type
+
+  object TxNum extends TaggedType[Short]
+  type TxNum = TxNum.Type
+
+  object AddressId extends TaggedType[BigInt]
+  type AddressId = AddressId.Type
+
+  object TransactionId extends TaggedType[ByteStr]
+  type TransactionId = TransactionId.Type
 }

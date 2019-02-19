@@ -1,4 +1,4 @@
-package com.zbsplatform.lang.v1.task
+package com.zbsnetwork.lang.v1.task
 
 import cats.data.Kleisli
 import monix.eval.Coeval

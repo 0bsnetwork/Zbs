@@ -1,16 +1,19 @@
-package com.zbsplatform.block
+package com.zbsnetwork.block
 
 import com.google.common.primitives.{Bytes, Ints}
-import com.zbsplatform.crypto
-import com.zbsplatform.mining.Miner.MaxTransactionsPerMicroblock
-import com.zbsplatform.state._
+import com.zbsnetwork.account.{PrivateKeyAccount, PublicKeyAccount}
+import com.zbsnetwork.block.Block.{BlockId, transParseBytes}
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.crypto
+import com.zbsnetwork.crypto._
+import com.zbsnetwork.mining.Miner.MaxTransactionsPerMicroblock
+import com.zbsnetwork.state._
+import com.zbsnetwork.transaction.ValidationError.GenericError
+import com.zbsnetwork.transaction._
+import com.zbsnetwork.utils.ScorexLogging
 import monix.eval.Coeval
-import com.zbsplatform.account.{PrivateKeyAccount, PublicKeyAccount}
-import com.zbsplatform.utils.ScorexLogging
-import com.zbsplatform.block.Block.{BlockId, transParseBytes}
-import com.zbsplatform.transaction.ValidationError.GenericError
-import com.zbsplatform.transaction._
-import scorex.crypto.signatures.Curve25519._
+
 import scala.util.{Failure, Try}
 
 case class MicroBlock(version: Byte,

@@ -1,24 +1,26 @@
-package com.zbsplatform.transaction
+package com.zbsnetwork.transaction
 
 import java.util
 
 import com.google.common.primitives.{Bytes, Ints, Longs}
-import com.zbsplatform.crypto
-import com.zbsplatform.state._
+import com.zbsnetwork.account.{Address, PrivateKeyAccount, PublicKeyAccount}
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.crypto
+import com.zbsnetwork.crypto._
+import com.zbsnetwork.transaction.TransactionParsers._
 import monix.eval.Coeval
 import play.api.libs.json.{JsObject, Json}
-import com.zbsplatform.account.{Address, PrivateKeyAccount, PublicKeyAccount}
-import com.zbsplatform.transaction.TransactionParsers._
-import scorex.crypto.signatures.Curve25519._
+
 import scala.util.{Failure, Success, Try}
 
 case class PaymentTransaction private (sender: PublicKeyAccount, recipient: Address, amount: Long, fee: Long, timestamp: Long, signature: ByteStr)
     extends SignedTransaction {
+
   override val builder: TransactionParser        = PaymentTransaction
   override val assetFee: (Option[AssetId], Long) = (None, fee)
   override val id: Coeval[AssetId]               = Coeval.evalOnce(signature)
-
-  override val json: Coeval[JsObject] = Coeval.evalOnce(jsonBase() ++ Json.obj("recipient" -> recipient.address, "amount" -> amount))
+  override val json: Coeval[JsObject]            = Coeval.evalOnce(jsonBase() ++ Json.obj("recipient" -> recipient.address, "amount" -> amount))
 
   private val hashBytes: Coeval[Array[Byte]] = Coeval.evalOnce(
     Bytes.concat(Array(builder.typeId),
@@ -39,7 +41,6 @@ case class PaymentTransaction private (sender: PublicKeyAccount, recipient: Addr
   val hash: Coeval[Array[Byte]] = Coeval.evalOnce(crypto.fastHash(hashBytes()))
 
   override val bytes: Coeval[Array[Byte]] = Coeval.evalOnce(Bytes.concat(hashBytes(), signature.arr))
-
 }
 
 object PaymentTransaction extends TransactionParserFor[PaymentTransaction] with TransactionParser.HardcodedVersion1 {
@@ -75,7 +76,7 @@ object PaymentTransaction extends TransactionParserFor[PaymentTransaction] with 
     }
   }
 
-  override protected def parseTail(version: Byte, bytes: Array[Byte]): Try[TransactionT] =
+  override protected def parseTail(bytes: Array[Byte]): Try[TransactionT] = {
     Try {
       require(bytes.length >= BaseLength, "Data does not match base length")
 
@@ -113,5 +114,5 @@ object PaymentTransaction extends TransactionParserFor[PaymentTransaction] with 
         .create(sender, recipient, amount, fee, timestamp, ByteStr(signatureBytes))
         .fold(left => Failure(new Exception(left.toString)), right => Success(right))
     }.flatten
-
+  }
 }

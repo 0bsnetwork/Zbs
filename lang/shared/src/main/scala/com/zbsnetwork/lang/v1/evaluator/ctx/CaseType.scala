@@ -1,6 +1,6 @@
-package com.zbsplatform.lang.v1.evaluator.ctx
+package com.zbsnetwork.lang.v1.evaluator.ctx
 
-import com.zbsplatform.lang.v1.compiler.Types.{CASETYPEREF, FINAL, REAL, UNION}
+import com.zbsnetwork.lang.v1.compiler.Types.{CASETYPEREF, FINAL, REAL, UNION}
 
 trait DefinedType {
   def name: String

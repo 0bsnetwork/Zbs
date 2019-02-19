@@ -1,8 +1,9 @@
-package com.zbsplatform.state
+package com.zbsnetwork.state
 
 import java.nio.charset.StandardCharsets
 
 import cats._
+import com.zbsnetwork.common.state.ByteStr
 import org.scalatest.{FunSuite, Matchers}
 
 class PortfolioTest extends FunSuite with Matchers {

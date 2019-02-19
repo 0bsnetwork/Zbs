@@ -1,4 +1,4 @@
-package com.zbsplatform.serialization
+package com.zbsnetwork.serialization
 
 import com.google.common.primitives.{Bytes, Shorts}
 

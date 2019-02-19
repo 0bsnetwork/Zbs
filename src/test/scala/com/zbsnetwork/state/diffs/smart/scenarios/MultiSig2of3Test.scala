@@ -1,19 +1,21 @@
-package com.zbsplatform.state.diffs.smart.scenarios
+package com.zbsnetwork.state.diffs.smart.scenarios
 
-import com.zbsplatform.account.PublicKeyAccount
-import com.zbsplatform.lagonaki.mocks.TestBlock
-import com.zbsplatform.lang.v1.compiler.CompilerV1
-import com.zbsplatform.lang.v1.compiler.Terms._
-import com.zbsplatform.lang.v1.parser.Parser
-import com.zbsplatform.state._
-import com.zbsplatform.state.diffs._
-import com.zbsplatform.state.diffs.smart._
-import com.zbsplatform.transaction._
-import com.zbsplatform.transaction.smart.SetScriptTransaction
-import com.zbsplatform.transaction.smart.script.v1.ScriptV1
-import com.zbsplatform.transaction.transfer._
-import com.zbsplatform.utils._
-import com.zbsplatform.{NoShrink, TransactionGen, crypto}
+import com.zbsnetwork.account.PublicKeyAccount
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.lagonaki.mocks.TestBlock
+import com.zbsnetwork.lang.StdLibVersion.V1
+import com.zbsnetwork.lang.v1.compiler.ExpressionCompiler
+import com.zbsnetwork.lang.v1.compiler.Terms._
+import com.zbsnetwork.lang.v1.parser.Parser
+import com.zbsnetwork.state.diffs._
+import com.zbsnetwork.state.diffs.smart._
+import com.zbsnetwork.transaction._
+import com.zbsnetwork.transaction.smart.SetScriptTransaction
+import com.zbsnetwork.transaction.smart.script.v1.ExprScript
+import com.zbsnetwork.transaction.transfer._
+import com.zbsnetwork.utils._
+import com.zbsnetwork.{NoShrink, TransactionGen, crypto}
 import org.scalacheck.Gen
 import org.scalatest.prop.PropertyChecks
 import org.scalatest.{Matchers, PropSpec}
@@ -36,12 +38,11 @@ class MultiSig2of3Test extends PropSpec with PropertyChecks with Matchers with T
          | AC + BC+ CC >= 2
          |
       """.stripMargin
-    val untyped = Parser(script).get.value
-    CompilerV1(dummyCompilerContext, untyped).explicitGet()._1
+    val untyped = Parser.parseExpr(script).get.value
+    ExpressionCompiler(compilerContext(V1, isAssetScript = false), untyped).explicitGet()._1
   }
 
   val preconditionsAndTransfer: Gen[(GenesisTransaction, SetScriptTransaction, TransferTransactionV2, Seq[ByteStr])] = for {
-    version   <- Gen.oneOf(TransferTransactionV2.supportedVersions.toSeq)
     master    <- accountGen
     s0        <- accountGen
     s1        <- accountGen
@@ -49,14 +50,14 @@ class MultiSig2of3Test extends PropSpec with PropertyChecks with Matchers with T
     recepient <- accountGen
     ts        <- positiveIntGen
     genesis = GenesisTransaction.create(master, ENOUGH_AMT, ts).explicitGet()
-    setSctipt <- selfSignedSetScriptTransactionGenP(master, ScriptV1(multisigTypedExpr(s0, s1, s2)).explicitGet())
+    setSctipt <- selfSignedSetScriptTransactionGenP(master, ExprScript(multisigTypedExpr(s0, s1, s2)).explicitGet())
     amount    <- positiveLongGen
     fee       <- smallFeeGen
     timestamp <- timestampGen
   } yield {
     val unsigned =
       TransferTransactionV2
-        .create(version, None, master, recepient, amount, timestamp, None, fee, Array.emptyByteArray, proofs = Proofs.empty)
+        .create(None, master, recepient, amount, timestamp, None, fee, Array.emptyByteArray, proofs = Proofs.empty)
         .explicitGet()
     val sig0 = ByteStr(crypto.sign(s0, unsigned.bodyBytes()))
     val sig1 = ByteStr(crypto.sign(s1, unsigned.bodyBytes()))

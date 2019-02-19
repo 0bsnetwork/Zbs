@@ -1,28 +1,47 @@
-package com.zbsplatform.state.diffs.smart
+package com.zbsnetwork.state.diffs.smart
 
-import com.zbsplatform.lang.v1.compiler.CompilerV1
-import com.zbsplatform.lang.v1.evaluator.EvaluatorV1
-import com.zbsplatform.lang.v1.parser.Parser
-import com.zbsplatform.state.ByteStr
-import com.zbsplatform.transaction.smart.BlockchainContext
-import com.zbsplatform.transaction.transfer.TransferTransaction
-import com.zbsplatform.transaction.{DataTransaction, Transaction}
-import com.zbsplatform.utils.dummyCompilerContext
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.lang.StdLibVersion._
+import com.zbsnetwork.lang.v1.compiler.ExpressionCompiler
+import com.zbsnetwork.lang.v1.compiler.Terms.EVALUATED
+import com.zbsnetwork.lang.v1.evaluator.EvaluatorV1
+import com.zbsnetwork.lang.v1.parser.Parser
+import com.zbsnetwork.state.Blockchain
+import com.zbsnetwork.transaction.smart.BlockchainContext
+import com.zbsnetwork.transaction.smart.BlockchainContext.In
+import com.zbsnetwork.transaction.transfer.TransferTransaction
+import com.zbsnetwork.transaction.{DataTransaction, Transaction}
+import com.zbsnetwork.utils.{EmptyBlockchain, compilerContext}
 import fastparse.core.Parsed.Success
 import monix.eval.Coeval
+import shapeless.Coproduct
 
 package object predef {
-  val networkByte: Byte = 'u'
+  val chainId: Byte = 'u'
 
-  def runScript[T](script: String, tx: Transaction = null, networkByte: Byte = networkByte): Either[String, T] = {
-    val Success(expr, _) = Parser(script)
+  def runScript[T <: EVALUATED](script: String, version: StdLibVersion, t: In, blockchain: Blockchain, chainId: Byte): Either[String, T] = {
+    val Success(expr, _) = Parser.parseExpr(script)
     for {
-      compileResult <- CompilerV1(dummyCompilerContext, expr)
+      compileResult <- ExpressionCompiler(compilerContext(version, isAssetScript = false), expr)
       (typedExpr, _) = compileResult
-      er             = EvaluatorV1[T](BlockchainContext.build(networkByte, Coeval(tx), Coeval(???), null), typedExpr)
-      r <- er
+      evalContext = BlockchainContext.build(version,
+                                            chainId,
+                                            Coeval.evalOnce(t),
+                                            Coeval.evalOnce(blockchain.height),
+                                            blockchain,
+                                            isTokenContext = false)
+      r <- EvaluatorV1[T](evalContext, typedExpr)
     } yield r
   }
+
+  def runScript[T <: EVALUATED](script: String, t: In = null): Either[String, T] =
+    runScript[T](script, V1, t, EmptyBlockchain, chainId)
+
+  def runScript[T <: EVALUATED](script: String, t: In, chainId: Byte): Either[String, T] =
+    runScript[T](script, V1, t, EmptyBlockchain, chainId)
+
+  def runScript[T <: EVALUATED](script: String, tx: Transaction, blockchain: Blockchain): Either[String, T] =
+    runScript[T](script, V1, Coproduct(tx), blockchain, chainId)
 
   private def dropLastLine(str: String): String = str.replace("\r", "").split('\n').init.mkString("\n")
 
@@ -54,9 +73,9 @@ package object predef {
        |   case t0: TransferTransaction => t0.recipient == Address(base58'${t.recipient.bytes.base58}')
        |   case _ => false
        | }
-       |   
+       |
        | let basic = longAll && sumString && sumByteVector && eqUnion
-       | 
+       |
        | # 2) ne
        | let nePrim = 1000 != 999 && "ha" +"ha" != "ha-ha" && tx.bodyBytes != base64'hahaha'
        | let neDataEntryAndGetElement = match tx {

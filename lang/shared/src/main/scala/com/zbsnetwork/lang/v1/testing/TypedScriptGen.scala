@@ -1,11 +1,11 @@
-package com.zbsplatform.lang.v1.testing
+package com.zbsnetwork.lang.v1.testing
 
-import com.zbsplatform.lang.v1.FunctionHeader
-import com.zbsplatform.lang.v1.compiler.Terms._
-import com.zbsplatform.lang.v1.compiler.Types._
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.lang.v1.FunctionHeader
+import com.zbsnetwork.lang.v1.compiler.Terms._
+import com.zbsnetwork.lang.v1.compiler.Types._
+import com.zbsnetwork.lang.v1.evaluator.FunctionIds._
 import org.scalacheck._
-import scodec.bits.ByteVector
-import com.zbsplatform.lang.v1.evaluator.FunctionIds._
 
 trait TypedScriptGen {
 
@@ -37,7 +37,7 @@ trait TypedScriptGen {
     for {
       let  <- LETgen((gas - 3) / 3)
       body <- Gen.oneOf(LONGgen((gas - 3) / 3), BLOCK_LONGgen((gas - 3) / 3))
-    } yield BLOCK(let, body)
+    } yield LET_BLOCK(let, body)
 
   def IF_LONGgen(gas: Int): Gen[EXPR] =
     for {
@@ -48,7 +48,7 @@ trait TypedScriptGen {
 
   def STRINGgen: Gen[EXPR] = Gen.identifier.map(CONST_STRING)
 
-  def BYTESTRgen: Gen[EXPR] = Gen.identifier.map(x => CONST_BYTEVECTOR(ByteVector(x.getBytes)))
+  def BYTESTRgen: Gen[EXPR] = Gen.identifier.map(x => CONST_BYTESTR(ByteStr(x.getBytes)))
 
   def REFgen(tpe: TYPE): Gen[EXPR] = Gen.identifier.map(REF)
 

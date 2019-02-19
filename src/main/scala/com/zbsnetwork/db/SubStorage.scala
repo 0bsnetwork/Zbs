@@ -1,4 +1,4 @@
-package com.zbsplatform.db
+package com.zbsnetwork.db
 
 import com.google.common.primitives.{Bytes, Ints}
 import org.iq80.leveldb.{DB, WriteBatch}

@@ -1,21 +1,19 @@
-package com.zbsplatform.api.http.assets
+package com.zbsnetwork.api.http.assets
 
 import cats.implicits._
 import io.swagger.annotations.{ApiModel, ApiModelProperty}
 import play.api.libs.json.Json
-import com.zbsplatform.account.PublicKeyAccount
-import com.zbsplatform.api.http.BroadcastRequest
-import com.zbsplatform.transaction.assets.SponsorFeeTransaction
-import com.zbsplatform.transaction.{AssetIdStringLength, Proofs, ValidationError}
+import com.zbsnetwork.account.PublicKeyAccount
+import com.zbsnetwork.api.http.BroadcastRequest
+import com.zbsnetwork.transaction.assets.SponsorFeeTransaction
+import com.zbsnetwork.transaction.{AssetIdStringLength, Proofs, ValidationError}
 
 object SponsorFeeRequest {
   implicit val unsignedSponsorRequestFormat = Json.format[SponsorFeeRequest]
   implicit val signedSponsorRequestFormat   = Json.format[SignedSponsorFeeRequest]
 }
 
-case class SponsorFeeRequest(@ApiModelProperty(required = true)
-                             version: Byte,
-                             @ApiModelProperty(value = "Sender address", required = true)
+case class SponsorFeeRequest(@ApiModelProperty(value = "Sender address", required = true)
                              sender: String,
                              @ApiModelProperty(value = "Asset to be sponsored", required = true)
                              assetId: String,
@@ -26,9 +24,7 @@ case class SponsorFeeRequest(@ApiModelProperty(required = true)
                              timestamp: Option[Long] = None)
 
 @ApiModel(value = "Signed Sponsorship Transaction")
-case class SignedSponsorFeeRequest(@ApiModelProperty(required = true)
-                                   version: Byte,
-                                   @ApiModelProperty(value = "Base58 encoded sender public key", required = true)
+case class SignedSponsorFeeRequest(@ApiModelProperty(value = "Base58 encoded sender public key", required = true)
                                    senderPublicKey: String,
                                    @ApiModelProperty(value = "Asset to be sponsored", required = true)
                                    assetId: String,
@@ -47,6 +43,6 @@ case class SignedSponsorFeeRequest(@ApiModelProperty(required = true)
       _assetId    <- parseBase58(assetId, "invalid.assetId", AssetIdStringLength)
       _proofBytes <- proofs.traverse(s => parseBase58(s, "invalid proof", Proofs.MaxProofStringSize))
       _proofs     <- Proofs.create(_proofBytes)
-      t           <- SponsorFeeTransaction.create(version, _sender, _assetId, minSponsoredAssetFee, fee, timestamp, _proofs)
+      t           <- SponsorFeeTransaction.create(_sender, _assetId, minSponsoredAssetFee, fee, timestamp, _proofs)
     } yield t
 }

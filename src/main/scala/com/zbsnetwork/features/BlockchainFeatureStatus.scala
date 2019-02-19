@@ -1,4 +1,4 @@
-package com.zbsplatform.features
+package com.zbsnetwork.features
 
 sealed trait BlockchainFeatureStatus
 

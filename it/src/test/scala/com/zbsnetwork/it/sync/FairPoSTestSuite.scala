@@ -1,10 +1,10 @@
-package com.zbsplatform.it.sync
+package com.zbsnetwork.it.sync
 
 import com.typesafe.config.{Config, ConfigFactory}
 import org.scalatest.{CancelAfterFailure, FunSuite}
-import com.zbsplatform.it.api.SyncHttpApi._
-import com.zbsplatform.it.transactions.NodesFromDocker
-import com.zbsplatform.it.util._
+import com.zbsnetwork.it.api.SyncHttpApi._
+import com.zbsnetwork.it.transactions.NodesFromDocker
+import com.zbsnetwork.it.util._
 import scala.concurrent.duration._
 
 class FairPoSTestSuite extends FunSuite with CancelAfterFailure with NodesFromDocker {
@@ -28,7 +28,7 @@ class FairPoSTestSuite extends FunSuite with CancelAfterFailure with NodesFromDo
 }
 
 object FairPoSTestSuite {
-  import com.zbsplatform.it.NodeConfigs._
+  import com.zbsnetwork.it.NodeConfigs._
   private val microblockActivationHeight = 0
   private val fairPoSActivationHeight    = 10
 

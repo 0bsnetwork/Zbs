@@ -1,10 +1,10 @@
-package com.zbsplatform.matcher.util
+package com.zbsnetwork.matcher.util
 
 import java.nio.ByteBuffer
 
-import com.zbsplatform.state.ByteStr
-import com.zbsplatform.transaction.AssetId
-import com.zbsplatform.transaction.assets.exchange.AssetPair
+import com.zbsnetwork.matcher.model.OrderStatus
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.transaction.AssetId
 
 object Codecs {
   def len(assetId: Option[AssetId]): Int = assetId.fold(1)(1 + _.arr.length)
@@ -25,6 +25,13 @@ object Codecs {
         Some(ByteStr(arr))
     }
 
-    def getAssetPair: AssetPair = AssetPair(getAssetId, getAssetId)
+    def putFinalOrderStatus(st: OrderStatus): ByteBuffer = st match {
+      case OrderStatus.Filled(filled)    => b.put(0.toByte).putLong(filled)
+      case OrderStatus.Cancelled(filled) => b.put(1.toByte).putLong(filled)
+      case other                         => throw new IllegalArgumentException(s"Can't encode order status $other")
+    }
+
+    def getFinalOrderStatus: OrderStatus.Final =
+      if (b.get() == 1) OrderStatus.Cancelled(b.getLong) else OrderStatus.Filled(b.getLong)
   }
 }

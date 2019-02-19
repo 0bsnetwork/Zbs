@@ -1,12 +1,12 @@
-package com.zbsplatform.network.peer
+package com.zbsnetwork.network.peer
 
 import java.io.File
 import java.net.InetSocketAddress
 import java.nio.file.Files
 
 import com.typesafe.config.ConfigFactory
-import com.zbsplatform.network.PeerDatabaseImpl
-import com.zbsplatform.settings.NetworkSettings
+import com.zbsnetwork.network.PeerDatabaseImpl
+import com.zbsnetwork.settings.NetworkSettings
 import net.ceedubs.ficus.Ficus._
 import org.scalatest.{Matchers, path}
 
@@ -104,7 +104,7 @@ class PeerDatabaseImplSpecification extends path.FreeSpecLike with Matchers {
     }
 
     "filters out wildcard addresses" in {
-      database.addCandidate(new InetSocketAddress("0.0.0.0", 6863))
+      database.addCandidate(new InetSocketAddress("0.0.0.0", 7430))
       database.randomPeer(Set(address1, address2)) shouldBe None
     }
 

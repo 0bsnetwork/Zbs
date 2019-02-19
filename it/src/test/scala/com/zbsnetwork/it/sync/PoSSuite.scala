@@ -1,21 +1,21 @@
-package com.zbsplatform.it.sync
+package com.zbsnetwork.it.sync
 
 import com.typesafe.config.Config
-import com.zbsplatform.consensus.FairPoSCalculator
-import com.zbsplatform.crypto
-import com.zbsplatform.it.api.AsyncNetworkApi.NodeAsyncNetworkApi
-import com.zbsplatform.it.api.SyncHttpApi._
-import com.zbsplatform.it.transactions.NodesFromDocker
-import com.zbsplatform.it.{NodeConfigs, WaitForHeight2}
-import com.zbsplatform.network.RawBytes
-import com.zbsplatform.state._
-import com.zbsplatform.utils.Base58
+import com.zbsnetwork.account.PrivateKeyAccount
+import com.zbsnetwork.block.{Block, SignerData}
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.{Base58, EitherExt2}
+import com.zbsnetwork.consensus.FairPoSCalculator
+import com.zbsnetwork.consensus.nxt.NxtLikeConsensusBlockData
+import com.zbsnetwork.crypto
+import com.zbsnetwork.http.DebugMessage
+import com.zbsnetwork.it.api.AsyncNetworkApi.NodeAsyncNetworkApi
+import com.zbsnetwork.it.api.SyncHttpApi._
+import com.zbsnetwork.it.transactions.NodesFromDocker
+import com.zbsnetwork.it.{NodeConfigs, WaitForHeight2}
+import com.zbsnetwork.network.RawBytes
 import org.scalatest.{CancelAfterFailure, FunSuite, Matchers}
 import play.api.libs.json.{JsSuccess, Json, Reads}
-import com.zbsplatform.account.PrivateKeyAccount
-import com.zbsplatform.block.{Block, SignerData}
-import com.zbsplatform.consensus.nxt.NxtLikeConsensusBlockData
-import com.zbsplatform.http.DebugMessage
 
 import scala.util.Random
 
@@ -176,10 +176,6 @@ class PoSSuite extends FunSuite with Matchers with NodesFromDocker with WaitForH
         _.raw(
           """
           |zbs {
-          |  miner {
-          |      quorum = 1
-          |  }
-          |
           |  blockchain {
           |    custom {
           |      functionality {

@@ -1,20 +1,19 @@
-package com.zbsplatform.matcher.api
+package com.zbsnetwork.matcher.api
 
 import java.util.concurrent.ScheduledFuture
 
-import akka.http.scaladsl.model.HttpResponse
+import akka.http.scaladsl.model.{ContentTypes, HttpEntity, HttpResponse}
 import com.google.common.cache.{CacheBuilder, CacheLoader}
-import com.zbsplatform.matcher.api.OrderBookSnapshotHttpCache.Settings
-import com.zbsplatform.matcher.market.OrderBookActor.GetOrderBookResponse
-import com.zbsplatform.matcher.model.MatcherModel.{Level, Price}
-import com.zbsplatform.matcher.model.{LevelAgg, LimitOrder, OrderBook}
-import com.zbsplatform.transaction.assets.exchange.AssetPair
-import com.zbsplatform.utils.NTP
+import com.zbsnetwork.matcher.api.OrderBookSnapshotHttpCache.Settings
+import com.zbsnetwork.matcher.model.{OrderBook, OrderBookResult}
+import com.zbsnetwork.transaction.assets.exchange.AssetPair
+import com.zbsnetwork.utils.Time
 import kamon.Kamon
 
 import scala.concurrent.duration._
 
-class OrderBookSnapshotHttpCache(settings: Settings, orderBookSnapshot: AssetPair => Option[OrderBook]) extends AutoCloseable {
+class OrderBookSnapshotHttpCache(settings: Settings, time: Time, orderBookSnapshot: AssetPair => Option[OrderBook.AggregatedSnapshot])
+    extends AutoCloseable {
   import OrderBookSnapshotHttpCache._
 
   private val depthRanges = settings.depthRanges.sorted
@@ -25,15 +24,19 @@ class OrderBookSnapshotHttpCache(settings: Settings, orderBookSnapshot: AssetPai
     .expireAfterAccess(settings.cacheTimeout.length, settings.cacheTimeout.unit)
     .build[Key, HttpResponse](new CacheLoader[Key, HttpResponse] {
       override def load(key: Key): HttpResponse = {
-        def aggregateLevel(l: (Price, Level[LimitOrder])) = LevelAgg(l._1, l._2.foldLeft(0L)((b, o) => b + o.amount))
-
-        val orderBook = orderBookSnapshot(key.pair).getOrElse(OrderBook.empty)
-        GetOrderBookResponse(
-          NTP.correctedTime(),
+        val orderBook = orderBookSnapshot(key.pair).getOrElse(OrderBook.AggregatedSnapshot())
+        val entity = OrderBookResult(
+          time.correctedTime(),
           key.pair,
-          orderBook.bids.view.take(key.depth).map(aggregateLevel).toSeq,
-          orderBook.asks.view.take(key.depth).map(aggregateLevel).toSeq
-        ).toHttpResponse
+          orderBook.bids.take(key.depth),
+          orderBook.asks.take(key.depth)
+        )
+        HttpResponse(
+          entity = HttpEntity(
+            ContentTypes.`application/json`,
+            OrderBookResult.toJson(entity)
+          )
+        )
       }
     })
 

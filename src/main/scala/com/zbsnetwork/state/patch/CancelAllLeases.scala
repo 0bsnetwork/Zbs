@@ -1,7 +1,7 @@
-package com.zbsplatform.state.patch
+package com.zbsnetwork.state.patch
 
-import com.zbsplatform.state.{Blockchain, Diff, LeaseBalance, Portfolio}
-import com.zbsplatform.utils.ScorexLogging
+import com.zbsnetwork.state.{Blockchain, Diff, LeaseBalance, Portfolio}
+import com.zbsnetwork.utils.ScorexLogging
 
 object CancelAllLeases extends ScorexLogging {
   private def invertLeaseInfo(p: Portfolio) = Portfolio(0, LeaseBalance(-p.lease.in, -p.lease.out), Map.empty)

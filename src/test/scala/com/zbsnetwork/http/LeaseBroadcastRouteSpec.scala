@@ -1,11 +1,10 @@
-package com.zbsplatform.http
+package com.zbsnetwork.http
 
 import com.typesafe.config.ConfigFactory
-import com.zbsplatform.RequestGen
-import com.zbsplatform.http.ApiMarshallers._
-import com.zbsplatform.settings.RestAPISettings
-import com.zbsplatform.state.diffs.TransactionDiffer.TransactionValidationError
-import com.zbsplatform.utx.UtxPool
+import com.zbsnetwork.RequestGen
+import com.zbsnetwork.settings.RestAPISettings
+import com.zbsnetwork.state.diffs.TransactionDiffer.TransactionValidationError
+import com.zbsnetwork.utx.UtxPool
 import io.netty.channel.group.ChannelGroup
 import org.scalacheck.Gen.posNum
 import org.scalacheck.{Gen => G}
@@ -13,11 +12,11 @@ import org.scalamock.scalatest.PathMockFactory
 import org.scalatest.prop.PropertyChecks
 import play.api.libs.json.Json._
 import play.api.libs.json._
-import com.zbsplatform.api.http._
-import com.zbsplatform.api.http.leasing.LeaseBroadcastApiRoute
-import com.zbsplatform.transaction.ValidationError.GenericError
-import com.zbsplatform.transaction.Transaction
-import com.zbsplatform.transaction.lease.{LeaseCancelTransactionV1, LeaseTransactionV1}
+import com.zbsnetwork.api.http._
+import com.zbsnetwork.api.http.leasing.LeaseBroadcastApiRoute
+import com.zbsnetwork.transaction.ValidationError.GenericError
+import com.zbsnetwork.transaction.Transaction
+import com.zbsnetwork.transaction.lease.{LeaseCancelTransactionV1, LeaseTransactionV1}
 
 class LeaseBroadcastRouteSpec extends RouteSpec("/leasing/broadcast/") with RequestGen with PathMockFactory with PropertyChecks {
   private val settings    = RestAPISettings.fromConfig(ConfigFactory.load())

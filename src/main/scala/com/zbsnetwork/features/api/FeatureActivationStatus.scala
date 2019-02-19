@@ -1,6 +1,6 @@
-package com.zbsplatform.features.api
+package com.zbsnetwork.features.api
 
-import com.zbsplatform.features.BlockchainFeatureStatus
+import com.zbsnetwork.features.BlockchainFeatureStatus
 
 case class FeatureActivationStatus(id: Short,
                                    description: String,

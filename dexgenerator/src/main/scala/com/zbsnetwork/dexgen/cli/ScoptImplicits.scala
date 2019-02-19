@@ -1,6 +1,6 @@
-package com.zbsplatform.dexgen.cli
+package com.zbsnetwork.dexgen.cli
 
-import com.zbsplatform.dexgen.Mode
+import com.zbsnetwork.dexgen.Mode
 import scopt.Read
 
 import scala.concurrent.duration.FiniteDuration

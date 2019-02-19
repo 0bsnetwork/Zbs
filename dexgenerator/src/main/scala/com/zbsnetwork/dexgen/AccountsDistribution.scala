@@ -1,7 +1,7 @@
-package com.zbsplatform.dexgen
+package com.zbsnetwork.dexgen
 
 import cats.Show
-import com.zbsplatform.dexgen.AccountsDistribution.Settings
+import com.zbsnetwork.dexgen.AccountsDistribution.Settings
 
 class AccountsDistribution(settings: Settings, valid: Int, invalid: Int, fake: Int) {}
 

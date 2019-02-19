@@ -1,4 +1,4 @@
-package com.zbsplatform.discovery.collections
+package com.zbsnetwork.discovery.collections
 
 class Pool[T] {
   private val queue = scala.collection.mutable.Queue.empty[T]

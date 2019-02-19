@@ -1,11 +1,11 @@
-package com.zbsplatform
+package com.zbsnetwork
 
-import com.zbsplatform.settings.WalletSettings
-import com.zbsplatform.wallet.Wallet
+import com.zbsnetwork.settings.WalletSettings
+import com.zbsnetwork.wallet.Wallet
 
 trait TestWallet {
-  protected val testWallet = {
-    val wallet = Wallet(WalletSettings(None, "123", None))
+  protected val testWallet: Wallet = {
+    val wallet = Wallet(WalletSettings(None, Some("123"), None))
     wallet.generateNewAccounts(10)
     wallet
   }

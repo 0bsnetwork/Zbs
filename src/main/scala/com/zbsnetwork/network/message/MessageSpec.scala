@@ -1,4 +1,4 @@
-package com.zbsplatform.network.message
+package com.zbsnetwork.network.message
 
 import scala.reflect.ClassTag
 import scala.util.Try

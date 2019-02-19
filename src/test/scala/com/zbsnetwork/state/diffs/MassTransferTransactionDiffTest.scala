@@ -1,17 +1,18 @@
-package com.zbsplatform.state.diffs
+package com.zbsnetwork.state.diffs
 
-import com.zbsplatform.features.BlockchainFeatures
-import com.zbsplatform.state.{EitherExt2, LeaseBalance, Portfolio}
-import com.zbsplatform.{NoShrink, TransactionGen}
+import com.zbsnetwork.account.{Address, PrivateKeyAccount}
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.features.BlockchainFeatures
+import com.zbsnetwork.lagonaki.mocks.TestBlock.{create => block}
+import com.zbsnetwork.settings.TestFunctionalitySettings
+import com.zbsnetwork.state.{LeaseBalance, Portfolio}
+import com.zbsnetwork.transaction.GenesisTransaction
+import com.zbsnetwork.transaction.assets.IssueTransactionV1
+import com.zbsnetwork.transaction.transfer.MassTransferTransaction.ParsedTransfer
+import com.zbsnetwork.{NoShrink, TransactionGen}
 import org.scalacheck.Gen
 import org.scalatest.prop.PropertyChecks
 import org.scalatest.{Matchers, PropSpec}
-import com.zbsplatform.account.{Address, PrivateKeyAccount}
-import com.zbsplatform.settings.TestFunctionalitySettings
-import com.zbsplatform.lagonaki.mocks.TestBlock.{create => block}
-import com.zbsplatform.transaction.GenesisTransaction
-import com.zbsplatform.transaction.assets.IssueTransactionV1
-import com.zbsplatform.transaction.transfer.MassTransferTransaction.ParsedTransfer
 
 class MassTransferTransactionDiffTest extends PropSpec with PropertyChecks with Matchers with TransactionGen with NoShrink {
 
@@ -63,7 +64,7 @@ class MassTransferTransactionDiffTest extends PropSpec with PropertyChecks with 
       }
     }
 
-    import com.zbsplatform.transaction.transfer.MassTransferTransaction.{MaxTransferCount => Max}
+    import com.zbsnetwork.transaction.transfer.MassTransferTransaction.{MaxTransferCount => Max}
     Seq(0, 1, Max) foreach testDiff // test edge cases
     Gen.choose(2, Max - 1) map testDiff
   }
@@ -128,7 +129,7 @@ class MassTransferTransactionDiffTest extends PropSpec with PropertyChecks with 
     forAll(setup) {
       case (genesis, transfer) =>
         assertDiffEi(Seq(block(Seq(genesis))), block(Seq(transfer)), settings) { blockDiffEi =>
-          blockDiffEi should produce("MassTransferTransaction transaction has not been activated yet")
+          blockDiffEi should produce("MassTransferTransaction has not been activated yet")
         }
     }
   }

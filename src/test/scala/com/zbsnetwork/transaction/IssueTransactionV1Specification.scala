@@ -1,12 +1,13 @@
-package com.zbsplatform.transaction
+package com.zbsnetwork.transaction
 
-import com.zbsplatform.TransactionGen
-import com.zbsplatform.state.{ByteStr, EitherExt2}
+import com.zbsnetwork.TransactionGen
+import com.zbsnetwork.account.PublicKeyAccount
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.transaction.assets.{IssueTransaction, IssueTransactionV1}
 import org.scalatest._
 import org.scalatest.prop.PropertyChecks
 import play.api.libs.json.Json
-import com.zbsplatform.account.PublicKeyAccount
-import com.zbsplatform.transaction.assets.{IssueTransaction, IssueTransactionV1}
 
 class IssueTransactionV1Specification extends PropSpec with PropertyChecks with Matchers with TransactionGen {
 
@@ -34,6 +35,7 @@ class IssueTransactionV1Specification extends PropSpec with PropertyChecks with 
                        "timestamp": 1526287561757,
                        "version": 1,
                        "signature": "28kE1uN1pX2bwhzr9UHw5UuB9meTFEDFgeunNgy6nZWpHX4pzkGYotu8DhQ88AdqUG6Yy5wcXgHseKPBUygSgRMJ",
+                       "proofs": ["28kE1uN1pX2bwhzr9UHw5UuB9meTFEDFgeunNgy6nZWpHX4pzkGYotu8DhQ88AdqUG6Yy5wcXgHseKPBUygSgRMJ"],
                        "assetId": "9ekQuYn92natMnMq8KqeGK3Nn7cpKd3BvPEGgD6fFyyz",
                        "name": "Gigacoin",
                        "quantity": 10000000000,

@@ -1,15 +1,15 @@
-package com.zbsplatform.features.api
+package com.zbsnetwork.features.api
 
 import akka.http.scaladsl.server.Route
-import com.zbsplatform.features.FeatureProvider._
-import com.zbsplatform.features.{BlockchainFeatureStatus, BlockchainFeatures}
-import com.zbsplatform.settings.{FeaturesSettings, FunctionalitySettings, RestAPISettings}
-import com.zbsplatform.state.Blockchain
+import com.zbsnetwork.features.FeatureProvider._
+import com.zbsnetwork.features.{BlockchainFeatureStatus, BlockchainFeatures}
+import com.zbsnetwork.settings.{FeaturesSettings, FunctionalitySettings, RestAPISettings}
+import com.zbsnetwork.state.Blockchain
 import io.swagger.annotations._
 import javax.ws.rs.Path
 import play.api.libs.json.Json
-import com.zbsplatform.api.http.{ApiRoute, CommonApiFunctions}
-import com.zbsplatform.utils.ScorexLogging
+import com.zbsnetwork.api.http.{ApiRoute, CommonApiFunctions}
+import com.zbsnetwork.utils.ScorexLogging
 
 @Path("/activation")
 @Api(value = "activation")

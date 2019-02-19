@@ -1,4 +1,4 @@
-package com.zbsplatform.it
+package com.zbsnetwork.it
 
 import java.io.{FileOutputStream, IOException}
 import java.net.{InetAddress, InetSocketAddress, URL}
@@ -17,10 +17,13 @@ import com.spotify.docker.client.messages._
 import com.spotify.docker.client.{DefaultDockerClient, DockerClient}
 import com.typesafe.config.ConfigFactory._
 import com.typesafe.config.{Config, ConfigRenderOptions}
-import com.zbsplatform.it.api.AsyncHttpApi._
-import com.zbsplatform.it.util.GlobalTimer.{instance => timer}
-import com.zbsplatform.settings._
-import com.zbsplatform.state.EitherExt2
+import com.zbsnetwork.account.AddressScheme
+import com.zbsnetwork.block.Block
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.it.api.AsyncHttpApi._
+import com.zbsnetwork.it.util.GlobalTimer.{instance => timer}
+import com.zbsnetwork.settings._
+import com.zbsnetwork.utils.ScorexLogging
 import monix.eval.Coeval
 import net.ceedubs.ficus.Ficus._
 import net.ceedubs.ficus.readers.ArbitraryTypeReader._
@@ -28,9 +31,6 @@ import org.apache.commons.compress.archivers.ArchiveStreamFactory
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry
 import org.apache.commons.io.IOUtils
 import org.asynchttpclient.Dsl._
-import com.zbsplatform.account.AddressScheme
-import com.zbsplatform.utils.ScorexLogging
-import com.zbsplatform.block.Block
 
 import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -64,25 +64,7 @@ class Docker(suiteConfig: Config = empty, tag: String = "", enableProfiling: Boo
     close()
   }
 
-  private[it] val configTemplate = parseResources("template.conf")
-
-  AddressScheme.current = new AddressScheme {
-    override val chainId = configTemplate.as[String]("zbs.blockchain.custom.address-scheme-character").charAt(0).toByte
-  }
-
-  private[it] val genesisOverride = {
-    val genesisTs          = System.currentTimeMillis()
-    val timestampOverrides = parseString(s"""zbs.blockchain.custom.genesis {
-         |  timestamp = $genesisTs
-         |  block-timestamp = $genesisTs
-         |}""".stripMargin)
-
-    val genesisConfig    = configTemplate.withFallback(timestampOverrides)
-    val gs               = genesisConfig.as[GenesisSettings]("zbs.blockchain.custom.genesis")
-    val genesisSignature = Block.genesis(gs).explicitGet().uniqueId
-
-    timestampOverrides.withFallback(parseString(s"zbs.blockchain.custom.genesis.signature = $genesisSignature"))
-  }
+  private val genesisOverride = Docker.genesisOverride
 
   // a random network in 10.x.x.x range
   private val networkSeed = Random.nextInt(0x100000) << 4 | 0x0A000000
@@ -242,8 +224,16 @@ class Docker(suiteConfig: Config = empty, tag: String = "", enableProfiling: Boo
 
       val javaOptions = Option(System.getenv("CONTAINER_JAVA_OPTS")).getOrElse("")
       val configOverrides: String = {
+        val ntpServer    = Option(System.getenv("NTP_SERVER")).fold("")(x => s"-Dzbs.ntp-server=$x ")
+        val maxCacheSize = Option(System.getenv("MAX_CACHE_SIZE")).fold("")(x => s"-Dzbs.max-cache-size=$x ")
+        val kafkaServer = Option(System.getenv("KAFKA_SERVER")).fold("") { x =>
+          val prefix = "-Dzbs.matcher.events-queue"
+          val topic  = s"dex-$networkSeed-${System.currentTimeMillis() / 1000 / 60}"
+          s"$prefix.type=kafka $prefix.kafka.topic=$topic -Dakka.kafka.consumer.kafka-clients.bootstrap.servers=$x "
+        }
+
         var config = s"$javaOptions ${renderProperties(asProperties(overrides))} " +
-          s"-Dlogback.stdout.level=TRACE -Dlogback.file.level=OFF -Dzbs.network.declared-address=$ip:$networkPort "
+          s"-Dlogback.stdout.level=TRACE -Dlogback.file.level=OFF -Dzbs.network.declared-address=$ip:$networkPort $ntpServer $maxCacheSize $kafkaServer"
 
         if (enableProfiling) {
           config += s"-agentpath:/usr/local/YourKit-JavaProfiler-2018.04/bin/linux-x86-64/libyjpagent.so=port=$ProfilerPort,listen=all," +
@@ -257,7 +247,7 @@ class Docker(suiteConfig: Config = empty, tag: String = "", enableProfiling: Boo
 
       val containerConfig = ContainerConfig
         .builder()
-        .image("com.zbsplatform/it:latest")
+        .image("com.zbsnetwork/it:latest")
         .exposedPorts(s"$ProfilerPort", restApiPort, networkPort, matcherApiPort)
         .networkingConfig(ContainerConfig.NetworkingConfig.create(Map(
           zbsNetwork.name() -> endpointConfigFor(nodeName)
@@ -349,6 +339,24 @@ class Docker(suiteConfig: Config = empty, tag: String = "", enableProfiling: Boo
       3.minutes
     )
     node
+  }
+
+  def restartNode(node: DockerNode, configUpdates: Config = empty): DockerNode = {
+    Await.result(node.waitForHeightArise, 3.minutes)
+
+    if (configUpdates != empty) {
+      val renderedConfig = renderProperties(asProperties(configUpdates))
+
+      log.debug("Set new config directly in the script for starting node")
+      val shPath = "/opt/zbs/start-zbs.sh"
+      val scriptCmd: Array[String] =
+        Array("sh", "-c", s"sed -i 's|$$ZBS_OPTS.*-jar|$$ZBS_OPTS $renderedConfig -jar|' $shPath && chmod +x $shPath")
+
+      val execScriptCmd = client.execCreate(node.containerId, scriptCmd).id()
+      client.execStart(execScriptCmd)
+    }
+
+    restartContainer(node)
   }
 
   override def close(): Unit = {
@@ -468,7 +476,10 @@ class Docker(suiteConfig: Config = empty, tag: String = "", enableProfiling: Boo
 
   def disconnectFromNetwork(node: DockerNode): Unit = disconnectFromNetwork(node.containerId)
 
-  private def disconnectFromNetwork(containerId: String): Unit = client.disconnectFromNetwork(containerId, zbsNetwork.id())
+  private def disconnectFromNetwork(containerId: String): Unit = {
+    log.info(s"Trying to disconnect container ${containerId} from network ...")
+    client.disconnectFromNetwork(containerId, zbsNetwork.id())
+  }
 
   def restartContainer(node: DockerNode): DockerNode = {
     val id            = node.containerId
@@ -491,6 +502,7 @@ class Docker(suiteConfig: Config = empty, tag: String = "", enableProfiling: Boo
   }
 
   private def connectToNetwork(node: DockerNode): Unit = {
+    log.info(s"Trying to connect node ${node} to network ...")
     client.connectToNetwork(
       zbsNetwork.id(),
       NetworkConnection
@@ -527,6 +539,53 @@ class Docker(suiteConfig: Config = empty, tag: String = "", enableProfiling: Boo
 
     log.debug(s"$label: $x")
   }
+
+  def runMigrationToolInsideContainer(node: DockerNode): DockerNode = {
+    val id = node.containerId
+    takeProfileSnapshot(node)
+    updateStartScript(node)
+    stopContainer(node)
+    saveProfile(node)
+    saveLog(node)
+    client.startContainer(id)
+    client.waitContainer(id)
+    client.startContainer(id)
+    node.nodeInfo = getNodeInfo(node.containerId, node.settings)
+    Await.result(
+      node.waitForStartup().flatMap(_ => connectToAll(node)),
+      3.minutes
+    )
+    node
+  }
+
+  private def updateStartScript(node: DockerNode): Unit = {
+    val id = node.containerId
+
+    log.debug("Make backup copy of /opt/zbs/start-zbs.sh")
+    val cpCmd: Array[String] =
+      Array(
+        "sh",
+        "-c",
+        s"""cp /opt/zbs/start-zbs.sh /opt/zbs/start-zbs.sh.bk"""
+      )
+    val execCpCmd = client.execCreate(id, cpCmd).id()
+    client.execStart(execCpCmd)
+
+    log.debug("Change script for migration tool launch")
+    val scriptCmd: Array[String] =
+      Array(
+        "sh",
+        "-c",
+        s"""rm /opt/zbs/start-zbs.sh && echo '#!/bin/bash' >> /opt/zbs/start-zbs.sh &&
+             |echo 'java ${renderProperties(asProperties(genesisOverride))} -cp /opt/zbs/zbs.jar com.zbsnetwork.matcher.MatcherTool /opt/zbs/template.conf cb > /opt/zbs/migration-tool.log' >> /opt/zbs/start-zbs.sh &&
+             |echo 'less /opt/zbs/migration-tool.log | grep -ir completed && cp /opt/zbs/start-zbs.sh.bk /opt/zbs/start-zbs.sh && chmod +x /opt/zbs/start-zbs.sh' >> /opt/zbs/start-zbs.sh &&
+             |chmod +x /opt/zbs/start-zbs.sh
+           """.stripMargin
+      )
+    val execScriptCmd = client.execCreate(id, scriptCmd).id()
+    client.execStart(execScriptCmd)
+  }
+
 }
 
 object Docker {
@@ -535,6 +594,25 @@ object Docker {
   private val ProfilerPort       = 10001
   private val jsonMapper         = new ObjectMapper
   private val propsMapper        = new JavaPropsMapper
+
+  val configTemplate = parseResources("template.conf")
+  def genesisOverride = {
+    val genesisTs          = System.currentTimeMillis()
+    val timestampOverrides = parseString(s"""zbs.blockchain.custom.genesis {
+                                            |  timestamp = $genesisTs
+                                            |  block-timestamp = $genesisTs
+                                            |}""".stripMargin)
+
+    val genesisConfig    = configTemplate.withFallback(timestampOverrides)
+    val gs               = genesisConfig.as[GenesisSettings]("zbs.blockchain.custom.genesis")
+    val genesisSignature = Block.genesis(gs).explicitGet().uniqueId
+
+    timestampOverrides.withFallback(parseString(s"zbs.blockchain.custom.genesis.signature = $genesisSignature"))
+  }
+
+  AddressScheme.current = new AddressScheme {
+    override val chainId = configTemplate.as[String]("zbs.blockchain.custom.address-scheme-character").charAt(0).toByte
+  }
 
   def apply(owner: Class[_]): Docker = new Docker(tag = owner.getSimpleName)
 

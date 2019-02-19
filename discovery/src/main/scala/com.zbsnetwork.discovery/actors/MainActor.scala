@@ -1,12 +1,12 @@
-package com.zbsplatform.discovery.actors
+package com.zbsnetwork.discovery.actors
 
 import java.net.InetSocketAddress
 
 import akka.actor.SupervisorStrategy.Resume
 import akka.actor.{Actor, ActorRef, ActorSystem, OneForOneStrategy, Props, SupervisorStrategy}
 import akka.routing.{ActorRefRoutee, Router}
-import com.zbsplatform.discovery.collections.{ExpirationSet, Pool}
-import com.zbsplatform.discovery.routers.SmallestMailboxWithThresholdRoutingLogic
+import com.zbsnetwork.discovery.collections.{ExpirationSet, Pool}
+import com.zbsnetwork.discovery.routers.SmallestMailboxWithThresholdRoutingLogic
 import play.api.libs.json._
 
 class MainActor(chainId: Char, workersCount: Int) extends Actor {

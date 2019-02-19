@@ -1,11 +1,12 @@
-package com.zbsplatform.transaction
+package com.zbsnetwork.transaction
 
-import com.zbsplatform.TransactionGen
-import com.zbsplatform.state.{ByteStr, EitherExt2}
+import com.zbsnetwork.TransactionGen
+import com.zbsnetwork.account.{Alias, PrivateKeyAccount, PublicKeyAccount}
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.EitherExt2
 import org.scalatest._
 import org.scalatest.prop.PropertyChecks
 import play.api.libs.json.Json
-import com.zbsplatform.account.{Alias, PrivateKeyAccount, PublicKeyAccount}
 
 class CreateAliasTransactionSpecification extends PropSpec with PropertyChecks with Matchers with TransactionGen {
 
@@ -41,6 +42,7 @@ class CreateAliasTransactionSpecification extends PropSpec with PropertyChecks w
                          "fee": 100000,
                          "timestamp": 1526910778245,
                          "signature": "CC1jQ4qkuVfMvB2Kpg2Go6QKXJxUFC8UUswUxBsxwisrR8N5s3Yc8zA6dhjTwfWKfdouSTAnRXCxTXb3T6pJq3T",
+                         "proofs": ["CC1jQ4qkuVfMvB2Kpg2Go6QKXJxUFC8UUswUxBsxwisrR8N5s3Yc8zA6dhjTwfWKfdouSTAnRXCxTXb3T6pJq3T"],
                          "version": 1,
                          "alias": "myalias"
                         }
@@ -49,7 +51,7 @@ class CreateAliasTransactionSpecification extends PropSpec with PropertyChecks w
     val tx = CreateAliasTransactionV1
       .create(
         PublicKeyAccount.fromBase58String("FM5ojNqW7e9cZ9zhPYGkpSP1Pcd8Z3e3MNKYVS5pGJ8Z").explicitGet(),
-        Alias.buildWithCurrentNetworkByte("myalias").explicitGet(),
+        Alias.buildWithCurrentChainId("myalias").explicitGet(),
         100000,
         1526910778245L,
         ByteStr.decodeBase58("CC1jQ4qkuVfMvB2Kpg2Go6QKXJxUFC8UUswUxBsxwisrR8N5s3Yc8zA6dhjTwfWKfdouSTAnRXCxTXb3T6pJq3T").get
@@ -78,9 +80,8 @@ class CreateAliasTransactionSpecification extends PropSpec with PropertyChecks w
 
     val tx = CreateAliasTransactionV2
       .create(
-        2,
         PublicKeyAccount.fromBase58String("FM5ojNqW7e9cZ9zhPYGkpSP1Pcd8Z3e3MNKYVS5pGJ8Z").explicitGet(),
-        Alias.buildWithCurrentNetworkByte("myalias").explicitGet(),
+        Alias.buildWithCurrentChainId("myalias").explicitGet(),
         100000,
         1526910778245L,
         Proofs(Seq(ByteStr.decodeBase58("26U7rQTwpdma5GYSZb5bNygVCtSuWL6DKet1Nauf5J57v19mmfnq434YrkKYJqvYt2ydQBUT3P7Xgj5ZVDVAcc5k").get))

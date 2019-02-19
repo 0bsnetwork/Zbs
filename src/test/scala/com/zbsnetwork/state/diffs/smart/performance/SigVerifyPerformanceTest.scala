@@ -1,19 +1,20 @@
-package com.zbsplatform.state.diffs.smart.performance
+package com.zbsnetwork.state.diffs.smart.performance
 
-import com.zbsplatform.account.{PrivateKeyAccount, PublicKeyAccount}
-import com.zbsplatform.lagonaki.mocks.TestBlock
-import com.zbsplatform.lang.v1.compiler.CompilerV1
-import com.zbsplatform.lang.v1.compiler.Terms._
-import com.zbsplatform.lang.v1.parser.Parser
-import com.zbsplatform.metrics.Instrumented
-import com.zbsplatform.state._
-import com.zbsplatform.state.diffs._
-import com.zbsplatform.state.diffs.smart._
-import com.zbsplatform.transaction.GenesisTransaction
-import com.zbsplatform.transaction.smart.script.v1.ScriptV1
-import com.zbsplatform.transaction.transfer._
-import com.zbsplatform.utils._
-import com.zbsplatform.{NoShrink, TransactionGen, WithDB}
+import com.zbsnetwork.account.{PrivateKeyAccount, PublicKeyAccount}
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.lagonaki.mocks.TestBlock
+import com.zbsnetwork.lang.StdLibVersion.V1
+import com.zbsnetwork.lang.v1.compiler.ExpressionCompiler
+import com.zbsnetwork.lang.v1.compiler.Terms._
+import com.zbsnetwork.lang.v1.parser.Parser
+import com.zbsnetwork.metrics.Instrumented
+import com.zbsnetwork.state.diffs._
+import com.zbsnetwork.state.diffs.smart._
+import com.zbsnetwork.transaction.GenesisTransaction
+import com.zbsnetwork.transaction.smart.script.v1.ExprScript
+import com.zbsnetwork.transaction.transfer._
+import com.zbsnetwork.utils._
+import com.zbsnetwork.{NoShrink, TransactionGen, WithDB}
 import org.scalacheck.Gen
 import org.scalatest.prop.PropertyChecks
 import org.scalatest.{Matchers, PropSpec}
@@ -30,10 +31,9 @@ class SigVerifyPerformanceTest extends PropSpec with PropertyChecks with Matcher
 
   private def scriptedSendGen(from: PrivateKeyAccount, to: PublicKeyAccount, ts: Long): Gen[TransferTransactionV2] =
     for {
-      version <- Gen.oneOf(TransferTransactionV2.supportedVersions.toSeq)
-      amt     <- smallFeeGen
-      fee     <- smallFeeGen
-    } yield TransferTransactionV2.selfSigned(version, None, from, to.toAddress, amt, ts, None, fee, Array.emptyByteArray).explicitGet()
+      amt <- smallFeeGen
+      fee <- smallFeeGen
+    } yield TransferTransactionV2.selfSigned(None, from, to.toAddress, amt, ts, None, fee, Array.emptyByteArray).explicitGet()
 
   private def differentTransfers(typed: EXPR) =
     for {
@@ -43,7 +43,7 @@ class SigVerifyPerformanceTest extends PropSpec with PropertyChecks with Matcher
       amt       <- smallFeeGen
       fee       <- smallFeeGen
       genesis = GenesisTransaction.create(master, ENOUGH_AMT, ts).explicitGet()
-      setScript <- selfSignedSetScriptTransactionGenP(master, ScriptV1(typed).explicitGet())
+      setScript <- selfSignedSetScriptTransactionGenP(master, ExprScript(typed).explicitGet())
       transfer       = simpleSendGen(master, recipient, ts)
       scriptTransfer = scriptedSendGen(master, recipient, ts)
       transfers       <- Gen.listOfN(AmtOfTxs, transfer)
@@ -52,8 +52,8 @@ class SigVerifyPerformanceTest extends PropSpec with PropertyChecks with Matcher
 
   ignore("parallel native signature verification vs sequential scripted signature verification") {
     val textScript    = "sigVerify(tx.bodyBytes,tx.proofs[0],tx.senderPk)"
-    val untypedScript = Parser(textScript).get.value
-    val typedScript   = CompilerV1(dummyCompilerContext, untypedScript).explicitGet()._1
+    val untypedScript = Parser.parseExpr(textScript).get.value
+    val typedScript   = ExpressionCompiler(compilerContext(V1, isAssetScript = false), untypedScript).explicitGet()._1
 
     forAll(differentTransfers(typedScript)) {
       case (gen, setScript, transfers, scriptTransfers) =>

@@ -1,16 +1,16 @@
-package com.zbsplatform.history
+package com.zbsnetwork.history
 
-import com.zbsplatform.TransactionGen
-import com.zbsplatform.features.BlockchainFeatures
-import com.zbsplatform.settings.{BlockchainSettings, ZbsSettings}
-import com.zbsplatform.state._
-import com.zbsplatform.state.diffs.{ENOUGH_AMT, produce}
+import com.zbsnetwork.TransactionGen
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.features.BlockchainFeatures
+import com.zbsnetwork.settings.{BlockchainSettings, ZbsSettings}
+import com.zbsnetwork.state.diffs.{ENOUGH_AMT, produce}
+import com.zbsnetwork.transaction.GenesisTransaction
+import com.zbsnetwork.transaction.assets.{BurnTransactionV1, IssueTransactionV1, ReissueTransactionV1}
+import com.zbsnetwork.transaction.transfer.TransferTransactionV1
 import org.scalacheck.Gen
 import org.scalatest.prop.PropertyChecks
 import org.scalatest.{Matchers, PropSpec}
-import com.zbsplatform.transaction.GenesisTransaction
-import com.zbsplatform.transaction.assets.{BurnTransactionV1, IssueTransactionV1, ReissueTransactionV1}
-import com.zbsplatform.transaction.transfer.TransferTransactionV1
 
 class BlockchainUpdaterBurnTest extends PropSpec with PropertyChecks with DomainScenarioDrivenPropertyCheck with Matchers with TransactionGen {
 

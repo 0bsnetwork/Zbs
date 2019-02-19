@@ -1,13 +1,14 @@
-package com.zbsplatform.block
+package com.zbsnetwork.block
 
 import com.google.common.primitives.{Bytes, Longs}
-import com.zbsplatform.state.ByteStr
 import monix.eval.Coeval
 import play.api.libs.json.{JsObject, Json}
-import com.zbsplatform.account.PublicKeyAccount
-import com.zbsplatform.utils.Base58
-import com.zbsplatform.serialization.{BytesSerializable, JsonSerializable}
-import com.zbsplatform.transaction.Transaction
+import com.zbsnetwork.account.PublicKeyAccount
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.Base58
+import com.zbsnetwork.common.utils.Base58
+import com.zbsnetwork.serialization.{BytesSerializable, JsonSerializable}
+import com.zbsnetwork.transaction.Transaction
 
 abstract class BlockField[T] extends BytesSerializable with JsonSerializable {
   val name: String

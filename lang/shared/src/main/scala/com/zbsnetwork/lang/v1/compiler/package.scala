@@ -1,8 +1,8 @@
-package com.zbsplatform.lang.v1
+package com.zbsnetwork.lang.v1
 
 import cats.implicits._
-import com.zbsplatform.lang.v1.task.TaskM
-import com.zbsplatform.lang.v1.task.imports._
+import com.zbsnetwork.lang.v1.task.TaskM
+import com.zbsnetwork.lang.v1.task.imports._
 
 package object compiler {
   type CompileM[A] = TaskM[CompilerContext, CompilationError, A]

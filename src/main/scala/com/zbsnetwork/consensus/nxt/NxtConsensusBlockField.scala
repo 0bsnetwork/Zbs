@@ -1,8 +1,8 @@
-package com.zbsplatform.consensus.nxt
+package com.zbsnetwork.consensus.nxt
 
 import com.google.common.primitives.{Bytes, Longs}
 import play.api.libs.json.{JsObject, Json}
-import com.zbsplatform.block.BlockField
+import com.zbsnetwork.block.BlockField
 
 case class NxtConsensusBlockField(override val value: NxtLikeConsensusBlockData) extends BlockField[NxtLikeConsensusBlockData] {
 

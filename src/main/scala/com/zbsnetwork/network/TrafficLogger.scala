@@ -1,11 +1,11 @@
-package com.zbsplatform.network
+package com.zbsnetwork.network
 
 import io.netty.channel.ChannelHandler.Sharable
 import io.netty.channel.{ChannelDuplexHandler, ChannelHandlerContext, ChannelPromise}
-import com.zbsplatform.block.Block
-import com.zbsplatform.network.message.{Message => ScorexMessage}
-import com.zbsplatform.utils.ScorexLogging
-import com.zbsplatform.transaction.Transaction
+import com.zbsnetwork.block.Block
+import com.zbsnetwork.network.message.{Message => ScorexMessage}
+import com.zbsnetwork.utils.ScorexLogging
+import com.zbsnetwork.transaction.Transaction
 
 @Sharable
 class TrafficLogger(settings: TrafficLogger.Settings) extends ChannelDuplexHandler with ScorexLogging {

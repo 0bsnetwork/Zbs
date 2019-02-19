@@ -1,8 +1,9 @@
-package com.zbsplatform.state
+package com.zbsnetwork.state
 
-import com.zbsplatform.block.Block
-import com.zbsplatform.lagonaki.mocks.TestBlock
-import scorex.crypto.signatures.Curve25519._
+import com.zbsnetwork.block.Block
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.crypto._
+import com.zbsnetwork.lagonaki.mocks.TestBlock
 
 trait HistoryTest {
   val genesisBlock: Block = TestBlock.withReference(ByteStr(Array.fill(SignatureLength)(0: Byte)))

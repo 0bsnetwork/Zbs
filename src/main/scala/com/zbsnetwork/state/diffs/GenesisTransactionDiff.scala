@@ -1,8 +1,8 @@
-package com.zbsplatform.state.diffs
+package com.zbsnetwork.state.diffs
 
-import com.zbsplatform.state.{Diff, LeaseBalance, Portfolio}
-import com.zbsplatform.transaction.ValidationError.GenericError
-import com.zbsplatform.transaction.{GenesisTransaction, ValidationError}
+import com.zbsnetwork.state.{Diff, LeaseBalance, Portfolio}
+import com.zbsnetwork.transaction.ValidationError.GenericError
+import com.zbsnetwork.transaction.{GenesisTransaction, ValidationError}
 
 import scala.util.{Left, Right}
 

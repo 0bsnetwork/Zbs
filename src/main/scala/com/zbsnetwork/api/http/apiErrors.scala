@@ -1,4 +1,4 @@
-package com.zbsplatform.api.http
+package com.zbsnetwork.api.http
 
 import akka.http.scaladsl.model.{StatusCode, StatusCodes}
 import play.api.libs.json.JsError

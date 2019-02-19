@@ -1,4 +1,4 @@
-package com.zbsplatform.account
+package com.zbsnetwork.account
 
 abstract class AddressScheme {
   val chainId: Byte

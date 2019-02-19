@@ -1,14 +1,15 @@
-package com.zbsplatform.state.diffs
+package com.zbsnetwork.state.diffs
 
 import cats.Monoid
-import com.zbsplatform.settings.TestFunctionalitySettings
-import com.zbsplatform.state._
-import com.zbsplatform.{NoShrink, TransactionGen}
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.lagonaki.mocks.TestBlock
+import com.zbsnetwork.settings.TestFunctionalitySettings
+import com.zbsnetwork.state._
+import com.zbsnetwork.transaction.{GenesisTransaction, PaymentTransaction}
+import com.zbsnetwork.{NoShrink, TransactionGen}
 import org.scalacheck.Gen
 import org.scalatest.prop.PropertyChecks
 import org.scalatest.{Matchers, PropSpec}
-import com.zbsplatform.lagonaki.mocks.TestBlock
-import com.zbsplatform.transaction.{GenesisTransaction, PaymentTransaction}
 
 class PaymentTransactionDiffTest extends PropSpec with PropertyChecks with Matchers with TransactionGen with NoShrink {
 

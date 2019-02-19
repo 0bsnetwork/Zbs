@@ -1,9 +1,9 @@
-package com.zbsplatform.db
+package com.zbsnetwork.db
 
 import java.nio.charset.{Charset, StandardCharsets}
 
 import com.google.common.primitives.{Bytes, Ints}
-import com.zbsplatform.utils.{ScorexLogging, forceStopApplication}
+import com.zbsnetwork.utils.{ScorexLogging, forceStopApplication}
 import org.iq80.leveldb.{DB, DBIterator, WriteBatch}
 
 import scala.collection.AbstractIterator

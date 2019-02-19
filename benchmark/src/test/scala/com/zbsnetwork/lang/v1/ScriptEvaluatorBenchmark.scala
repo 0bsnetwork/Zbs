@@ -1,22 +1,28 @@
-package com.zbsplatform.lang.v1
+package com.zbsnetwork.lang.v1
 
 import java.util.concurrent.TimeUnit
 
 import cats.kernel.Monoid
-import com.zbsplatform.lang.Global
-import com.zbsplatform.lang.v1.FunctionHeader.Native
-import com.zbsplatform.lang.v1.compiler.Terms._
-import com.zbsplatform.lang.v1.evaluator.EvaluatorV1
-import com.zbsplatform.lang.v1.evaluator.FunctionIds.{FROMBASE58, SIGVERIFY, TOBASE58}
-import com.zbsplatform.lang.v1.evaluator.ctx.EvaluationContext
-import com.zbsplatform.lang.v1.evaluator.ctx.impl.{CryptoContext, PureContext}
-import com.zbsplatform.utils.Base58
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.Base58
+import com.zbsnetwork.lang.Global
+import com.zbsnetwork.lang.StdLibVersion.V1
+import com.zbsnetwork.lang.v1.FunctionHeader.Native
+import com.zbsnetwork.lang.v1.ScriptEvaluatorBenchmark.pureEvalContext
+import com.zbsnetwork.lang.v1.compiler.Terms._
+import com.zbsnetwork.lang.v1.evaluator.EvaluatorV1
+import com.zbsnetwork.lang.v1.evaluator.FunctionIds.{FROMBASE58, SIGVERIFY, TOBASE58}
+import com.zbsnetwork.lang.v1.evaluator.ctx.EvaluationContext
+import com.zbsnetwork.lang.v1.evaluator.ctx.impl.{CryptoContext, PureContext}
 import org.openjdk.jmh.annotations._
 import org.openjdk.jmh.infra.Blackhole
-import scodec.bits.ByteVector
 import scorex.crypto.signatures.Curve25519
 
 import scala.util.Random
+
+object ScriptEvaluatorBenchmark {
+  val pureEvalContext = PureContext.build(V1).evaluationContext
+}
 
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @BenchmarkMode(Array(Mode.AverageTime))
@@ -26,30 +32,30 @@ import scala.util.Random
 @Measurement(iterations = 10)
 class ScriptEvaluatorBenchmark {
   @Benchmark
-  def bigSum(st: BigSum, bh: Blackhole): Unit = bh.consume(EvaluatorV1[Boolean](PureContext.evalContext, st.expr))
+  def bigSum(st: BigSum, bh: Blackhole): Unit = bh.consume(EvaluatorV1[EVALUATED](pureEvalContext, st.expr))
 
   @Benchmark
-  def nestedBlocks(st: NestedBlocks, bh: Blackhole): Unit = bh.consume(EvaluatorV1[Boolean](st.context, st.expr))
+  def nestedBlocks(st: NestedBlocks, bh: Blackhole): Unit = bh.consume(EvaluatorV1[EVALUATED](st.context, st.expr))
 
   @Benchmark
-  def signatures(st: Signatures, bh: Blackhole): Unit = bh.consume(EvaluatorV1[Boolean](st.context, st.expr))
+  def signatures(st: Signatures, bh: Blackhole): Unit = bh.consume(EvaluatorV1[EVALUATED](st.context, st.expr))
 
   @Benchmark
-  def base58encode(st: Base58Perf, bh: Blackhole): Unit = bh.consume(EvaluatorV1[Long](st.context, st.encode))
+  def base58encode(st: Base58Perf, bh: Blackhole): Unit = bh.consume(EvaluatorV1[EVALUATED](st.context, st.encode))
 
   @Benchmark
-  def base58decode(st: Base58Perf, bh: Blackhole): Unit = bh.consume(EvaluatorV1[Long](st.context, st.decode))
+  def base58decode(st: Base58Perf, bh: Blackhole): Unit = bh.consume(EvaluatorV1[EVALUATED](st.context, st.decode))
 
   @Benchmark
-  def stringConcat(st: Concat, bh: Blackhole): Unit = bh.consume(EvaluatorV1[String](st.context, st.strings))
+  def stringConcat(st: Concat, bh: Blackhole): Unit = bh.consume(EvaluatorV1[EVALUATED](st.context, st.strings))
 
   @Benchmark
-  def bytesConcat(st: Concat, bh: Blackhole): Unit = bh.consume(EvaluatorV1[String](st.context, st.bytes))
+  def bytesConcat(st: Concat, bh: Blackhole): Unit = bh.consume(EvaluatorV1[EVALUATED](st.context, st.bytes))
 }
 
 @State(Scope.Benchmark)
 class NestedBlocks {
-  val context: EvaluationContext = PureContext.evalContext
+  val context: EvaluationContext = pureEvalContext
 
   val expr: EXPR = {
     val blockCount = 300
@@ -63,7 +69,7 @@ class NestedBlocks {
 
 @State(Scope.Benchmark)
 class Base58Perf {
-  val context: EvaluationContext = Monoid.combine(PureContext.evalContext, CryptoContext.build(Global).evaluationContext)
+  val context: EvaluationContext = Monoid.combine(pureEvalContext, CryptoContext.build(Global).evaluationContext)
 
   val encode: EXPR = {
     val base58Count = 120
@@ -74,7 +80,7 @@ class Base58Perf {
       .map { i =>
         val b = new Array[Byte](64)
         Random.nextBytes(b)
-        LET("v" + i, FUNCTION_CALL(PureContext.sizeString, List(FUNCTION_CALL(Native(TOBASE58), List(CONST_BYTEVECTOR(ByteVector(b)))))))
+        LET("v" + i, FUNCTION_CALL(PureContext.sizeString, List(FUNCTION_CALL(Native(TOBASE58), List(CONST_BYTESTR(ByteStr(b)))))))
       }
       .foldRight[EXPR](sum) { case (let, e) => BLOCK(let, e) }
   }
@@ -96,7 +102,7 @@ class Base58Perf {
 
 @State(Scope.Benchmark)
 class Signatures {
-  val context: EvaluationContext = Monoid.combine(PureContext.evalContext, CryptoContext.build(Global).evaluationContext)
+  val context: EvaluationContext = Monoid.combine(pureEvalContext, CryptoContext.build(Global).evaluationContext)
 
   val expr: EXPR = {
     val sigCount = 20
@@ -115,8 +121,7 @@ class Signatures {
         LET(
           "v" + i,
           IF(
-            FUNCTION_CALL(Native(SIGVERIFY),
-                          List(CONST_BYTEVECTOR(ByteVector(msg)), CONST_BYTEVECTOR(ByteVector(sig)), CONST_BYTEVECTOR(ByteVector(pk)))),
+            FUNCTION_CALL(Native(SIGVERIFY), List(CONST_BYTESTR(ByteStr(msg)), CONST_BYTESTR(ByteStr(sig)), CONST_BYTESTR(ByteStr(pk)))),
             CONST_LONG(1),
             CONST_LONG(0)
           )
@@ -130,7 +135,7 @@ class Signatures {
 
 @State(Scope.Benchmark)
 class Concat {
-  val context: EvaluationContext = PureContext.evalContext
+  val context: EvaluationContext = pureEvalContext
 
   private val Steps = 180
 
@@ -142,5 +147,5 @@ class Concat {
   val strings: EXPR = expr(CONST_STRING("a" * (Short.MaxValue - Steps)), PureContext.sumString, CONST_STRING("a"), Steps)
 
   val bytes: EXPR =
-    expr(CONST_BYTEVECTOR(ByteVector.fill(Short.MaxValue - Steps)(0)), PureContext.sumByteVector, CONST_BYTEVECTOR(ByteVector(0)), Steps)
+    expr(CONST_BYTESTR(ByteStr.fill(Short.MaxValue - Steps)(0)), PureContext.sumByteStr, CONST_BYTESTR(ByteStr.fromBytes(0)), Steps)
 }

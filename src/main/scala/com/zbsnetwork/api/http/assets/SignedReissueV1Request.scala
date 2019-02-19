@@ -1,12 +1,12 @@
-package com.zbsplatform.api.http.assets
+package com.zbsnetwork.api.http.assets
 
 import io.swagger.annotations.ApiModelProperty
 import play.api.libs.json.{Format, Json}
-import com.zbsplatform.account.PublicKeyAccount
-import com.zbsplatform.api.http.BroadcastRequest
-import com.zbsplatform.transaction.TransactionParsers.SignatureStringLength
-import com.zbsplatform.transaction.assets.ReissueTransactionV1
-import com.zbsplatform.transaction.{AssetIdStringLength, ValidationError}
+import com.zbsnetwork.account.PublicKeyAccount
+import com.zbsnetwork.api.http.BroadcastRequest
+import com.zbsnetwork.transaction.TransactionParsers.SignatureStringLength
+import com.zbsnetwork.transaction.assets.ReissueTransactionV1
+import com.zbsnetwork.transaction.{AssetIdStringLength, ValidationError}
 
 object SignedReissueV1Request {
   implicit val assetReissueRequestReads: Format[SignedReissueV1Request] = Json.format

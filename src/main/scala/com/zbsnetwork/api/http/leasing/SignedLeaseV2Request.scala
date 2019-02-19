@@ -1,16 +1,14 @@
-package com.zbsplatform.api.http.leasing
+package com.zbsnetwork.api.http.leasing
 
 import cats.implicits._
 import io.swagger.annotations.ApiModelProperty
 import play.api.libs.json.{Format, Json}
-import com.zbsplatform.account.{AddressOrAlias, PublicKeyAccount}
-import com.zbsplatform.api.http.BroadcastRequest
-import com.zbsplatform.transaction.lease.LeaseTransactionV2
-import com.zbsplatform.transaction.{Proofs, ValidationError}
+import com.zbsnetwork.account.{AddressOrAlias, PublicKeyAccount}
+import com.zbsnetwork.api.http.BroadcastRequest
+import com.zbsnetwork.transaction.lease.LeaseTransactionV2
+import com.zbsnetwork.transaction.{Proofs, ValidationError}
 
-case class SignedLeaseV2Request(@ApiModelProperty(required = true)
-                                version: Byte,
-                                @ApiModelProperty(value = "Base58 encoded sender public key", required = true)
+case class SignedLeaseV2Request(@ApiModelProperty(value = "Base58 encoded sender public key", required = true)
                                 senderPublicKey: String,
                                 @ApiModelProperty(required = true)
                                 amount: Long,
@@ -29,7 +27,7 @@ case class SignedLeaseV2Request(@ApiModelProperty(required = true)
       _proofBytes <- proofs.traverse(s => parseBase58(s, "invalid proof", Proofs.MaxProofStringSize))
       _proofs     <- Proofs.create(_proofBytes)
       _recipient  <- AddressOrAlias.fromString(recipient)
-      _t          <- LeaseTransactionV2.create(version, _sender, amount, fee, timestamp, _recipient, _proofs)
+      _t          <- LeaseTransactionV2.create(_sender, amount, fee, timestamp, _recipient, _proofs)
     } yield _t
 }
 

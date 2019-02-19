@@ -1,19 +1,19 @@
-package com.zbsplatform.it.async
+package com.zbsnetwork.it.async
 
 import com.typesafe.config.Config
-import com.zbsplatform.it.api.AsyncHttpApi._
-import com.zbsplatform.it.transactions.NodesFromDocker
-import com.zbsplatform.it.{NodeConfigs, TransferSending}
-import com.zbsplatform.lang.v1.compiler.Terms
-import com.zbsplatform.mining.MiningConstraints.MaxScriptRunsInBlock
-import com.zbsplatform.state.EitherExt2
+import com.zbsnetwork.account.PrivateKeyAccount
+import com.zbsnetwork.api.http.assets.SignedSetScriptRequest
+import com.zbsnetwork.common.utils.{Base58, EitherExt2}
+import com.zbsnetwork.it.api.AsyncHttpApi._
+import com.zbsnetwork.it.transactions.NodesFromDocker
+import com.zbsnetwork.it.{NodeConfigs, TransferSending}
+import com.zbsnetwork.lang.StdLibVersion.V1
+import com.zbsnetwork.lang.v1.compiler.Terms
+import com.zbsnetwork.mining.MiningConstraints.MaxScriptRunsInBlock
+import com.zbsnetwork.transaction.smart.SetScriptTransaction
+import com.zbsnetwork.transaction.smart.script.v1.ExprScript
 import org.scalatest._
 import play.api.libs.json.{JsNumber, Json}
-import com.zbsplatform.account.PrivateKeyAccount
-import com.zbsplatform.api.http.assets.SignedSetScriptRequest
-import com.zbsplatform.utils.Base58
-import com.zbsplatform.transaction.smart.SetScriptTransaction
-import com.zbsplatform.transaction.smart.script.v1.ScriptV1
 
 import scala.concurrent.Await.result
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -89,16 +89,14 @@ class SmartTransactionsConstraintsSuite extends FreeSpec with Matchers with Tran
   private def setScriptTx(sender: PrivateKeyAccount) =
     SetScriptTransaction
       .selfSigned(
-        version = 1,
         sender = sender,
-        script = Some(ScriptV1(Terms.TRUE, checkSize = false).explicitGet()),
+        script = Some(ExprScript(V1, Terms.TRUE, checkSize = false).explicitGet()),
         fee = 1000000,
         timestamp = System.currentTimeMillis() - 5.minutes.toMillis
       )
       .explicitGet()
 
   private def toRequest(tx: SetScriptTransaction): SignedSetScriptRequest = SignedSetScriptRequest(
-    version = tx.version,
     senderPublicKey = Base58.encode(tx.sender.publicKey),
     script = tx.script.map(_.bytes().base64),
     fee = tx.fee,

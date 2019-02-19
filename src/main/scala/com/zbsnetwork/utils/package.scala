@@ -1,24 +1,27 @@
-package com.zbsplatform
+package com.zbsnetwork
 
 import java.security.SecureRandom
 
 import cats.kernel.Monoid
 import com.google.common.base.Throwables
-import com.zbsplatform.account.AddressScheme
-import com.zbsplatform.db.{Storage, VersionedStorage}
-import com.zbsplatform.lang.Global
-import com.zbsplatform.state._
-import com.zbsplatform.lang.v1.compiler.CompilerContext
-import com.zbsplatform.lang.v1.compiler.CompilerContext._
-import com.zbsplatform.lang.v1.evaluator.ctx._
-import com.zbsplatform.lang.v1.evaluator.ctx.impl.zbs.ZbsContext
-import com.zbsplatform.lang.v1.evaluator.ctx.impl.{CryptoContext, PureContext}
-import com.zbsplatform.lang.v1.{FunctionHeader, ScriptEstimator}
-import com.zbsplatform.transaction.smart.{BlockchainContext, ZbsEnvironment}
+import com.zbsnetwork.account.AddressScheme
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.state.ByteStr._
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.db.{Storage, VersionedStorage}
+import com.zbsnetwork.lang.Global
+import com.zbsnetwork.lang.StdLibVersion._
+import com.zbsnetwork.lang.v1.compiler.{CompilerContext, DecompilerContext}
+import com.zbsnetwork.lang.v1.evaluator.ctx._
+import com.zbsnetwork.lang.v1.evaluator.ctx.impl.zbs.ZbsContext
+import com.zbsnetwork.lang.v1.evaluator.ctx.impl.{CryptoContext, PureContext}
+import com.zbsnetwork.lang.v1.{CTX, FunctionHeader, ScriptEstimator}
+import com.zbsnetwork.transaction.smart.ZbsEnvironment
 import monix.eval.Coeval
 import monix.execution.UncaughtExceptionReporter
 import org.joda.time.Duration
 import org.joda.time.format.PeriodFormat
+import play.api.libs.json._
 
 import scala.annotation.tailrec
 import scala.collection.mutable
@@ -87,9 +90,42 @@ package object utils extends ScorexLogging {
     }
   }
 
-  lazy val dummyNetworkByte: Byte                           = AddressScheme.current.chainId
-  lazy val dummyEvaluationContext: EvaluationContext        = BlockchainContext.build(dummyNetworkByte, Coeval(???), Coeval(???), null)
-  lazy val functionCosts: Map[FunctionHeader, Coeval[Long]] = estimate(dummyEvaluationContext)
+  private val lazyAssetContexts: Map[StdLibVersion, Coeval[CTX]] =
+    Seq
+      .tabulate(2) { v =>
+        val version = com.zbsnetwork.lang.StdLibVersion.parseVersion(v + 1)
+        version -> Coeval.evalOnce(
+          Monoid
+            .combineAll(Seq(
+              PureContext.build(version),
+              CryptoContext.build(Global),
+              ZbsContext
+                .build(version, new ZbsEnvironment(AddressScheme.current.chainId, Coeval(???), Coeval(???), EmptyBlockchain), isTokenContext = true)
+            )))
+      }
+      .toMap
+
+  private val lazyContexts: Map[StdLibVersion, Coeval[CTX]] =
+    Seq
+      .tabulate(3) { v =>
+        val version: StdLibVersion = com.zbsnetwork.lang.StdLibVersion(v + 1)
+        version -> Coeval.evalOnce(
+          Monoid
+            .combineAll(Seq(
+              PureContext.build(version),
+              CryptoContext.build(Global),
+              ZbsContext
+                .build(version, new ZbsEnvironment(AddressScheme.current.chainId, Coeval(???), Coeval(???), EmptyBlockchain), isTokenContext = false)
+            )))
+      }
+      .toMap
+
+  def dummyEvalContext(version: StdLibVersion): EvaluationContext = lazyContexts(version)().evaluationContext
+
+  private val lazyFunctionCosts: Map[StdLibVersion, Coeval[Map[FunctionHeader, Coeval[Long]]]] =
+    lazyContexts.mapValues(_.map(ctx => estimate(ctx.evaluationContext)))
+
+  def functionCosts(version: StdLibVersion): Map[FunctionHeader, Coeval[Long]] = lazyFunctionCosts(version)()
 
   def estimate(ctx: EvaluationContext): Map[FunctionHeader, Coeval[Long]] = {
     val costs: mutable.Map[FunctionHeader, Coeval[Long]] = ctx.typeDefs.collect {
@@ -109,15 +145,13 @@ package object utils extends ScorexLogging {
     costs.toMap
   }
 
-  lazy val dummyCompilerContext: CompilerContext =
-    Monoid.combineAll(
-      Seq(
-        CryptoContext.compilerContext(Global),
-        ZbsContext.build(new ZbsEnvironment(dummyNetworkByte, Coeval(???), Coeval(???), null)).compilerContext,
-        PureContext.compilerContext
-      ))
+  def compilerContext(version: StdLibVersion, isAssetScript: Boolean): CompilerContext =
+    if (isAssetScript) lazyAssetContexts(version)().compilerContext
+    else lazyContexts(version)().compilerContext
 
-  lazy val dummyVarNames = dummyCompilerContext.varDefs.keySet
+  val defaultDecompilerContext: DecompilerContext = lazyContexts(V3)().decompilerContext
+
+  def varNames(version: StdLibVersion): Set[String] = compilerContext(version, isAssetScript = false).varDefs.keySet
 
   @tailrec
   final def untilTimeout[T](timeout: FiniteDuration, delay: FiniteDuration = 100.milliseconds, onFailure: => Unit = {})(fn: => T): T = {
@@ -145,5 +179,17 @@ package object utils extends ScorexLogging {
     val module        = runtimeMirror.staticModule(fullClassName)
     val obj           = runtimeMirror.reflectModule(module)
     obj.instance.asInstanceOf[T]
+  }
+
+  @tailrec def doWhile[T](z: T)(cond: T => Boolean)(f: T => T): T = if (cond(z)) doWhile(f(z))(cond)(f) else z
+
+  implicit val byteStrWrites: Format[ByteStr] = new Format[ByteStr] {
+
+    override def writes(o: ByteStr): JsValue = JsString(o.base58)
+
+    override def reads(json: JsValue): JsResult[ByteStr] = json match {
+      case JsString(v) => decodeBase58(v).fold(e => JsError(s"Error parsing base58: ${e.getMessage}"), b => JsSuccess(b))
+      case _           => JsError("Expected JsString")
+    }
   }
 }
