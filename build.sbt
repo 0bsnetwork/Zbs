@@ -20,7 +20,7 @@ val versionSource = Def.task {
   val versionFile      = (sourceManaged in Compile).value / "com" / "zbsnetwork" / "Version.scala"
   val versionExtractor = """(\d+)\.(\d+)\.(\d+).*""".r
   val (major, minor, patch) = version.value match {
-    case versionExtractor(ma, mi, pa) => (ma.toInt, mi.toInt, pa.toInt)
+    case versionExtractor(ma, mi, pa) => FallbackVersion //(ma.toInt, mi.toInt, pa.toInt)
     case _                            => FallbackVersion
   }
   IO.write(
@@ -41,7 +41,7 @@ name := "zbs"
 normalizedName := s"${name.value}${network.value.packageSuffix}"
 
 git.useGitDescribe := true
-git.uncommittedSignifier := Some("DIRTY")
+git.uncommittedSignifier := Some("")
 logBuffered := false
 
 inThisBuild(
