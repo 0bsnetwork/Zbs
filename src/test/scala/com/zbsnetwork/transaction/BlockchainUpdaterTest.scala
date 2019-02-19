@@ -1,19 +1,20 @@
-package com.zbsplatform.transaction
+package com.zbsnetwork.transaction
 
 import java.security.Permission
 import java.util.concurrent.{Semaphore, TimeUnit}
 
-import com.zbsplatform.db.WithState
-import com.zbsplatform.features.BlockchainFeatureStatus
-import com.zbsplatform.features.FeatureProvider._
-import com.zbsplatform.history
-import com.zbsplatform.state._
-import com.zbsplatform.state.diffs.produce
+import com.zbsnetwork.block.Block
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.db.WithDomain
+import com.zbsnetwork.features.BlockchainFeatureStatus
+import com.zbsnetwork.features.FeatureProvider._
+import com.zbsnetwork.history
+import com.zbsnetwork.state._
+import com.zbsnetwork.state.diffs.produce
 import org.scalatest.words.ShouldVerb
 import org.scalatest.{FreeSpec, Matchers}
-import com.zbsplatform.block.Block
 
-class BlockchainUpdaterTest extends FreeSpec with Matchers with HistoryTest with ShouldVerb with WithState {
+class BlockchainUpdaterTest extends FreeSpec with Matchers with HistoryTest with ShouldVerb with WithDomain {
 
   private val ApprovalPeriod = 100
 
@@ -213,7 +214,7 @@ class BlockchainUpdaterTest extends FreeSpec with Matchers with HistoryTest with
         super.checkExit(status)
         if (status == 38)
           signal.release()
-        throw new SecurityException("System exit not allowed")
+        throw new SecurityException("System exit is not allowed")
       }
     })
 

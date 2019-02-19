@@ -1,15 +1,14 @@
-package com.zbsplatform.transaction
+package com.zbsnetwork.transaction
 
-import com.google.common.base.Throwables
-import com.zbsplatform.account.{Address, Alias}
-import com.zbsplatform.block.{Block, MicroBlock}
-import com.zbsplatform.lang.ExprEvaluator.Log
-import com.zbsplatform.state.ByteStr
-import com.zbsplatform.transaction.assets.exchange.Order
+import com.zbsnetwork.account.{Address, Alias}
+import com.zbsnetwork.block.{Block, MicroBlock}
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.lang.v1.evaluator.Log
+import com.zbsnetwork.transaction.assets.exchange.Order
 
 import scala.util.Either
 
-trait ValidationError
+trait ValidationError extends Product with Serializable
 
 object ValidationError {
   type Validation[T] = Either[ValidationError, T]
@@ -40,16 +39,20 @@ object ValidationError {
   case class GenericError(err: String)                         extends ValidationError
 
   object GenericError {
-    def apply(ex: Throwable): GenericError = new GenericError(Throwables.getStackTraceAsString(ex))
+    def apply(ex: Throwable): GenericError = new GenericError(ex.getMessage)
   }
 
   case class InvalidSignature(s: Signed, details: Option[InvalidSignature] = None) extends ValidationError {
     override def toString: String = s"InvalidSignature(${s.toString + " reason: " + details})"
   }
 
-  case class ScriptExecutionError(error: String, scriptSrc: String, log: Log, isTokenScript: Boolean) extends ValidationError
+  trait HasScriptType extends ValidationError {
+    def isTokenScript: Boolean
+  }
 
-  case class TransactionNotAllowedByScript(log: Log, scriptSrc: String, isTokenScript: Boolean) extends ValidationError
+  case class ScriptExecutionError(error: String, log: Log, isTokenScript: Boolean) extends ValidationError with HasScriptType
+
+  case class TransactionNotAllowedByScript(log: Log, isTokenScript: Boolean) extends ValidationError with HasScriptType
 
   case class MicroBlockAppendError(err: String, microBlock: MicroBlock) extends ValidationError {
     override def toString: String = s"MicroBlockAppendError($err, ${microBlock.totalResBlockSig} ~> ${microBlock.prevResBlockSig.trim}])"

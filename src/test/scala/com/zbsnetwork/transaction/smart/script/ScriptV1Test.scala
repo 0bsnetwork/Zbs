@@ -1,36 +1,36 @@
-package com.zbsplatform.transaction.smart.script
+package com.zbsnetwork.transaction.smart.script
 
-import com.zbsplatform.lang.v1.FunctionHeader
-import com.zbsplatform.lang.v1.compiler.Terms._
-import com.zbsplatform.lang.v1.testing.TypedScriptGen
-import com.zbsplatform.state.diffs.produce
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.lang.v1.FunctionHeader
+import com.zbsnetwork.lang.v1.compiler.Terms._
+import com.zbsnetwork.lang.v1.evaluator.FunctionIds._
+import com.zbsnetwork.lang.v1.evaluator.ctx.impl.PureContext
+import com.zbsnetwork.lang.v1.testing.TypedScriptGen
+import com.zbsnetwork.state.diffs._
+import com.zbsnetwork.transaction.smart.script.v1.ExprScript
 import org.scalatest.prop.PropertyChecks
 import org.scalatest.{Matchers, PropSpec}
-import scodec.bits.ByteVector
-import com.zbsplatform.transaction.smart.script.v1.ScriptV1
-import com.zbsplatform.lang.v1.evaluator.FunctionIds._
-import com.zbsplatform.lang.v1.evaluator.ctx.impl.PureContext
 
 class ScriptV1Test extends PropSpec with PropertyChecks with Matchers with TypedScriptGen {
 
   property("ScriptV1.apply should permit BOOLEAN scripts") {
     forAll(BOOLEANgen(10)) { expr =>
-      ScriptV1(expr) shouldBe 'right
+      ExprScript(expr) shouldBe 'right
     }
   }
 
   property("ScriptV1.apply should deny too complex scripts") {
-    val byteVector = CONST_BYTEVECTOR(ByteVector(1))
+    val byteStr = CONST_BYTESTR(ByteStr.fromBytes(1))
     val expr = (1 to 21)
       .map { _ =>
         FUNCTION_CALL(
           function = FunctionHeader.Native(SIGVERIFY),
-          args = List(byteVector, byteVector, byteVector)
+          args = List(byteStr, byteStr, byteStr)
         )
       }
       .reduceLeft[EXPR](IF(_, _, FALSE))
 
-    ScriptV1(expr) should produce("Script is too complex")
+    ExprScript(expr) should produce("Script is too complex")
   }
 
   property("ScriptV1.apply should deny too big scripts") {
@@ -47,21 +47,29 @@ class ScriptV1Test extends PropSpec with PropertyChecks with Matchers with Typed
       )
     }
 
-    ScriptV1(expr) should produce("Script is too large")
+    ExprScript(expr) should produce("Script is too large")
   }
 
   property("19 sigVerify should fit in maxSizeInBytes") {
-    val byteVector = CONST_BYTEVECTOR(ByteVector(1))
+    val byteStr = CONST_BYTESTR(ByteStr.fromBytes(1))
     val expr = (1 to 19)
       .map { _ =>
         FUNCTION_CALL(
           function = FunctionHeader.Native(SIGVERIFY),
-          args = List(byteVector, byteVector, byteVector)
+          args = List(byteStr, byteStr, byteStr)
         )
       }
       .reduceLeft[EXPR](IF(_, _, FALSE))
 
-    ScriptV1(expr) shouldBe 'right
+    ExprScript(expr) shouldBe 'right
+  }
+
+  property("Expression block version check - successful on very deep expressions(stack overflow check)") {
+    val expr = (1 to 100000).foldLeft[EXPR](CONST_LONG(0)) { (acc, _) =>
+      FUNCTION_CALL(FunctionHeader.Native(SUM_LONG), List(CONST_LONG(1), acc))
+    }
+
+    ExprScript.isExprContainsBlockV2(expr) shouldBe false
   }
 
 }

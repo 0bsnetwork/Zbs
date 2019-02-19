@@ -1,10 +1,10 @@
-package com.zbsplatform.lang.v1.compiler
+package com.zbsnetwork.lang.v1.compiler
 
 import cats.Monoid
-import com.zbsplatform.lang.v1.FunctionHeader
-import com.zbsplatform.lang.v1.compiler.CompilerContext._
-import com.zbsplatform.lang.v1.compiler.Types.{CASETYPEREF, FINAL}
-import com.zbsplatform.lang.v1.evaluator.ctx.{BaseFunction, CaseType, DefinedType, FunctionTypeSignature}
+import com.zbsnetwork.lang.v1.FunctionHeader
+import com.zbsnetwork.lang.v1.compiler.CompilerContext._
+import com.zbsnetwork.lang.v1.compiler.Types.{CASETYPEREF, FINAL}
+import com.zbsnetwork.lang.v1.evaluator.ctx.{BaseFunction, CaseType, DefinedType, FunctionTypeSignature}
 import shapeless._
 
 case class CompilerContext(predefTypes: Map[String, DefinedType], varDefs: VariableTypes, functionDefs: FunctionTypes, tmpArgsIdx: Int = 0) {
@@ -14,6 +14,7 @@ case class CompilerContext(predefTypes: Map[String, DefinedType], varDefs: Varia
   } ++ functionDefs
 
   def functionTypeSignaturesByName(name: String): List[FunctionTypeSignature] = allFuncDefs.getOrElse(name, List.empty)
+
 }
 
 object CompilerContext {
@@ -24,7 +25,7 @@ object CompilerContext {
     functionDefs = functions.groupBy(_.name).map { case (k, v) => k -> v.map(_.signature).toList }
   )
 
-  type VariableTypes = Map[String, FINAL]
+  type VariableTypes = Map[String, (FINAL, String)]
   type FunctionTypes = Map[String, List[FunctionTypeSignature]]
 
   val empty = CompilerContext(Map.empty, Map.empty, Map.empty, 0)

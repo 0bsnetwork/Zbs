@@ -1,15 +1,16 @@
-package com.zbsplatform.transaction.transfer
+package com.zbsnetwork.transaction.transfer
 
 import cats.implicits._
 import com.google.common.primitives.{Bytes, Longs}
-import com.zbsplatform.account.{AddressOrAlias, PublicKeyAccount}
-import com.zbsplatform.serialization.Deser
-import com.zbsplatform.transaction._
-import com.zbsplatform.transaction.validation._
-import com.zbsplatform.utils.{Base58, base58Length}
+import com.zbsnetwork.account.{AddressOrAlias, PublicKeyAccount}
+import com.zbsnetwork.common.utils.Base58
+import com.zbsnetwork.serialization.Deser
+import com.zbsnetwork.transaction._
+import com.zbsnetwork.transaction.validation._
+import com.zbsnetwork.utils.base58Length
 import monix.eval.Coeval
 import play.api.libs.json.{JsObject, Json}
-import scorex.crypto.signatures.Curve25519._
+import com.zbsnetwork.crypto._
 
 trait TransferTransaction extends ProvenTransaction with VersionedTransaction {
   def assetId: Option[AssetId]
@@ -51,9 +52,12 @@ trait TransferTransaction extends ProvenTransaction with VersionedTransaction {
       Deser.serializeArray(attachment)
     )
   }
+  override def checkedAssets(): Seq[AssetId] = assetId.toSeq
 }
 
 object TransferTransaction {
+
+  val typeId: Byte = 4
 
   val MaxAttachmentSize            = 140
   val MaxAttachmentStringSize: Int = base58Length(MaxAttachmentSize)

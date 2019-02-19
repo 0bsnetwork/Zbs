@@ -1,8 +1,8 @@
-package com.zbsplatform.actor
+package com.zbsnetwork.actor
 
 import akka.actor.{ActorSystem, AllForOneStrategy, SupervisorStrategy, SupervisorStrategyConfigurator}
 import com.typesafe.config.Config
-import com.zbsplatform.utils.ScorexLogging
+import com.zbsnetwork.utils.ScorexLogging
 
 import scala.concurrent.Await
 import scala.concurrent.duration.Duration

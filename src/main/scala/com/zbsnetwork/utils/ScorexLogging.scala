@@ -1,4 +1,4 @@
-package com.zbsplatform.utils
+package com.zbsnetwork.utils
 
 import com.google.common.util.concurrent.UncheckedExecutionException
 import monix.eval.Task

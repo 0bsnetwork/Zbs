@@ -1,18 +1,17 @@
-package com.zbsplatform.it.sync.transactions
+package com.zbsnetwork.it.sync.transactions
 
-import com.zbsplatform.it.api.SyncHttpApi._
-import com.zbsplatform.it.sync._
-import com.zbsplatform.it.transactions.BaseTransactionSuite
-import com.zbsplatform.it.util._
-import com.zbsplatform.state.EitherExt2
-import com.zbsplatform.utils.Base58
+import com.zbsnetwork.account.Alias
+import com.zbsnetwork.api.http.assets.{MassTransferRequest, SignedMassTransferRequest}
+import com.zbsnetwork.common.utils.{Base58, EitherExt2}
+import com.zbsnetwork.it.api.SyncHttpApi._
+import com.zbsnetwork.it.sync._
+import com.zbsnetwork.it.transactions.BaseTransactionSuite
+import com.zbsnetwork.it.util._
+import com.zbsnetwork.transaction.transfer.MassTransferTransaction.{MaxTransferCount, Transfer}
+import com.zbsnetwork.transaction.transfer.TransferTransaction.MaxAttachmentSize
+import com.zbsnetwork.transaction.transfer._
 import org.scalatest.CancelAfterFailure
 import play.api.libs.json._
-import com.zbsplatform.account.Alias
-import com.zbsplatform.api.http.assets.{MassTransferRequest, SignedMassTransferRequest}
-import com.zbsplatform.transaction.transfer.MassTransferTransaction.{MaxTransferCount, Transfer}
-import com.zbsplatform.transaction.transfer.TransferTransaction.MaxAttachmentSize
-import com.zbsplatform.transaction.transfer._
 
 import scala.concurrent.duration._
 import scala.util.Random
@@ -22,7 +21,6 @@ class MassTransferTransactionSuite extends BaseTransactionSuite with CancelAfter
   private def fakeSignature = Base58.encode(Array.fill(64)(Random.nextInt.toByte))
 
   test("asset mass transfer changes asset balances and sender's.zbs balance is decreased by fee.") {
-
     val (balance1, eff1) = notMiner.accountBalances(firstAddress)
     val (balance2, eff2) = notMiner.accountBalances(secondAddress)
 
@@ -41,7 +39,6 @@ class MassTransferTransactionSuite extends BaseTransactionSuite with CancelAfter
   }
 
   test("zbs mass transfer changes zbs balances") {
-
     val (balance1, eff1) = notMiner.accountBalances(firstAddress)
     val (balance2, eff2) = notMiner.accountBalances(secondAddress)
     val (balance3, eff3) = notMiner.accountBalances(thirdAddress)
@@ -97,22 +94,20 @@ class MassTransferTransactionSuite extends BaseTransactionSuite with CancelAfter
   }
 
   test("invalid transfer should not be in UTX or blockchain") {
-    import com.zbsplatform.transaction.transfer._
+    import com.zbsnetwork.transaction.transfer._
 
-    def request(version: Byte = MassTransferTransaction.version,
-                transfers: List[Transfer] = List(Transfer(secondAddress, transferAmount)),
+    def request(transfers: List[Transfer] = List(Transfer(secondAddress, transferAmount)),
                 fee: Long = calcMassTransferFee(1),
                 timestamp: Long = System.currentTimeMillis,
                 attachment: Array[Byte] = Array.emptyByteArray) = {
       val txEi = for {
         parsedTransfers <- MassTransferTransaction.parseTransfersList(transfers)
-        tx              <- MassTransferTransaction.selfSigned(version, None, sender.privateKey, parsedTransfers, timestamp, fee, attachment)
+        tx              <- MassTransferTransaction.selfSigned(None, sender.privateKey, parsedTransfers, timestamp, fee, attachment)
       } yield tx
 
       val (signature, idOpt) = txEi.fold(_ => (List(fakeSignature), None), tx => (tx.proofs.base58().toList, Some(tx.id())))
 
-      val req = SignedMassTransferRequest(version,
-                                          Base58.encode(sender.publicKey.publicKey),
+      val req = SignedMassTransferRequest(Base58.encode(sender.publicKey.publicKey),
                                           None,
                                           transfers,
                                           fee,
@@ -128,9 +123,9 @@ class MassTransferTransactionSuite extends BaseTransactionSuite with CancelAfter
 
     val (balance1, eff1) = notMiner.accountBalances(firstAddress)
     val invalidTransfers = Seq(
-      (request(timestamp = System.currentTimeMillis + 1.day.toMillis), "Transaction .* is from far future"),
+      (request(timestamp = System.currentTimeMillis + 1.day.toMillis), "Transaction timestamp .* is more than .*ms in the future"),
       (request(transfers = List.fill(MaxTransferCount + 1)(Transfer(secondAddress, 1)), fee = calcMassTransferFee(MaxTransferCount + 1)),
-       "Number of transfers is greater than 100"),
+       s"Number of transfers ${MaxTransferCount + 1} is greater than 100"),
       (request(transfers = List(Transfer(secondAddress, -1))), "One of the transfers has negative amount"),
       (request(fee = 0), "insufficient fee"),
       (request(fee = 99999), "Fee .* does not exceed minimal value"),
@@ -269,7 +264,7 @@ class MassTransferTransactionSuite extends BaseTransactionSuite with CancelAfter
     createAliasTxs.foreach(sender.waitForTransaction(_))
 
     val transfers = aliases.map { alias =>
-      Transfer(Alias.buildWithCurrentNetworkByte(alias).explicitGet().stringRepr, 2.zbs)
+      Transfer(Alias.buildWithCurrentChainId(alias).explicitGet().stringRepr, 2.zbs)
     }
     val txId = sender.massTransfer(firstAddress, transfers, 300000).id
     nodes.waitForHeightAriseAndTxPresent(txId)

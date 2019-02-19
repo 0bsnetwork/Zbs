@@ -1,38 +1,45 @@
-package com.zbsplatform.transaction.smart.script
+package com.zbsnetwork.transaction.smart.script
 
-import com.zbsplatform.crypto
-import com.zbsplatform.lang.ScriptVersion
-import com.zbsplatform.lang.ScriptVersion.Versions.V1
-import com.zbsplatform.lang.v1.Serde
-import com.zbsplatform.transaction.ValidationError.ScriptParseError
-import com.zbsplatform.transaction.smart.script.v1.ScriptV1
+import com.zbsnetwork.crypto
+import com.zbsnetwork.lang.contract.ContractSerDe
+import com.zbsnetwork.lang.v1.Serde
+import com.zbsnetwork.lang.{ScriptType, StdLibVersion}
+import com.zbsnetwork.transaction.ValidationError.ScriptParseError
+import com.zbsnetwork.transaction.smart.script.v1._
 
 object ScriptReader {
 
   val checksumLength = 4
 
   def fromBytes(bytes: Array[Byte]): Either[ScriptParseError, Script] = {
-    val checkSum         = bytes.takeRight(checksumLength)
-    val computedCheckSum = crypto.secureHash(bytes.dropRight(checksumLength)).take(checksumLength)
-    val version          = bytes.head
-    val scriptBytes      = bytes.drop(1).dropRight(checksumLength)
+    val checkSum          = bytes.takeRight(checksumLength)
+    val computedCheckSum  = crypto.secureHash(bytes.dropRight(checksumLength)).take(checksumLength)
+    val versionByte: Byte = bytes.head
+    val (scriptType, stdLibVersion, offset) =
+      if (versionByte == 0)
+        (ScriptType.parseVersion(bytes(1)), StdLibVersion.parseVersion(bytes(2)), 3)
+      else if (versionByte == StdLibVersion.V1.toByte || versionByte == StdLibVersion.V2.toByte)
+        (ScriptType.Expression, StdLibVersion(versionByte.toInt), 1)
+      else ???
+    val scriptBytes = bytes.drop(offset).dropRight(checksumLength)
 
-    for {
+    (for {
       _ <- Either.cond(checkSum.sameElements(computedCheckSum), (), ScriptParseError("Invalid checksum"))
-      sv <- ScriptVersion
-        .fromInt(version)
-        .fold[Either[ScriptParseError, ScriptVersion]](Left(ScriptParseError(s"Invalid version: $version")))(v => Right(v))
-      script <- sv match {
-        case V1 =>
-          ScriptV1
-            .validateBytes(scriptBytes)
-            .flatMap { _ =>
-              Serde.deserialize(scriptBytes).flatMap(ScriptV1(_, checkSize = false))
-            }
-            .left
-            .map(ScriptParseError)
+      s <- scriptType match {
+        case ScriptType.Expression =>
+          for {
+            _     <- ExprScript.validateBytes(scriptBytes)
+            bytes <- Serde.deserialize(scriptBytes).map(_._1)
+            s     <- ExprScript(stdLibVersion, bytes, checkSize = false)
+          } yield s
+        case ScriptType.Contract =>
+          for {
+            bytes <- ContractSerDe.deserialize(scriptBytes)
+            s     <- ContractScript(stdLibVersion, bytes)
+          } yield s
       }
-    } yield script
+    } yield s).left
+      .map(m => ScriptParseError(m.toString))
   }
 
 }

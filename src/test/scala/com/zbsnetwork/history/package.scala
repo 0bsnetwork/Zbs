@@ -1,15 +1,16 @@
-package com.zbsplatform
+package com.zbsnetwork
 
 import com.typesafe.config.ConfigFactory
-import com.zbsplatform.account.PrivateKeyAccount
-import com.zbsplatform.block.{Block, MicroBlock}
-import com.zbsplatform.consensus.nxt.NxtLikeConsensusBlockData
-import com.zbsplatform.features.BlockchainFeatures
-import com.zbsplatform.lagonaki.mocks.TestBlock
-import com.zbsplatform.settings.{BlockchainSettings, TestFunctionalitySettings, ZbsSettings}
-import com.zbsplatform.state._
-import com.zbsplatform.transaction.Transaction
-import scorex.crypto.signatures.Curve25519._
+import com.zbsnetwork.account.PrivateKeyAccount
+import com.zbsnetwork.block.{Block, MicroBlock}
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.consensus.nxt.NxtLikeConsensusBlockData
+import com.zbsnetwork.crypto._
+import com.zbsnetwork.features.BlockchainFeatures
+import com.zbsnetwork.lagonaki.mocks.TestBlock
+import com.zbsnetwork.settings.{BlockchainSettings, TestFunctionalitySettings, ZbsSettings}
+import com.zbsnetwork.transaction.Transaction
 
 package object history {
   val MaxTransactionsPerBlockDiff = 10

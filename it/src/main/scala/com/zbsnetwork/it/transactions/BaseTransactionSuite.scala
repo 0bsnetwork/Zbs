@@ -1,9 +1,9 @@
-package com.zbsplatform.it.transactions
+package com.zbsnetwork.it.transactions
 
 import java.io.File
 
 import com.typesafe.config.{Config, ConfigFactory}
-import com.zbsplatform.it._
+import com.zbsnetwork.it._
 import monix.eval.Coeval
 import org.scalatest.{BeforeAndAfterAll, FunSuite}
 
@@ -21,8 +21,8 @@ abstract class BaseTransactionSuite
 
   protected def nodeConfigs: Seq[Config] =
     NodeConfigs.newBuilder
-      .overrideBase(_.quorum(3))
-      .withDefault(3)
+      .overrideBase(_.quorum(0))
+      .withDefault(1)
       .withSpecial(_.nonMiner)
       .buildNonConflicting()
 

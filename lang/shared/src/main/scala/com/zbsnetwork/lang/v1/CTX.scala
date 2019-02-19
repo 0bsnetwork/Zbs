@@ -1,11 +1,20 @@
-package com.zbsplatform.lang.v1
+package com.zbsnetwork.lang.v1
 
 import cats.Monoid
-import com.zbsplatform.lang.v1.compiler.CompilerContext
-import com.zbsplatform.lang.v1.compiler.Types.FINAL
-import com.zbsplatform.lang.v1.evaluator.ctx._
+import com.zbsnetwork.lang.v1.FunctionHeader.Native
+import com.zbsnetwork.lang.v1.compiler.{CompilerContext, DecompilerContext}
+import com.zbsnetwork.lang.v1.compiler.Types.FINAL
+import com.zbsnetwork.lang.v1.evaluator.ctx._
 
-case class CTX(types: Seq[DefinedType], vars: Map[String, (FINAL, LazyVal)], functions: Seq[BaseFunction]) {
+import scala.annotation.meta.field
+import scala.scalajs.js.annotation._
+
+import com.zbsnetwork.lang.v1.parser.BinaryOperation
+
+@JSExportTopLevel("CTX")
+case class CTX(@(JSExport @field) types: Seq[DefinedType],
+               @(JSExport @field) vars: Map[String, ((FINAL, String), LazyVal)],
+               @(JSExport @field) functions: Array[BaseFunction]) {
   lazy val typeDefs = types.map(t => t.name -> t).toMap
   lazy val evaluationContext: EvaluationContext = {
     if (functions.map(_.header).distinct.size != functions.size) {
@@ -19,9 +28,28 @@ case class CTX(types: Seq[DefinedType], vars: Map[String, (FINAL, LazyVal)], fun
     varDefs = vars.mapValues(_._1),
     functionDefs = functions.groupBy(_.name).map { case (k, v) => k -> v.map(_.signature).toList }
   )
+
+  val opsNames = BinaryOperation.opsByPriority.flatten.map(x => BinaryOperation.opsToFunctions(x)).toSet
+
+  lazy val decompilerContext: DecompilerContext = DecompilerContext(
+    opCodes = compilerContext.functionDefs
+      .mapValues(_.map(_.header).filter(_.isInstanceOf[Native]).map(_.asInstanceOf[Native].name))
+      .toList
+      .flatMap { case (name, codes) => codes.map((_, name)) }
+      .toMap,
+    binaryOps = compilerContext.functionDefs
+      .filterKeys(opsNames(_))
+      .mapValues(_.map(_.header)
+        .filter(_.isInstanceOf[Native])
+        .map(_.asInstanceOf[Native].name))
+      .toList
+      .flatMap { case (name, codes) => codes.map((_, name)) }
+      .toMap
+  )
+
 }
 object CTX {
-  val empty = CTX(Seq.empty, Map.empty, Seq.empty)
+  val empty = CTX(Seq.empty, Map.empty, Array.empty)
 
   implicit val monoid: Monoid[CTX] = new Monoid[CTX] {
     override val empty: CTX                   = CTX.empty

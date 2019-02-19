@@ -1,17 +1,18 @@
-package com.zbsplatform.http
+package com.zbsnetwork.http
 
-import com.zbsplatform.http.ApiMarshallers._
-import com.zbsplatform.state.{Diff, EitherExt2}
-import com.zbsplatform.utx.UtxPool
-import com.zbsplatform.{NoShrink, TestWallet, TransactionGen}
+import com.zbsnetwork.api.http.{ApiKeyNotValid, PaymentApiRoute}
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.http.ApiMarshallers._
+import com.zbsnetwork.state.Diff
+import com.zbsnetwork.transaction.Transaction
+import com.zbsnetwork.transaction.transfer._
+import com.zbsnetwork.utils.Time
+import com.zbsnetwork.utx.UtxPool
+import com.zbsnetwork.{NoShrink, TestWallet, TransactionGen}
 import io.netty.channel.group.ChannelGroup
 import org.scalamock.scalatest.MockFactory
 import org.scalatest.prop.PropertyChecks
 import play.api.libs.json.{JsObject, Json}
-import com.zbsplatform.api.http.{ApiKeyNotValid, PaymentApiRoute}
-import com.zbsplatform.utils.Time
-import com.zbsplatform.transaction.Transaction
-import com.zbsplatform.transaction.transfer._
 
 class PaymentRouteSpec
     extends RouteSpec("/payment")

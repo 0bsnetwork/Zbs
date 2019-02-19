@@ -1,17 +1,20 @@
-package com.zbsplatform.state.diffs
+package com.zbsnetwork.state.diffs
 
 import java.util.concurrent.ThreadLocalRandom
 
-import com.zbsplatform.BlockGen
-import com.zbsplatform.account.PrivateKeyAccount
-import com.zbsplatform.block.Block
-import com.zbsplatform.db.WithState
-import com.zbsplatform.lagonaki.mocks.TestBlock
-import com.zbsplatform.settings.FunctionalitySettings
-import com.zbsplatform.state.{Blockchain, Diff, EitherExt2}
-import com.zbsplatform.transaction.GenesisTransaction
+import com.zbsnetwork.BlockGen
+import com.zbsnetwork.account.PrivateKeyAccount
+import com.zbsnetwork.block.Block
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.crypto._
+import com.zbsnetwork.db.WithState
+import com.zbsnetwork.lagonaki.mocks.TestBlock
+import com.zbsnetwork.settings.FunctionalitySettings
+import com.zbsnetwork.state.{Blockchain, Diff}
+import com.zbsnetwork.transaction.GenesisTransaction
 import org.scalatest.{FreeSpecLike, Matchers}
-import scorex.crypto.signatures.Curve25519._
+import com.zbsnetwork.crypto._
+import scala.concurrent.duration._
 
 class BlockDifferTest extends FreeSpecLike with Matchers with BlockGen with WithState {
 
@@ -114,7 +117,6 @@ class BlockDifferTest extends FreeSpecLike with Matchers with BlockGen with With
       featureCheckBlocksPeriod = ngAtHeight / 2,
       blocksForFeatureActivation = 1,
       allowTemporaryNegativeUntil = 0L,
-      requireSortedTransactionsAfter = 0L,
       generationBalanceDepthFrom50To1000AfterHeight = 0,
       minimalGeneratingBalanceAfter = 0L,
       allowTransactionsFromFutureUntil = Long.MaxValue,
@@ -124,7 +126,9 @@ class BlockDifferTest extends FreeSpecLike with Matchers with BlockGen with With
       resetEffectiveBalancesAtHeight = 0,
       blockVersion3AfterHeight = 0,
       preActivatedFeatures = Map[Short, Int]((2, ngAtHeight)),
-      doubleFeaturesPeriodsAfterHeight = Int.MaxValue
+      doubleFeaturesPeriodsAfterHeight = Int.MaxValue,
+      maxTransactionTimeBackOffset = 120.minutes,
+      maxTransactionTimeForwardOffset = 90.minutes
     )
     assertNgDiffState(blocks.init, blocks.last, fs)(assertion)
   }

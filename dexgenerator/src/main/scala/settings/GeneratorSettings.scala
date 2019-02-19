@@ -4,9 +4,9 @@ import java.net.InetSocketAddress
 
 import cats.Show
 import cats.implicits.showInterpolator
-import com.zbsplatform.account.PrivateKeyAccount
-import com.zbsplatform.dexgen._
-import com.zbsplatform.wallet.Wallet
+import com.zbsnetwork.account.PrivateKeyAccount
+import com.zbsnetwork.dexgen._
+import com.zbsnetwork.wallet.Wallet
 
 case class GeneratorSettings(chainId: String,
                              richAccounts: Seq[String],

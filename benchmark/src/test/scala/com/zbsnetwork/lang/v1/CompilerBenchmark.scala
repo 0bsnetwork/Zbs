@@ -1,11 +1,12 @@
-package com.zbsplatform.lang.v1
+package com.zbsnetwork.lang.v1
 
 import java.util.concurrent.TimeUnit
 
-import com.zbsplatform.lang.v1.CompilerBenchmark.St
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.lang.v1.CompilerBenchmark.St
+import com.zbsnetwork.transaction.smart.script.ScriptCompiler
 import org.openjdk.jmh.annotations._
 import org.openjdk.jmh.infra.Blackhole
-import com.zbsplatform.transaction.smart.script.ScriptCompiler
 
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @BenchmarkMode(Array(Mode.AverageTime))
@@ -16,7 +17,7 @@ import com.zbsplatform.transaction.smart.script.ScriptCompiler
 class CompilerBenchmark {
 
   @Benchmark
-  def serialize_test(st: St, bh: Blackhole): Unit = bh.consume(ScriptCompiler(st.scriptString).explicitGet()._1)
+  def serialize_test(st: St, bh: Blackhole): Unit = bh.consume(ScriptCompiler(st.scriptString, isAssetScript = false).explicitGet()._1)
 }
 
 object CompilerBenchmark {

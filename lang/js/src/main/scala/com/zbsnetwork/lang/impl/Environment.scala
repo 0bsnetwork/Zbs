@@ -1,6 +1,7 @@
-package com.zbsplatform.lang.impl
+package com.zbsnetwork.lang.impl
 
-import com.zbsplatform.lang.v1.traits.{DataType, Recipient, Tx}
+import com.zbsnetwork.lang.v1.traits.DataType
+import com.zbsnetwork.lang.v1.traits.domain.{Recipient, Tx}
 
 import scala.scalajs.js.annotation.JSGlobalScope
 import scala.scalajs.{js => platform}
@@ -8,12 +9,13 @@ import scala.scalajs.{js => platform}
 @platform.native
 @JSGlobalScope
 object Environment extends scalajs.js.Object {
-  def height: Int       = platform.native
-  def networkByte: Byte = platform.native
+  type InputEntity = com.zbsnetwork.lang.v1.traits.Environment.InputEntity
+  def height: Long  = platform.native
+  def chainId: Byte = platform.native
 
-  def transaction: Tx                                     = platform.native
-  def transactionById(id: Array[Byte]): Option[Tx]        = platform.native
-  def transactionHeightById(id: Array[Byte]): Option[Int] = platform.native
+  def inputEntity: InputEntity                             = platform.native
+  def transactionById(id: Array[Byte]): Option[Tx]         = platform.native
+  def transactionHeightById(id: Array[Byte]): Option[Long] = platform.native
 
   def data(addressBytes: Recipient, key: String, dataType: DataType): Option[Any] = platform.native
 

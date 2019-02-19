@@ -1,14 +1,15 @@
-package com.zbsplatform.lang.v1
+package com.zbsnetwork.lang.v1
 
 import java.util.concurrent.{ThreadLocalRandom, TimeUnit}
 
-import com.zbsplatform.lang.{Common, Global}
-import com.zbsplatform.lang.v1.EnvironmentFunctionsBenchmark._
-import com.zbsplatform.lang.v1.evaluator.ctx.impl.EnvironmentFunctions
-import com.zbsplatform.lang.v1.traits._
-import com.zbsplatform.state.EitherExt2
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.lang.v1.EnvironmentFunctionsBenchmark._
+import com.zbsnetwork.lang.v1.evaluator.ctx.impl.EnvironmentFunctions
+import com.zbsnetwork.lang.v1.traits._
+import com.zbsnetwork.lang.v1.traits.domain.{Recipient, Tx}
+import com.zbsnetwork.lang.{Common, Global}
 import org.openjdk.jmh.annotations._
-import scodec.bits.ByteVector
 import scorex.crypto.signatures.{Curve25519, PrivateKey, PublicKey, Signature}
 
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
@@ -62,25 +63,25 @@ class EnvironmentFunctionsBenchmark {
   }
 
   @Benchmark
-  def addressFromPublicKey_test(): ByteVector = randomAddress
+  def addressFromPublicKey_test(): ByteStr = randomAddress
 
 }
 
 object EnvironmentFunctionsBenchmark {
 
-  val NetworkByte: Byte = 'P'
+  val ChainId: Byte     = 'P'
   val Base58BytesLength = Global.MaxBase58Bytes
   val DataBytesLength   = 512
   val SeedBytesLength   = 128
 
   private val defaultEnvironment: Environment = new Environment {
-    override def height: Int                                                                                     = 1
-    override def networkByte: Byte                                                                               = NetworkByte
-    override def transaction: Tx                                                                                 = ???
+    override def height: Long                                                                                    = 1
+    override def chainId: Byte                                                                                   = ChainId
+    override def inputEntity: Environment.InputEntity                                                            = ???
     override def transactionById(id: Array[Byte]): Option[Tx]                                                    = ???
     override def data(recipient: Recipient, key: String, dataType: DataType): Option[Any]                        = ???
     override def resolveAlias(alias: String): Either[String, Recipient.Address]                                  = ???
-    override def transactionHeightById(id: Array[Byte]): Option[Int]                                             = ???
+    override def transactionHeightById(id: Array[Byte]): Option[Long]                                            = ???
     override def accountBalanceOf(addressOrAlias: Recipient, assetId: Option[Array[Byte]]): Either[String, Long] = ???
   }
 
@@ -92,7 +93,7 @@ object EnvironmentFunctionsBenchmark {
     bytes
   }
 
-  def randomAddress: ByteVector = ByteVector(Common.addressFromPublicKey(NetworkByte, randomBytes(Curve25519.KeyLength)))
+  def randomAddress: ByteStr = ByteStr(Common.addressFromPublicKey(ChainId, randomBytes(Curve25519.KeyLength)))
 
   def hashTest[T](f: Array[Byte] => T): T           = f(randomBytes(DataBytesLength))
   def hashTest[T](len: Int, f: Array[Byte] => T): T = f(randomBytes(len))

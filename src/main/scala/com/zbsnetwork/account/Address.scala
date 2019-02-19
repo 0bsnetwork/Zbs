@@ -1,12 +1,13 @@
-package com.zbsplatform.account
+package com.zbsnetwork.account
 
 import java.nio.ByteBuffer
 
-import com.zbsplatform.crypto
-import com.zbsplatform.state.ByteStr
-import com.zbsplatform.utils.{Base58, ScorexLogging, base58Length}
-import com.zbsplatform.transaction.ValidationError
-import com.zbsplatform.transaction.ValidationError.InvalidAddress
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.Base58
+import com.zbsnetwork.crypto
+import com.zbsnetwork.transaction.ValidationError
+import com.zbsnetwork.transaction.ValidationError.InvalidAddress
+import com.zbsnetwork.utils.{ScorexLogging, base58Length}
 
 sealed trait Address extends AddressOrAlias {
   val bytes: ByteStr

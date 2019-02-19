@@ -1,4 +1,4 @@
-package com.zbsplatform.settings
+package com.zbsnetwork.settings
 
 import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._

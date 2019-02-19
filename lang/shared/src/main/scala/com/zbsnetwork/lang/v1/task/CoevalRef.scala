@@ -1,4 +1,4 @@
-package com.zbsplatform.lang.v1.task
+package com.zbsnetwork.lang.v1.task
 
 import monix.eval.Coeval
 import monix.execution.atomic.{Atomic, _}

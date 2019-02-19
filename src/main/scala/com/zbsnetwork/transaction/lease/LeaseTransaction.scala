@@ -1,11 +1,11 @@
-package com.zbsplatform.transaction.lease
+package com.zbsnetwork.transaction.lease
 
 import com.google.common.primitives.{Bytes, Longs}
 import monix.eval.Coeval
 import play.api.libs.json.{JsObject, Json}
-import com.zbsplatform.account.{Address, AddressOrAlias, PublicKeyAccount}
-import com.zbsplatform.transaction.{AssetId, ProvenTransaction, ValidationError, VersionedTransaction}
-import scorex.crypto.signatures.Curve25519._
+import com.zbsnetwork.account.{Address, AddressOrAlias, PublicKeyAccount}
+import com.zbsnetwork.transaction.{AssetId, ProvenTransaction, ValidationError, VersionedTransaction}
+import com.zbsnetwork.crypto._
 import scala.util.Try
 
 trait LeaseTransaction extends ProvenTransaction with VersionedTransaction {
@@ -28,6 +28,8 @@ trait LeaseTransaction extends ProvenTransaction with VersionedTransaction {
 }
 
 object LeaseTransaction {
+
+  val typeId: Byte = 8
 
   object Status {
     val Active   = "active"

@@ -1,23 +1,25 @@
-package com.zbsplatform.dexgen
+package com.zbsnetwork.dexgen
 
 import java.util.concurrent.Executors
 
 import cats.implicits.showInterpolator
+import cats.instances.byte
 import com.typesafe.config.ConfigFactory
-import com.zbsplatform.account.{AddressOrAlias, AddressScheme, PrivateKeyAccount}
-import com.zbsplatform.api.http.assets.{SignedIssueV1Request, SignedMassTransferRequest}
-import com.zbsplatform.dexgen.cli.ScoptImplicits
-import com.zbsplatform.dexgen.config.FicusImplicits
-import com.zbsplatform.dexgen.utils.{ApiRequests, GenOrderType}
-import com.zbsplatform.it.api.Transaction
-import com.zbsplatform.it.util.GlobalTimer
-import com.zbsplatform.network.client.NetworkSender
-import com.zbsplatform.state.ByteStr
-import com.zbsplatform.transaction.AssetId
-import com.zbsplatform.transaction.assets.IssueTransactionV1
-import com.zbsplatform.transaction.transfer.MassTransferTransaction
-import com.zbsplatform.transaction.transfer.MassTransferTransaction.ParsedTransfer
-import com.zbsplatform.utils.LoggerFacade
+import com.zbsnetwork.account.{AddressOrAlias, AddressScheme, PrivateKeyAccount}
+import com.zbsnetwork.api.http.assets.{SignedIssueV2Request, SignedMassTransferRequest}
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.dexgen.cli.ScoptImplicits
+import com.zbsnetwork.dexgen.config.FicusImplicits
+import com.zbsnetwork.dexgen.utils.{ApiRequests, GenOrderType}
+import com.zbsnetwork.it.api.Transaction
+import com.zbsnetwork.it.util.GlobalTimer
+import com.zbsnetwork.network.client.NetworkSender
+import com.zbsnetwork.transaction.AssetId
+import com.zbsnetwork.transaction.assets.IssueTransactionV2
+import com.zbsnetwork.transaction.transfer.MassTransferTransaction
+import com.zbsnetwork.transaction.transfer.MassTransferTransaction.ParsedTransfer
+import com.zbsnetwork.utils.LoggerFacade
+import com.zbsnetwork.common.utils.EitherExt2
 import net.ceedubs.ficus.Ficus._
 import net.ceedubs.ficus.readers.ArbitraryTypeReader._
 import net.ceedubs.ficus.readers.{EnumerationReader, NameMapper}
@@ -67,35 +69,39 @@ object DexGenApp extends App with ScoptImplicits with FicusImplicits with Enumer
   }
 
   implicit val signedMassTransferRequestWrites: Writes[SignedMassTransferRequest] =
-    Json.writes[SignedMassTransferRequest].transform((jsobj: JsObject) => jsobj + ("type" -> JsNumber(MassTransferTransaction.typeId.toInt)))
+    Json
+      .writes[SignedMassTransferRequest]
+      .transform((jsobj: JsObject) => jsobj + ("version" -> JsNumber(1)) + ("type" -> JsNumber(MassTransferTransaction.typeId.toInt)))
 
   val defaultConfig = ConfigFactory.load().as[GeneratorSettings]("generator")
+  AddressScheme.current = new AddressScheme { override val chainId: Byte = defaultConfig.chainId.head.toByte }
 
   def issueAssets(endpoint: String, richAddressSeed: String, n: Int)(implicit tag: String): Seq[AssetId] = {
     val node = api.to(endpoint)
 
-    val assetsTx: Seq[IssueTransactionV1] = (1 to n).map { i =>
-      IssueTransactionV1
+    val assetsTx: Seq[IssueTransactionV2] = (1 to n).map { i =>
+      IssueTransactionV2
         .selfSigned(
-          PrivateKeyAccount.fromSeed(richAddressSeed).right.get,
+          chainId = AddressScheme.current.chainId,
           name = s"asset$i".getBytes(),
           description = s"asset description - $i".getBytes(),
-          quantity = 99999999999999999L,
+          quantity = 999999999999999L,
           decimals = 2,
           reissuable = false,
           fee = 100000000,
-          timestamp = System.currentTimeMillis()
+          timestamp = System.currentTimeMillis(),
+          sender = PrivateKeyAccount.fromSeed(richAddressSeed).explicitGet(),
+          script = None
         )
-        .right
-        .get
+        .explicitGet()
     }
 
     val tradingAssets: Seq[AssetId]                    = assetsTx.map(tx => tx.id())
-    val signedIssueRequests: Seq[SignedIssueV1Request] = assetsTx.map(tx => api.createSignedIssueRequest(tx))
+    val signedIssueRequests: Seq[SignedIssueV2Request] = assetsTx.map(tx => api.createSignedIssueRequest(tx))
 
     val issued: Seq[Future[Transaction]] = signedIssueRequests
       .map { txReq =>
-        node.signedIssue(txReq).flatMap { tx =>
+        node.broadcastRequest(txReq).flatMap { tx =>
           node.waitForTransaction(tx.id)
         }
       }
@@ -130,7 +136,6 @@ object DexGenApp extends App with ScoptImplicits with FicusImplicits with Enumer
           val assetsTransfers = parsedTransfersList(endpoint, assetId, transferAmount, richAccountPk, accounts)
           val tx = MassTransferTransaction
             .selfSigned(
-              version = MassTransferTransaction.version,
               assetId = assetId,
               sender = richAccountPk,
               transfers = assetsTransfers,

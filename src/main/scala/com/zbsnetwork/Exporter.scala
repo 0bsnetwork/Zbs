@@ -1,16 +1,18 @@
-package com.zbsplatform
+package com.zbsnetwork
 
 import java.io.{BufferedOutputStream, File, FileOutputStream, OutputStream}
 import java.nio.charset.StandardCharsets
 
 import com.google.common.primitives.Ints
 import com.typesafe.config.ConfigFactory
-import com.zbsplatform.account.AddressScheme
-import com.zbsplatform.db.openDB
-import com.zbsplatform.history.StorageFactory
-import com.zbsplatform.settings.{ZbsSettings, loadConfig}
-import com.zbsplatform.state.Blockchain
-import com.zbsplatform.utils._
+import com.zbsnetwork.account.AddressScheme
+import com.zbsnetwork.db.openDB
+import com.zbsnetwork.history.StorageFactory
+import com.zbsnetwork.settings.{ZbsSettings, loadConfig}
+import com.zbsnetwork.state.Blockchain
+import com.zbsnetwork.utils._
+import monix.execution.UncaughtExceptionReporter
+import monix.reactive.Observer
 import org.slf4j.bridge.SLF4JBridgeHandler
 
 import scala.util.{Failure, Success, Try}
@@ -30,8 +32,9 @@ object Exporter extends ScorexLogging {
       override val chainId: Byte = settings.blockchainSettings.addressSchemeCharacter.toByte
     }
 
+    val time             = new NTP(settings.ntpServer)
     val db               = openDB(settings.dataDirectory)
-    val blockchain       = StorageFactory(settings, db, NTP)
+    val blockchain       = StorageFactory(settings, db, time, Observer.empty(UncaughtExceptionReporter.LogExceptionsToStandardErr))
     val blockchainHeight = blockchain.height
     val height           = Math.min(blockchainHeight, exportHeight.getOrElse(blockchainHeight))
     log.info(s"Blockchain height is $blockchainHeight exporting to $height")
@@ -56,6 +59,8 @@ object Exporter extends ScorexLogging {
         output.close()
       case Failure(ex) => log.error(s"Failed to create file '$outputFilename': $ex")
     }
+
+    time.close()
   }
 
   private def createOutputStream(filename: String): Try[FileOutputStream] =

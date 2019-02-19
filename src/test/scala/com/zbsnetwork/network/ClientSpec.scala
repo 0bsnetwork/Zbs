@@ -1,8 +1,8 @@
-package com.zbsplatform.network
+package com.zbsnetwork.network
 
 import java.util.concurrent.ConcurrentHashMap
 
-import com.zbsplatform.{TransactionGen, Version}
+import com.zbsnetwork.{TransactionGen, Version}
 import io.netty.buffer.{ByteBuf, Unpooled}
 import io.netty.channel.Channel
 import io.netty.channel.embedded.EmbeddedChannel

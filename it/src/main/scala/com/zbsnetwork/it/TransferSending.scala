@@ -1,17 +1,17 @@
-package com.zbsplatform.it
+package com.zbsnetwork.it
 
 import java.util.concurrent.ThreadLocalRandom
 
 import com.typesafe.config.Config
-import com.zbsplatform.it.TransferSending.Req
-import com.zbsplatform.it.api.AsyncHttpApi._
-import com.zbsplatform.it.api.Transaction
-import com.zbsplatform.state.EitherExt2
-import com.zbsplatform.utils.{Base58, ScorexLogging}
+import com.zbsnetwork.account.{Address, AddressOrAlias, AddressScheme, PrivateKeyAccount}
+import com.zbsnetwork.api.http.assets.SignedTransferV2Request
+import com.zbsnetwork.common.utils.{Base58, EitherExt2}
+import com.zbsnetwork.it.TransferSending.Req
+import com.zbsnetwork.it.api.AsyncHttpApi._
+import com.zbsnetwork.it.api.Transaction
+import com.zbsnetwork.transaction.transfer._
+import com.zbsnetwork.utils.ScorexLogging
 import org.scalatest.Suite
-import com.zbsplatform.account.{Address, AddressOrAlias, AddressScheme, PrivateKeyAccount}
-import com.zbsplatform.api.http.assets.SignedTransferV2Request
-import com.zbsplatform.transaction.transfer._
 
 import scala.concurrent.Future
 import scala.util.Random
@@ -121,8 +121,7 @@ trait TransferSending extends ScorexLogging {
                 feeAmount = x.fee,
                 attachment = if (includeAttachment) {
                   Array.fill(TransferTransaction.MaxAttachmentSize)(ThreadLocalRandom.current().nextInt().toByte)
-                } else Array.emptyByteArray,
-                version = 2
+                } else Array.emptyByteArray
               )
               .right
               .get)
@@ -145,7 +144,6 @@ trait TransferSending extends ScorexLogging {
       feeAssetId.map(_.base58),
       fee,
       timestamp,
-      2,
       attachment.headOption.map(_ => Base58.encode(attachment)),
       proofs.base58().toList
     )

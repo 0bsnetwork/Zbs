@@ -1,12 +1,13 @@
-package com.zbsplatform
+package com.zbsnetwork
 
-import com.zbsplatform.utils.base58Length
-import com.zbsplatform.block.{Block, MicroBlock}
+import com.zbsnetwork.utils.base58Length
+import com.zbsnetwork.block.{Block, MicroBlock}
+import com.zbsnetwork.common.state.ByteStr
 
 package object transaction {
 
-  type AssetId = com.zbsplatform.state.ByteStr
-  val AssetIdLength: Int       = com.zbsplatform.crypto.DigestSize
+  type AssetId = ByteStr
+  val AssetIdLength: Int       = com.zbsnetwork.crypto.DigestSize
   val AssetIdStringLength: Int = base58Length(AssetIdLength)
   type DiscardedTransactions = Seq[Transaction]
   type DiscardedBlocks       = Seq[Block]

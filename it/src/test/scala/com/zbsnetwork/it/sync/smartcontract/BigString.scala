@@ -1,20 +1,17 @@
-package com.zbsplatform.it.sync.smartcontract
+package com.zbsnetwork.it.sync.smartcontract
 
-import com.zbsplatform.crypto
-import com.zbsplatform.it.api.SyncHttpApi._
-import com.zbsplatform.it.sync.{minFee, transferAmount}
-import com.zbsplatform.it.transactions.BaseTransactionSuite
-import com.zbsplatform.it.util._
-import com.zbsplatform.lang.v1.compiler.CompilerV1
-import com.zbsplatform.lang.v1.parser.Parser
-import com.zbsplatform.state._
-import com.zbsplatform.transaction.Proofs
-import com.zbsplatform.transaction.lease.LeaseTransactionV2
-import com.zbsplatform.transaction.smart.SetScriptTransaction
-import com.zbsplatform.transaction.smart.script.v1.ScriptV1
-import com.zbsplatform.utils.{Base58, dummyCompilerContext}
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.{Base58, EitherExt2}
+import com.zbsnetwork.crypto
+import com.zbsnetwork.it.api.SyncHttpApi._
+import com.zbsnetwork.it.sync.{minFee, setScriptFee, transferAmount}
+import com.zbsnetwork.it.transactions.BaseTransactionSuite
+import com.zbsnetwork.it.util._
+import com.zbsnetwork.transaction.Proofs
+import com.zbsnetwork.transaction.lease.LeaseTransactionV2
+import com.zbsnetwork.transaction.smart.SetScriptTransaction
+import com.zbsnetwork.transaction.smart.script.ScriptCompiler
 import org.scalatest.CancelAfterFailure
-import play.api.libs.json.JsNumber
 
 class BigString extends BaseTransactionSuite with CancelAfterFailure {
   private val acc0 = pkByAddress(firstAddress)
@@ -30,31 +27,28 @@ class BigString extends BaseTransactionSuite with CancelAfterFailure {
 
     notMiner.assertBalances(firstAddress, balance1 + 10 * transferAmount, eff1 + 10 * transferAmount)
 
-    val scriptText = {
-      val sc = Parser(s"""
+    val scriptText = s"""
         let pkA = base58'${ByteStr(acc0.publicKey)}'
         let pkB = base58'${ByteStr(acc1.publicKey)}'
         let pkC = base58'${ByteStr(acc2.publicKey)}'
 
         let a0 = "йцукенгшщзхъфывапролдячсмитьбюйцукпврарвараравртавтрвапваппвпавп"
         ${(for (b <- 1 to 20) yield { "let a" + b + "=a" + (b - 1) + "+a" + (b - 1) }).mkString("\n")}
-        
+
         a20 == a0 || match tx {
           case ltx: LeaseTransaction => sigVerify(ltx.bodyBytes,ltx.proofs[0],pkA) && sigVerify(ltx.bodyBytes,ltx.proofs[2],pkC)
           case lctx : LeaseCancelTransaction => sigVerify(lctx.bodyBytes,lctx.proofs[1],pkA) && sigVerify(lctx.bodyBytes,lctx.proofs[2],pkB)
           case other => false
         }
-        """.stripMargin).get.value
-      CompilerV1(dummyCompilerContext, sc).explicitGet()._1
-    }
+        """.stripMargin
 
-    val script = ScriptV1(scriptText).explicitGet()
+    val script = ScriptCompiler(scriptText, isAssetScript = false).explicitGet()._1
     val setScriptTransaction = SetScriptTransaction
-      .selfSigned(SetScriptTransaction.supportedVersions.head, acc0, Some(script), minFee, System.currentTimeMillis())
+      .selfSigned(acc0, Some(script), setScriptFee, System.currentTimeMillis())
       .explicitGet()
 
     val setScriptId = sender
-      .signedBroadcast(setScriptTransaction.json() + ("type" -> JsNumber(SetScriptTransaction.typeId.toInt)))
+      .signedBroadcast(setScriptTransaction.json())
       .id
 
     nodes.waitForHeightAriseAndTxPresent(setScriptId)
@@ -62,7 +56,6 @@ class BigString extends BaseTransactionSuite with CancelAfterFailure {
     val unsignedLeasing =
       LeaseTransactionV2
         .create(
-          2,
           acc0,
           transferAmount,
           minFee + 0.2.zbs,
@@ -78,15 +71,14 @@ class BigString extends BaseTransactionSuite with CancelAfterFailure {
     val signedLeasing =
       unsignedLeasing.copy(proofs = Proofs(Seq(sigLeasingA, ByteStr.empty, sigLeasingC)))
 
-    assertBadRequestAndMessage(sender.signedBroadcast(signedLeasing.json() + ("type" -> JsNumber(LeaseTransactionV2.typeId.toInt))).id,
-                               "String is too large")
+    assertBadRequestAndMessage(sender.signedBroadcast(signedLeasing.json()).id, "String is too large")
 
     val leasingId = Base58.encode(unsignedLeasing.id().arr)
 
     nodes.waitForHeightArise()
     nodes(0).findTransactionInfo(leasingId) shouldBe None
 
-    notMiner.assertBalances(firstAddress, balance1 + 10 * transferAmount - minFee, eff1 + 10 * transferAmount - minFee)
+    notMiner.assertBalances(firstAddress, balance1 + 10 * transferAmount - setScriptFee, eff1 + 10 * transferAmount - setScriptFee)
     notMiner.assertBalances(thirdAddress, balance2, eff2)
 
   }

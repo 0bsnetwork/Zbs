@@ -1,7 +1,7 @@
-package com.zbsplatform.settings
+package com.zbsnetwork.settings
 
-import com.zbsplatform.Version
-import com.zbsplatform.utils.ScorexLogging
+import com.zbsnetwork.Version
+import com.zbsnetwork.utils.ScorexLogging
 
 /**
   * System constants here.

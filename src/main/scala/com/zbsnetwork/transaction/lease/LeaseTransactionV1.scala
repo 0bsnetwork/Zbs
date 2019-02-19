@@ -1,12 +1,13 @@
-package com.zbsplatform.transaction.lease
+package com.zbsnetwork.transaction.lease
 
 import com.google.common.primitives.Bytes
-import com.zbsplatform.crypto
-import com.zbsplatform.state.ByteStr
+import com.zbsnetwork.crypto
 import monix.eval.Coeval
-import com.zbsplatform.account.{AddressOrAlias, PrivateKeyAccount, PublicKeyAccount}
-import com.zbsplatform.transaction._
-import scorex.crypto.signatures.Curve25519.SignatureLength
+import com.zbsnetwork.account.{AddressOrAlias, PrivateKeyAccount, PublicKeyAccount}
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.transaction._
+import com.zbsnetwork.crypto.SignatureLength
+
 import scala.util.{Failure, Success, Try}
 
 case class LeaseTransactionV1 private (sender: PublicKeyAccount,
@@ -22,14 +23,15 @@ case class LeaseTransactionV1 private (sender: PublicKeyAccount,
   override val builder: TransactionParser = LeaseTransactionV1
   val bodyBytes: Coeval[Array[Byte]]      = Coeval.evalOnce(Bytes.concat(Array(builder.typeId), bytesBase()))
   override val bytes: Coeval[Array[Byte]] = Coeval.evalOnce(Bytes.concat(bodyBytes(), signature.arr))
-  override def version: Byte              = 1
+
+  override def version: Byte = 1
 }
 
 object LeaseTransactionV1 extends TransactionParserFor[LeaseTransactionV1] with TransactionParser.HardcodedVersion1 {
 
-  override val typeId: Byte = 8
+  override val typeId: Byte = LeaseTransaction.typeId
 
-  override protected def parseTail(version: Byte, bytes: Array[Byte]): Try[TransactionT] =
+  override protected def parseTail(bytes: Array[Byte]): Try[TransactionT] = {
     Try {
       (for {
         parsed <- LeaseTransaction.parseBase(bytes, 0)
@@ -38,16 +40,18 @@ object LeaseTransactionV1 extends TransactionParserFor[LeaseTransactionV1] with 
         lt <- LeaseTransactionV1.create(sender, quantity, fee, timestamp, recipient, signature)
       } yield lt).fold(left => Failure(new Exception(left.toString)), right => Success(right))
     }.flatten
+  }
 
   def create(sender: PublicKeyAccount,
              amount: Long,
              fee: Long,
              timestamp: Long,
              recipient: AddressOrAlias,
-             signature: ByteStr): Either[ValidationError, TransactionT] =
+             signature: ByteStr): Either[ValidationError, TransactionT] = {
     LeaseTransaction
       .validateLeaseParams(amount, fee, recipient, sender)
       .map(_ => LeaseTransactionV1(sender, amount, fee, timestamp, recipient, signature))
+  }
 
   def signed(sender: PublicKeyAccount,
              amount: Long,

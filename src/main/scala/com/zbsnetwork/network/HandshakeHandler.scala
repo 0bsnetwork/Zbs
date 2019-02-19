@@ -1,10 +1,10 @@
-package com.zbsplatform.network
+package com.zbsnetwork.network
 
 import java.util
 import java.util.concurrent.{ConcurrentMap, TimeUnit}
 
-import com.zbsplatform.network.Handshake.InvalidHandshakeException
-import com.zbsplatform.utils.ScorexLogging
+import com.zbsnetwork.network.Handshake.InvalidHandshakeException
+import com.zbsnetwork.utils.ScorexLogging
 import io.netty.buffer.ByteBuf
 import io.netty.channel.ChannelHandler.Sharable
 import io.netty.channel._

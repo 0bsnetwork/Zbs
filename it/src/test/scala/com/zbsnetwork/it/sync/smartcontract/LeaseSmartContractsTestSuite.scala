@@ -1,21 +1,18 @@
-package com.zbsplatform.it.sync.smartcontract
+package com.zbsnetwork.it.sync.smartcontract
 
-import com.zbsplatform.crypto
-import com.zbsplatform.it.api.SyncHttpApi._
-import com.zbsplatform.it.sync.{minFee, transferAmount}
-import com.zbsplatform.it.transactions.BaseTransactionSuite
-import com.zbsplatform.it.util._
-import com.zbsplatform.lang.v1.compiler.CompilerV1
-import com.zbsplatform.lang.v1.parser.Parser
-import com.zbsplatform.state._
-import com.zbsplatform.utils.dummyCompilerContext
+import com.zbsnetwork.account.AddressScheme
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.crypto
+import com.zbsnetwork.it.api.SyncHttpApi._
+import com.zbsnetwork.it.sync.{minFee, setScriptFee, transferAmount}
+import com.zbsnetwork.it.transactions.BaseTransactionSuite
+import com.zbsnetwork.it.util._
+import com.zbsnetwork.transaction.Proofs
+import com.zbsnetwork.transaction.lease.{LeaseCancelTransactionV2, LeaseTransactionV2}
+import com.zbsnetwork.transaction.smart.SetScriptTransaction
+import com.zbsnetwork.transaction.smart.script.ScriptCompiler
 import org.scalatest.CancelAfterFailure
-import play.api.libs.json.JsNumber
-import com.zbsplatform.account.{AddressScheme}
-import com.zbsplatform.transaction.Proofs
-import com.zbsplatform.transaction.lease.{LeaseCancelTransactionV2, LeaseTransactionV2}
-import com.zbsplatform.transaction.smart.SetScriptTransaction
-import com.zbsplatform.transaction.smart.script.v1.ScriptV1
 
 class LeaseSmartContractsTestSuite extends BaseTransactionSuite with CancelAfterFailure {
   private val acc0 = pkByAddress(firstAddress)
@@ -31,8 +28,7 @@ class LeaseSmartContractsTestSuite extends BaseTransactionSuite with CancelAfter
 
     notMiner.assertBalances(firstAddress, balance1 + 10 * transferAmount, eff1 + 10 * transferAmount)
 
-    val scriptText = {
-      val sc = Parser(s"""
+    val scriptText = s"""
         let pkA = base58'${ByteStr(acc0.publicKey)}'
         let pkB = base58'${ByteStr(acc1.publicKey)}'
         let pkC = base58'${ByteStr(acc2.publicKey)}'
@@ -42,17 +38,15 @@ class LeaseSmartContractsTestSuite extends BaseTransactionSuite with CancelAfter
           case lctx : LeaseCancelTransaction => sigVerify(lctx.bodyBytes,lctx.proofs[1],pkA) && sigVerify(lctx.bodyBytes,lctx.proofs[2],pkB)
           case other => false
         }
-        """.stripMargin).get.value
-      CompilerV1(dummyCompilerContext, sc).explicitGet()._1
-    }
+        """.stripMargin
 
-    val script = ScriptV1(scriptText).explicitGet()
+    val script = ScriptCompiler(scriptText, isAssetScript = false).explicitGet()._1
     val setScriptTransaction = SetScriptTransaction
-      .selfSigned(SetScriptTransaction.supportedVersions.head, acc0, Some(script), minFee, System.currentTimeMillis())
+      .selfSigned(acc0, Some(script), setScriptFee, System.currentTimeMillis())
       .explicitGet()
 
     val setScriptId = sender
-      .signedBroadcast(setScriptTransaction.json() + ("type" -> JsNumber(SetScriptTransaction.typeId.toInt)))
+      .signedBroadcast(setScriptTransaction.json())
       .id
 
     nodes.waitForHeightAriseAndTxPresent(setScriptId)
@@ -60,7 +54,6 @@ class LeaseSmartContractsTestSuite extends BaseTransactionSuite with CancelAfter
     val unsignedLeasing =
       LeaseTransactionV2
         .create(
-          2,
           acc0,
           transferAmount,
           minFee + 0.2.zbs,
@@ -77,19 +70,18 @@ class LeaseSmartContractsTestSuite extends BaseTransactionSuite with CancelAfter
       unsignedLeasing.copy(proofs = Proofs(Seq(sigLeasingA, ByteStr.empty, sigLeasingC)))
 
     val leasingId =
-      sender.signedBroadcast(signedLeasing.json() + ("type" -> JsNumber(LeaseTransactionV2.typeId.toInt))).id
+      sender.signedBroadcast(signedLeasing.json()).id
 
     nodes.waitForHeightAriseAndTxPresent(leasingId)
 
     notMiner.assertBalances(firstAddress,
-                            balance1 + 10 * transferAmount - (2 * minFee + 0.2.zbs),
-                            eff1 + 9 * transferAmount - (2 * minFee + 0.2.zbs))
+                            balance1 + 10 * transferAmount - (minFee + setScriptFee + 0.2.zbs),
+                            eff1 + 9 * transferAmount - (minFee + setScriptFee + 0.2.zbs))
     notMiner.assertBalances(thirdAddress, balance2, eff2 + transferAmount)
 
     val unsignedCancelLeasing =
       LeaseCancelTransactionV2
         .create(
-          version = 2,
           chainId = AddressScheme.current.chainId,
           sender = acc0,
           leaseId = ByteStr.decodeBase58(leasingId).get,
@@ -106,13 +98,13 @@ class LeaseSmartContractsTestSuite extends BaseTransactionSuite with CancelAfter
       unsignedCancelLeasing.copy(proofs = Proofs(Seq(ByteStr.empty, sigLeasingCancelA, sigLeasingCancelB)))
 
     val leasingCancelId =
-      sender.signedBroadcast(signedLeasingCancel.json() + ("type" -> JsNumber(LeaseCancelTransactionV2.typeId.toInt))).id
+      sender.signedBroadcast(signedLeasingCancel.json()).id
 
     nodes.waitForHeightAriseAndTxPresent(leasingCancelId)
 
     notMiner.assertBalances(firstAddress,
-                            balance1 + 10 * transferAmount - (3 * minFee + 2 * 0.2.zbs),
-                            eff1 + 10 * transferAmount - (3 * minFee + 2 * 0.2.zbs))
+                            balance1 + 10 * transferAmount - (2 * minFee + setScriptFee + 2 * 0.2.zbs),
+                            eff1 + 10 * transferAmount - (2 * minFee + setScriptFee + 2 * 0.2.zbs))
     notMiner.assertBalances(thirdAddress, balance2, eff2)
 
   }

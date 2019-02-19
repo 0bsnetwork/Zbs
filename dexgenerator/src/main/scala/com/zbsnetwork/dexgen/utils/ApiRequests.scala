@@ -1,13 +1,14 @@
-package com.zbsplatform.dexgen.utils
+package com.zbsnetwork.dexgen.utils
 
 import java.io.IOException
 import java.util.concurrent.TimeoutException
 
 import com.google.common.primitives.Longs
-import com.zbsplatform.account.PrivateKeyAccount
-import com.zbsplatform.api.http.assets.{SignedIssueV1Request, SignedMassTransferRequest, SignedTransferV1Request}
-import com.zbsplatform.crypto
-import com.zbsplatform.it.api.{
+import com.zbsnetwork.account.PrivateKeyAccount
+import com.zbsnetwork.api.http.assets.{SignedIssueV2Request, SignedMassTransferRequest, SignedTransferV1Request}
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.crypto
+import com.zbsnetwork.it.api.{
   AssetBalance,
   Balance,
   MatcherResponse,
@@ -18,16 +19,15 @@ import com.zbsplatform.it.api.{
   Transaction,
   UnexpectedStatusCodeException
 }
-import com.zbsplatform.it.util.GlobalTimer.{instance => timer}
-import com.zbsplatform.it.util._
-import com.zbsplatform.matcher.api.CancelOrderRequest
-import com.zbsplatform.state.ByteStr
-import com.zbsplatform.transaction.AssetId
-import com.zbsplatform.transaction.assets.IssueTransactionV1
-import com.zbsplatform.transaction.assets.exchange.{AssetPair, Order}
-import com.zbsplatform.transaction.transfer.MassTransferTransaction.{ParsedTransfer, Transfer}
-import com.zbsplatform.transaction.transfer.{MassTransferTransaction, TransferTransactionV1}
-import com.zbsplatform.utils.ScorexLogging
+import com.zbsnetwork.it.util.GlobalTimer.{instance => timer}
+import com.zbsnetwork.it.util._
+import com.zbsnetwork.matcher.api.CancelOrderRequest
+import com.zbsnetwork.transaction.AssetId
+import com.zbsnetwork.transaction.assets.IssueTransactionV2
+import com.zbsnetwork.transaction.assets.exchange.{AssetPair, Order}
+import com.zbsnetwork.transaction.transfer.MassTransferTransaction.{ParsedTransfer, Transfer}
+import com.zbsnetwork.transaction.transfer.{MassTransferTransaction, TransferTransactionV1}
+import com.zbsnetwork.utils.ScorexLogging
 import org.asynchttpclient.Dsl.{get => _get, post => _post}
 import org.asynchttpclient._
 import org.asynchttpclient.util.HttpConstants
@@ -57,7 +57,7 @@ class ApiRequests(client: AsyncHttpClient) extends ScorexLogging {
                 response
               } else {
                 log.info(s"[$tag] Request: ${r.getUrl}\nUnexpected status code(${response.getStatusCode}): ${response.getResponseBody}")
-                throw UnexpectedStatusCodeException(r.getUrl, response.getStatusCode, response.getResponseBody)
+                throw UnexpectedStatusCodeException(r.getMethod, r.getUrl, response.getStatusCode, response.getResponseBody)
               }
             }
           }
@@ -74,9 +74,9 @@ class ApiRequests(client: AsyncHttpClient) extends ScorexLogging {
     executeRequest
   }
 
-  def createSignedIssueRequest(tx: IssueTransactionV1): SignedIssueV1Request = {
+  def createSignedIssueRequest(tx: IssueTransactionV2): SignedIssueV2Request = {
     import tx._
-    SignedIssueV1Request(
+    SignedIssueV2Request(
       Base58.encode(tx.sender.publicKey),
       new String(name),
       new String(description),
@@ -85,13 +85,13 @@ class ApiRequests(client: AsyncHttpClient) extends ScorexLogging {
       reissuable,
       fee,
       timestamp,
-      signature.base58
+      proofs.proofs.map(_.base58),
+      script.map(_.toString)
     )
   }
 
   def createSignedMassTransferRequest(tx: MassTransferTransaction): SignedMassTransferRequest = {
     SignedMassTransferRequest(
-      MassTransferTransaction.version,
       Base58.encode(tx.sender.publicKey),
       tx.assetId.map(_.base58),
       tx.transfers.map { case ParsedTransfer(address, amount) => Transfer(address.stringRepr, amount) },
@@ -157,9 +157,6 @@ class ApiRequests(client: AsyncHttpClient) extends ScorexLogging {
       case _    => to(endpoint).assetBalance(address, asset.map(_.base58).get).map(_.balance)
     }
 
-    def signedIssue(issue: SignedIssueV1Request)(implicit tag: String): Future[Transaction] =
-      postJson("/assets/broadcast/issue", issue).as[Transaction]
-
     def orderbookByPublicKey(publicKey: String, ts: Long, signature: ByteStr, f: RequestBuilder => RequestBuilder = identity)(
         implicit tag: String): Future[Seq[OrderbookHistory]] =
       retrying {
@@ -202,9 +199,9 @@ class ApiRequests(client: AsyncHttpClient) extends ScorexLogging {
     def unconfirmedTxInfo(txId: String)(implicit tag: String): Future[Transaction] = get(s"/transactions/unconfirmed/info/$txId").as[Transaction]
 
     def findTransactionInfo(txId: String)(implicit tag: String): Future[Option[Transaction]] = transactionInfo(txId).transform {
-      case Success(tx)                                       => Success(Some(tx))
-      case Failure(UnexpectedStatusCodeException(_, 404, _)) => Success(None)
-      case Failure(ex)                                       => Failure(ex)
+      case Success(tx)                                          => Success(Some(tx))
+      case Failure(UnexpectedStatusCodeException(_, _, 404, _)) => Success(None)
+      case Failure(ex)                                          => Failure(ex)
     }
 
     def ensureTxDoesntExist(txId: String)(implicit tag: String): Future[Unit] =

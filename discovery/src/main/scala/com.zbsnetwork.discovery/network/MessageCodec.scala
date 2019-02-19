@@ -1,8 +1,8 @@
-package com.zbsplatform.discovery.network
+package com.zbsnetwork.discovery.network
 
 import java.util
 
-import com.zbsplatform.network.{
+import com.zbsnetwork.network.{
   BasicMessagesRepo,
   BlockForged,
   BlockSpec,
@@ -30,7 +30,7 @@ import com.zbsplatform.network.{
 import io.netty.channel.ChannelHandler.Sharable
 import io.netty.channel.ChannelHandlerContext
 import io.netty.handler.codec.MessageToMessageCodec
-import com.zbsplatform.network.message.MessageSpec
+import com.zbsnetwork.network.message.MessageSpec
 import scorex.utils.ScorexLogging
 
 import scala.util.{Failure, Success}

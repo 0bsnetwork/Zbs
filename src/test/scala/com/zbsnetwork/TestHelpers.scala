@@ -1,11 +1,11 @@
-package com.zbsplatform
+package com.zbsnetwork
 
 import java.io.IOException
 import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file.{FileVisitResult, Files, Path, SimpleFileVisitor}
 
-import com.zbsplatform.settings.{GenesisSettings, GenesisTransactionSettings}
-import com.zbsplatform.account.Address
+import com.zbsnetwork.settings.{GenesisSettings, GenesisTransactionSettings}
+import com.zbsnetwork.account.Address
 
 import scala.concurrent.duration._
 

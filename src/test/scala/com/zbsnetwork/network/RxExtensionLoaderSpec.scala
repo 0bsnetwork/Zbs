@@ -1,9 +1,12 @@
-package com.zbsplatform.network
+package com.zbsnetwork.network
 
-import com.zbsplatform.network.RxExtensionLoader.ExtensionBlocks
-import com.zbsplatform.network.RxScoreObserver.{BestChannel, ChannelClosedAndSyncWith}
-import com.zbsplatform.state.ByteStr
-import com.zbsplatform.{BlockGen, RxScheduler, TransactionGen}
+import com.zbsnetwork.block.Block
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.network.RxExtensionLoader.ExtensionBlocks
+import com.zbsnetwork.network.RxScoreObserver.{BestChannel, ChannelClosedAndSyncWith}
+import com.zbsnetwork.transaction.ValidationError
+import com.zbsnetwork.transaction.ValidationError.GenericError
+import com.zbsnetwork.{BlockGen, RxScheduler, TransactionGen}
 import io.netty.channel.Channel
 import io.netty.channel.embedded.EmbeddedChannel
 import io.netty.channel.local.LocalChannel
@@ -11,9 +14,6 @@ import monix.eval.{Coeval, Task}
 import monix.reactive.Observable
 import monix.reactive.subjects.{PublishSubject => PS}
 import org.scalatest.{FreeSpec, Matchers}
-import com.zbsplatform.block.Block
-import com.zbsplatform.transaction.ValidationError
-import com.zbsplatform.transaction.ValidationError.GenericError
 
 import scala.concurrent.duration._
 
@@ -101,17 +101,32 @@ class RxExtensionLoaderSpec extends FreeSpec with Matchers with TransactionGen w
   "should blacklist if some blocks didn't arrive in due time" in withExtensionLoader(Seq.tabulate(100)(byteStr), 1.second) {
     (_, blocks, sigs, ccsw, _) =>
       val ch = new EmbeddedChannel()
-      test(for {
-        _ <- send(ccsw)(ChannelClosedAndSyncWith(None, Some(BestChannel(ch, 1: BigInt))))
-        _ = ch.readOutbound[GetSignatures].signatures.size shouldBe MaxRollback
-        _ <- send(sigs)((ch, Signatures(Range(97, 102).map(byteStr))))
-        _ = ch.readOutbound[GetBlock].signature shouldBe byteStr(100)
-        _ = ch.readOutbound[GetBlock].signature shouldBe byteStr(101)
-        _ <- send(blocks)((ch, block(100)))
-      } yield {
-        Thread.sleep(1000)
-        ch.isOpen shouldBe false
-      })
+
+      val preconditionTask = Task.defer {
+        Task.fromFuture {
+          for {
+            _ <- send(ccsw)(ChannelClosedAndSyncWith(None, Some(BestChannel(ch, 1: BigInt))))
+            _ = ch.readOutbound[GetSignatures].signatures.size shouldBe MaxRollback
+            _ <- send(sigs)((ch, Signatures(Range(97, 102).map(byteStr))))
+            _ = ch.readOutbound[GetBlock].signature shouldBe byteStr(100)
+            _ = ch.readOutbound[GetBlock].signature shouldBe byteStr(101)
+            _ <- send(blocks)((ch, block(100)))
+          } yield ()
+        }
+      }
+
+      val testTask =
+        for {
+          _ <- Task
+            .race(Task.sleep(8.seconds), preconditionTask)
+            .flatMap {
+              case Left(_) => Task.raiseError(new Exception("Preparation for the test takes too much time"))
+              case _       => Task.pure(())
+            }
+          _ <- Task.sleep(1.second)
+        } yield ch.isOpen shouldBe false
+
+      test(testTask.runAsync(monix.execution.Scheduler.global))
   }
 
   "should process received extension" in {

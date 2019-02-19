@@ -1,10 +1,10 @@
-package com.zbsplatform.http
+package com.zbsnetwork.http
 
 import akka.http.scaladsl.testkit.RouteTest
 import org.scalatest.matchers.{MatchResult, Matcher}
 import play.api.libs.json._
-import com.zbsplatform.http.ApiMarshallers._
-import com.zbsplatform.api.http.ApiError
+import com.zbsnetwork.http.ApiMarshallers._
+import com.zbsnetwork.api.http.ApiError
 
 trait ApiErrorMatchers { this: RouteTest =>
   class ProduceError(error: ApiError) extends Matcher[RouteTestResult] {

@@ -1,33 +1,18 @@
-package com.zbsplatform.consensus.nxt
+package com.zbsnetwork.consensus.nxt
 
-import com.zbsplatform.state.{ByteStr, EitherExt2}
+import com.zbsnetwork.account.{Address, PrivateKeyAccount}
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.consensus.TransactionsOrdering
+import com.zbsnetwork.transaction.transfer._
+import com.zbsnetwork.common.utils.EitherExt2
 import org.scalatest.{Assertions, Matchers, PropSpec}
-import com.zbsplatform.account.{Address, PrivateKeyAccount}
-import com.zbsplatform.consensus.TransactionsOrdering
-import com.zbsplatform.transaction.transfer._
 
 import scala.util.Random
 
 class TransactionsOrderingSpecification extends PropSpec with Assertions with Matchers {
 
   property("TransactionsOrdering.InBlock should sort correctly") {
-    val txsDifferentById = (0 to 3)
-      .map(
-        i =>
-          TransferTransactionV1
-            .selfSigned(None,
-                        PrivateKeyAccount(Array.fill(32)(0)),
-                        Address.fromString("3MydsP4UeQdGwBq7yDbMvf9MzfB2pxFoUKU").explicitGet(),
-                        100000,
-                        5,
-                        None,
-                        125L,
-                        Array(i.toByte))
-            .right
-            .get)
-      .sortBy(t => t.id().base58)
-
-    val correctSeq = txsDifferentById ++ Seq(
+    val correctSeq = Seq(
       TransferTransactionV1
         .selfSigned(None,
                     PrivateKeyAccount(Array.fill(32)(0)),
@@ -95,23 +80,7 @@ class TransactionsOrderingSpecification extends PropSpec with Assertions with Ma
   }
 
   property("TransactionsOrdering.InUTXPool should sort correctly") {
-    val txsDifferentById = (0 to 3)
-      .map(
-        i =>
-          TransferTransactionV1
-            .selfSigned(None,
-                        PrivateKeyAccount(Array.fill(32)(0)),
-                        Address.fromString("3MydsP4UeQdGwBq7yDbMvf9MzfB2pxFoUKU").explicitGet(),
-                        100000,
-                        5,
-                        None,
-                        125L,
-                        Array(i.toByte))
-            .right
-            .get)
-      .sortBy(t => t.id().base58)
-
-    val correctSeq = txsDifferentById ++ Seq(
+    val correctSeq = Seq(
       TransferTransactionV1
         .selfSigned(None,
                     PrivateKeyAccount(Array.fill(32)(0)),

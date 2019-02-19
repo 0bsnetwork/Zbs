@@ -1,31 +1,30 @@
-package com.zbsplatform.matcher.api
-
-import java.util.concurrent.Executors
+package com.zbsnetwork.matcher.api
 
 import akka.actor.ActorRef
-import akka.http.scaladsl.marshalling.ToResponseMarshallable
-import akka.http.scaladsl.model.{StatusCode, StatusCodes}
-import akka.http.scaladsl.server.{Directive1, Route}
+import akka.http.scaladsl.model.StatusCodes
+import akka.http.scaladsl.server.{Directive0, Directive1, Route}
 import akka.pattern.ask
 import akka.util.Timeout
 import com.google.common.primitives.Longs
-import com.zbsplatform.account.PublicKeyAccount
-import com.zbsplatform.api.http._
-import com.zbsplatform.crypto
-import com.zbsplatform.matcher.market.MatcherActor.{GetMarkets, GetMarketsResponse}
-import com.zbsplatform.matcher.market.MatcherTransactionWriter.GetTransactionsByOrder
-import com.zbsplatform.matcher.market.OrderBookActor._
-import com.zbsplatform.matcher.market.OrderHistoryActor
-import com.zbsplatform.matcher.market.OrderHistoryActor._
-import com.zbsplatform.matcher.model._
-import com.zbsplatform.matcher.{AssetPairBuilder, MatcherSettings}
-import com.zbsplatform.metrics.TimerExt
-import com.zbsplatform.settings.RestAPISettings
-import com.zbsplatform.state.{Blockchain, ByteStr}
-import com.zbsplatform.transaction.assets.exchange.OrderJson._
-import com.zbsplatform.transaction.assets.exchange.{AssetPair, Order}
-import com.zbsplatform.utils.{Base58, NTP, ScorexLogging}
-import com.zbsplatform.wallet.Wallet
+import com.zbsnetwork.account.{Address, PublicKeyAccount}
+import com.zbsnetwork.api.http._
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.Base58
+import com.zbsnetwork.crypto
+import com.zbsnetwork.matcher.AddressActor.GetOrderStatus
+import com.zbsnetwork.matcher.AddressDirectory.{Envelope => Env}
+import com.zbsnetwork.matcher.Matcher.StoreEvent
+import com.zbsnetwork.matcher.market.MatcherActor.{GetMarkets, GetSnapshotOffsets, MarketData, SnapshotOffsetsResponse}
+import com.zbsnetwork.matcher.market.OrderBookActor._
+import com.zbsnetwork.matcher.model._
+import com.zbsnetwork.matcher.queue.{QueueEvent, QueueEventWithMeta}
+import com.zbsnetwork.matcher.{AddressActor, AssetPairBuilder, Matcher}
+import com.zbsnetwork.metrics.TimerExt
+import com.zbsnetwork.settings.{RestAPISettings, ZbsSettings}
+import com.zbsnetwork.transaction.AssetId
+import com.zbsnetwork.transaction.assets.exchange.OrderJson._
+import com.zbsnetwork.transaction.assets.exchange.{AssetPair, Order}
+import com.zbsnetwork.utils.{ScorexLogging, Time}
 import io.swagger.annotations._
 import javax.ws.rs.Path
 import kamon.Kamon
@@ -33,40 +32,58 @@ import org.iq80.leveldb.DB
 import play.api.libs.json._
 
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
 import scala.concurrent.duration._
-import scala.concurrent.{ExecutionContext, ExecutionContextExecutor, Future}
-import scala.util.{Failure, Success, Try}
+import scala.reflect.ClassTag
+import scala.util.Failure
 
 @Path("/matcher")
 @Api(value = "/matcher/")
-case class MatcherApiRoute(wallet: Wallet,
-                           assetPairBuilder: AssetPairBuilder,
+case class MatcherApiRoute(assetPairBuilder: AssetPairBuilder,
+                           matcherPublicKey: PublicKeyAccount,
                            matcher: ActorRef,
-                           orderHistory: ActorRef,
-                           orderBook: AssetPair => Option[ActorRef],
+                           addressActor: ActorRef,
+                           storeEvent: StoreEvent,
+                           orderBook: AssetPair => Option[Either[Unit, ActorRef]],
+                           getMarketStatus: AssetPair => Option[MarketStatus],
+                           orderValidator: Order => Either[String, Order],
                            orderBookSnapshot: OrderBookSnapshotHttpCache,
-                           txWriter: ActorRef,
-                           settings: RestAPISettings,
-                           matcherSettings: MatcherSettings,
-                           blockchain: Blockchain,
-                           db: DB)
+                           zbsSettings: ZbsSettings,
+                           matcherStatus: () => Matcher.Status,
+                           db: DB,
+                           time: Time,
+                           currentOffset: () => QueueEventWithMeta.Offset)
     extends ApiRoute
     with ScorexLogging {
 
   import MatcherApiRoute._
   import PathMatchers._
+  import zbsSettings._
 
-  private val timer       = Kamon.timer("matcher.api-requests")
-  private val placeTimer  = timer.refine("action" -> "place")
-  private val cancelTimer = timer.refine("action" -> "cancel")
+  override val settings: RestAPISettings = restAPISettings
 
-  override lazy val route: Route =
-    pathPrefix("matcher") {
-      matcherPublicKey ~ getOrderBook ~ place ~ getAssetPairAndPublicKeyOrderHistory ~ getPublicKeyOrderHistory ~
-        getAllOrderHistory ~ getTradableBalance ~ reservedBalance ~ orderStatus ~
-        historyDelete ~ cancel ~ orderbooks ~ orderBookDelete ~ getTransactionsByOrder ~ forceCancelOrder ~
-        getSettings
+  private val timer      = Kamon.timer("matcher.api-requests")
+  private val placeTimer = timer.refine("action" -> "place")
+
+  override lazy val route: Route = pathPrefix("matcher") {
+    matcherStatusBarrier {
+      getMatcherPublicKey ~ getOrderBook ~ marketStatus ~ place ~ getAssetPairAndPublicKeyOrderHistory ~ getPublicKeyOrderHistory ~
+        getAllOrderHistory ~ tradableBalance ~ reservedBalance ~ orderStatus ~
+        historyDelete ~ cancel ~ cancelAll ~ orderbooks ~ orderBookDelete ~ getTransactionsByOrder ~ forceCancelOrder ~
+        getSettings ~ getCurrentOffset ~ getOldestSnapshotOffset ~ getAllSnapshotOffsets
     }
+  }
+
+  private def matcherStatusBarrier: Directive0 = matcherStatus() match {
+    case Matcher.Status.Working  => pass
+    case Matcher.Status.Starting => complete(DuringStart)
+    case Matcher.Status.Stopping => complete(DuringShutdown)
+  }
+
+  private def unavailableOrderBookBarrier(p: AssetPair): Directive0 = orderBook(p) match {
+    case Some(Left(_)) => complete(OrderBookUnavailable)
+    case _             => pass
+  }
 
   private def withAssetPair(p: AssetPair, redirectToInverse: Boolean = false, suffix: String = ""): Directive1[AssetPair] =
     assetPairBuilder.validateAssetPair(p) match {
@@ -81,21 +98,42 @@ case class MatcherApiRoute(wallet: Wallet,
       case Left(e) => complete(StatusCodes.NotFound -> Json.obj("message" -> e))
     }
 
+  private def withCancelRequest(f: CancelOrderRequest => Route): Route =
+    post {
+      entity(as[CancelOrderRequest]) { req =>
+        if (req.isSignatureValid()) f(req) else complete(InvalidSignature)
+      } ~ complete(StatusCodes.BadRequest)
+    } ~ complete(StatusCodes.MethodNotAllowed)
+
+  private def signedGet(publicKey: PublicKeyAccount): Directive0 =
+    (headerValueByName("Timestamp") & headerValueByName("Signature")).tflatMap {
+      case (ts, sig) =>
+        val timestamp = ts.toLong
+        require(math.abs(timestamp - time.correctedTime()).millis < matcherSettings.maxTimestampDiff, "Incorrect timestamp")
+        require(crypto.verify(Base58.decode(sig).get, publicKey.publicKey ++ Longs.toByteArray(timestamp), publicKey.publicKey),
+                "Incorrect signature")
+        pass
+    }
+
+  @inline
+  private def askAddressActor[A: ClassTag](sender: Address, msg: AddressActor.Command): Future[A] = {
+    (addressActor ? Env(sender, msg))
+      .mapTo[A]
+      .andThen {
+        case Failure(e) => log.warn(s"Error processing $msg", e)
+      }
+  }
+
   @Path("/")
   @ApiOperation(value = "Matcher Public Key", notes = "Get matcher public key", httpMethod = "GET")
-  def matcherPublicKey: Route = (pathEndOrSingleSlash & get) {
-    complete(
-      wallet
-        .findPrivateKey(matcherSettings.account)
-        .map(a => JsString(Base58.encode(a.publicKey)))
-        .getOrElse[JsValue](JsString("")))
+  def getMatcherPublicKey: Route = (pathEndOrSingleSlash & get) {
+    complete(JsString(Base58.encode(matcherPublicKey.publicKey)))
   }
 
   @Path("/settings")
   @ApiOperation(value = "Matcher Settings", notes = "Get matcher settings", httpMethod = "GET")
   def getSettings: Route = (path("settings") & get) {
-    val priceAssets = matcherSettings.priceAssets
-    complete(StatusCodes.OK -> Json.obj("priceAssets" -> priceAssets))
+    complete(StatusCodes.OK -> Json.obj("priceAssets" -> matcherSettings.priceAssets))
   }
 
   @Path("/orderbook/{amountAsset}/{priceAsset}")
@@ -118,6 +156,21 @@ case class MatcherApiRoute(wallet: Wallet,
     }
   }
 
+  @Path("/orderbook/{amountAsset}/{priceAsset}/status")
+  @ApiOperation(value = "Get Market Status", notes = "Get current market data such as last trade, best bid and ask", httpMethod = "GET")
+  @ApiImplicitParams(
+    Array(
+      new ApiImplicitParam(name = "amountAsset", value = "Amount Asset Id in Pair, or 'ZBS'", dataType = "string", paramType = "path"),
+      new ApiImplicitParam(name = "priceAsset", value = "Price Asset Id in Pair, or 'ZBS'", dataType = "string", paramType = "path")
+    ))
+  def marketStatus: Route = (path("orderbook" / AssetPairPM / "status") & get) { p =>
+    withAssetPair(p, redirectToInverse = true) { pair =>
+      getMarketStatus(pair).fold(complete(StatusCodes.NotFound -> Json.obj("message" -> "There is no information about this asset pair"))) { ms =>
+        complete(StatusCodes.OK -> ms)
+      }
+    }
+  }
+
   @Path("/orderbook")
   @ApiOperation(value = "Place order",
                 notes = "Place a new limit order (buy or sell)",
@@ -131,54 +184,58 @@ case class MatcherApiRoute(wallet: Wallet,
         value = "Json with data",
         required = true,
         paramType = "body",
-        dataType = "com.zbsplatform.transaction.assets.exchange.Order"
+        dataType = "com.zbsnetwork.transaction.assets.exchange.Order"
       )
     ))
   def place: Route = path("orderbook") {
     (pathEndOrSingleSlash & post) {
-      json[Order] { order =>
-        placeTimer.measure {
-          if (blockchain.hasScript(order.senderPublicKey.toAddress)) {
-            Future.successful[MatcherResponse](StatusCodes.BadRequest -> "Trading on scripted account isn't allowed yet.")
-          } else {
-            log.trace(s"Placing ${order.id()}")
-            (matcher ? order).mapTo[MatcherResponse]
+      _json[Order] { order =>
+        unavailableOrderBookBarrier(order.assetPair) {
+          complete {
+            placeTimer.measureFuture {
+              orderValidator(order) match {
+                case Right(_) =>
+                  placeTimer.measureFuture(askAddressActor[MatcherResponse](order.sender, AddressActor.PlaceOrder(order)))
+                case Left(error) => Future.successful[MatcherResponse](OrderRejected(error))
+              }
+            }
           }
         }
       }
     }
   }
 
-  private def cancelOrder(orderId: ByteStr, senderPublicKey: Option[PublicKeyAccount]): ToResponseMarshallable = {
-    val st = cancelTimer.start()
-    DBUtils.orderInfo(db, orderId).status match {
-      case LimitOrder.NotFound      => StatusCodes.NotFound
-      case status if status.isFinal => StatusCodes.BadRequest -> Json.obj("message" -> s"Order is already ${status.name}")
-      case _ =>
-        DBUtils.order(db, orderId) match {
-          case None =>
-            log.warn(s"Order $orderId was not found in history")
-            StatusCodes.NotFound
-          case Some(order) if senderPublicKey.exists(_ != order.senderPublicKey) =>
-            StatusCodes.BadRequest -> Json.obj("message" -> "Public Key mismatch")
-          case Some(order) =>
-            orderBook(order.assetPair) match {
-              case Some(orderBookRef) =>
-                log.trace(s"Cancelling ${order.id()} for ${senderPublicKey.map(_.address)}")
-                (orderBookRef ? CancelOrder(orderId)).mapTo[MatcherResponse].andThen { case _ => st.stop() }
-              case None =>
-                log.debug(s"Order book for ${order.assetPair} was not found, cancelling $orderId anyway")
-                (orderHistory ? OrderHistoryActor.ForceCancelOrderFromHistory(orderId))
-                  .mapTo[Option[Order]]
-                  .map {
-                    case None    => StatusCodes.NotFound
-                    case Some(_) => StatusCodes.OK
-                  }
-                  .andThen { case _ => st.stop() }
-            }
-        }
-    }
+  @Path("/orderbook")
+  @ApiOperation(value = "Get the open trading markets", notes = "Get the open trading markets along with trading pairs meta data", httpMethod = "GET")
+  def orderbooks: Route = (path("orderbook") & pathEndOrSingleSlash & get) {
+    complete((matcher ? GetMarkets).mapTo[Seq[MarketData]].map { markets =>
+      StatusCodes.OK -> Json.obj(
+        "matcherPublicKey" -> Base58.encode(matcherPublicKey.publicKey),
+        "markets" -> JsArray(markets.map(m =>
+          Json.obj(
+            "amountAsset"     -> m.pair.amountAssetStr,
+            "amountAssetName" -> m.amountAssetName,
+            "amountAssetInfo" -> m.amountAssetInfo,
+            "priceAsset"      -> m.pair.priceAssetStr,
+            "priceAssetName"  -> m.priceAssetName,
+            "priceAssetInfo"  -> m.priceAssetinfo,
+            "created"         -> m.created
+        )))
+      )
+    })
   }
+
+  private def handleCancelRequest(assetPair: Option[AssetPair], sender: Address, orderId: Option[ByteStr], timestamp: Option[Long]): Route =
+    complete((timestamp, orderId) match {
+      case (Some(ts), None)  => askAddressActor[MatcherResponse](sender, AddressActor.CancelAllOrders(assetPair, ts))
+      case (None, Some(oid)) => askAddressActor[MatcherResponse](sender, AddressActor.CancelOrder(oid))
+      case _                 => OrderCancelRejected("Either timestamp or orderId must be specified")
+    })
+
+  private def handleCancelRequest(assetPair: Option[AssetPair]): Route =
+    withCancelRequest { req =>
+      handleCancelRequest(assetPair, req.sender, req.orderId, req.timestamp)
+    }
 
   @Path("/orderbook/{amountAsset}/{priceAsset}/cancel")
   @ApiOperation(
@@ -197,26 +254,41 @@ case class MatcherApiRoute(wallet: Wallet,
         value = "Json with data",
         required = true,
         paramType = "body",
-        dataType = "com.zbsplatform.matcher.api.CancelOrderRequest"
+        dataType = "com.zbsnetwork.matcher.api.CancelOrderRequest"
       )
     ))
-  def cancel: Route = (path("orderbook" / AssetPairPM / "cancel") & post) { p =>
+  def cancel: Route = path("orderbook" / AssetPairPM / "cancel") { p =>
     withAssetPair(p) { pair =>
-      orderBook(pair).fold[Route](complete(StatusCodes.NotFound -> Json.obj("message" -> "Invalid asset pair"))) { _ =>
-        json[CancelOrderRequest] { req =>
-          if (req.isSignatureValid()) req.orderId match {
-            case Some(id) => cancelOrder(id, Some(req.sender))
-            case None     => NotImplemented("Batch cancel is not supported yet")
-          } else InvalidSignature
-        }
-      }
+      handleCancelRequest(Some(pair))
     }
   }
 
+  @Path("/orderbook/cancel")
+  @ApiOperation(
+    value = "Cancel all active orders",
+    httpMethod = "POST",
+    produces = "application/json",
+    consumes = "application/json"
+  )
+  @ApiImplicitParams(
+    Array(
+      new ApiImplicitParam(
+        name = "body",
+        value = "Json with data",
+        required = true,
+        paramType = "body",
+        dataType = "com.zbsnetwork.matcher.api.CancelOrderRequest"
+      )
+    ))
+  def cancelAll: Route = path("orderbook" / "cancel") {
+    handleCancelRequest(None)
+  }
+
   @Path("/orderbook/{amountAsset}/{priceAsset}/delete")
+  @Deprecated
   @ApiOperation(
     value = "Delete Order from History by Id",
-    notes = "Delete Order from History by Id if it's in terminal status (Filled, Cancel)",
+    notes = "This method is deprecated and doesn't work anymore. Please don't use it.",
     httpMethod = "POST",
     produces = "application/json",
     consumes = "application/json"
@@ -230,19 +302,36 @@ case class MatcherApiRoute(wallet: Wallet,
         value = "Json with data",
         required = true,
         paramType = "body",
-        dataType = "com.zbsplatform.matcher.api.CancelOrderRequest"
+        dataType = "com.zbsnetwork.matcher.api.CancelOrderRequest"
       )
     ))
-  def historyDelete: Route = (path("orderbook" / AssetPairPM / "delete") & post) { p =>
-    withAssetPair(p) { pair =>
-      json[CancelOrderRequest] { req =>
-        if (req.isSignatureValid()) {
-          log.trace(s"Deleting ${req.orderId.fold(s"all orders for ${req.sender}")(_.base58)}")
-          (orderHistory ? DeleteOrderFromHistory(pair, req.sender, req.orderId, NTP.correctedTime()))
-            .mapTo[MatcherResponse]
-        } else InvalidSignature
-      }
+  def historyDelete: Route = (path("orderbook" / AssetPairPM / "delete") & post) { _ =>
+    json[CancelOrderRequest] { req =>
+      req.orderId.fold[MatcherResponse](NotImplemented("Batch order deletion is not supported yet"))(OrderDeleted)
     }
+  }
+
+  private def loadOrders(address: Address, pair: Option[AssetPair], activeOnly: Boolean): Route = complete {
+    askAddressActor[Seq[(ByteStr, OrderInfo[OrderStatus])]](address, AddressActor.GetOrders(pair, activeOnly))
+      .map(orders =>
+        StatusCodes.OK -> orders.map {
+          case (id, oi) =>
+            Json.obj(
+              "id"        -> id.base58,
+              "type"      -> oi.side.toString,
+              "amount"    -> oi.amount,
+              "price"     -> oi.price,
+              "timestamp" -> oi.timestamp,
+              "filled" -> (oi.status match {
+                case OrderStatus.Filled(f)          => f
+                case OrderStatus.PartiallyFilled(f) => f
+                case OrderStatus.Cancelled(f)       => f
+                case _                              => 0L
+              }),
+              "status"    -> oi.status.name,
+              "assetPair" -> oi.assetPair.json
+            )
+      })
   }
 
   @Path("/orderbook/{amountAsset}/{priceAsset}/publicKey/{publicKey}")
@@ -254,6 +343,14 @@ case class MatcherApiRoute(wallet: Wallet,
       new ApiImplicitParam(name = "amountAsset", value = "Amount Asset Id in Pair, or 'ZBS'", dataType = "string", paramType = "path"),
       new ApiImplicitParam(name = "priceAsset", value = "Price Asset Id in Pair, or 'ZBS'", dataType = "string", paramType = "path"),
       new ApiImplicitParam(name = "publicKey", value = "Public Key", required = true, dataType = "string", paramType = "path"),
+      new ApiImplicitParam(
+        name = "activeOnly",
+        value = "Return active only orders (Accepted and PartiallyFilled)",
+        required = false,
+        dataType = "boolean",
+        paramType = "query",
+        defaultValue = "false"
+      ),
       new ApiImplicitParam(name = "Timestamp", value = "Timestamp", required = true, dataType = "integer", paramType = "header"),
       new ApiImplicitParam(name = "Signature",
                            value = "Signature of [Public Key ++ Timestamp] bytes",
@@ -262,17 +359,11 @@ case class MatcherApiRoute(wallet: Wallet,
                            paramType = "header")
     ))
   def getAssetPairAndPublicKeyOrderHistory: Route = (path("orderbook" / AssetPairPM / "publicKey" / PublicKeyPM) & get) { (p, publicKey) =>
-    (headerValueByName("Timestamp") & headerValueByName("Signature")) { (ts, sig) =>
-      checkGetSignature(publicKey, ts, sig) match {
-        case Success(address) =>
-          withAssetPair(p, redirectToInverse = true, s"/publicKey/$publicKey") { pair =>
-            complete(StatusCodes.OK -> DBUtils.ordersByAddressAndPair(db, address, pair, matcherSettings.maxOrdersPerRequest).map {
-              case (order, orderInfo) =>
-                orderJson(order, orderInfo)
-            })
-          }
-        case Failure(ex) =>
-          complete(StatusCodes.BadRequest -> Json.obj("message" -> ex.getMessage))
+    withAssetPair(p, redirectToInverse = true, s"/publicKey/$publicKey") { pair =>
+      parameters('activeOnly.as[Boolean].?) { activeOnly =>
+        signedGet(publicKey) {
+          loadOrders(publicKey, Some(pair), activeOnly.getOrElse(false))
+        }
       }
     }
   }
@@ -299,29 +390,10 @@ case class MatcherApiRoute(wallet: Wallet,
     ))
   def getPublicKeyOrderHistory: Route = (path("orderbook" / PublicKeyPM) & get) { publicKey =>
     parameters('activeOnly.as[Boolean].?) { activeOnly =>
-      (headerValueByName("Timestamp") & headerValueByName("Signature")) { (ts, sig) =>
-        checkGetSignature(publicKey, ts, sig) match {
-          case Success(_) =>
-            complete(
-              StatusCodes.OK -> DBUtils
-                .ordersByAddress(db, publicKey, activeOnly.getOrElse(false), matcherSettings.maxOrdersPerRequest)
-                .map {
-                  case (order, orderInfo) =>
-                    orderJson(order, orderInfo)
-                })
-          case Failure(ex) =>
-            complete(StatusCodes.BadRequest -> Json.obj("message" -> ex.getMessage))
-        }
+      signedGet(publicKey) {
+        loadOrders(publicKey, None, activeOnly.getOrElse(false))
       }
     }
-  }
-
-  def checkGetSignature(pk: PublicKeyAccount, timestamp: String, signature: String): Try[PublicKeyAccount] = Try {
-    val sig = Base58.decode(signature).get
-    val ts  = timestamp.toLong
-    require(math.abs(ts - NTP.correctedTime()).millis < matcherSettings.maxTimestampDiff, "Incorrect timestamp")
-    require(crypto.verify(sig, pk.publicKey ++ Longs.toByteArray(ts), pk.publicKey), "Incorrect signature")
-    pk
   }
 
   @Path("/orders/cancel/{orderId}")
@@ -331,21 +403,29 @@ case class MatcherApiRoute(wallet: Wallet,
       new ApiImplicitParam(name = "orderId", value = "Order Id", required = true, dataType = "string", paramType = "path")
     ))
   def forceCancelOrder: Route = (path("orders" / "cancel" / ByteStrPM) & post & withAuth) { orderId =>
-    complete(cancelOrder(orderId, None))
+    DBUtils.order(db, orderId) match {
+      case Some(order) => handleCancelRequest(None, order.sender, Some(orderId), None)
+      case None        => complete(OrderCancelRejected("Order not found"))
+    }
   }
 
   @Path("/orders/{address}")
   @ApiOperation(value = "All Order History by address", notes = "Get All Order History for a given address", httpMethod = "GET")
   @ApiImplicitParams(
     Array(
-      new ApiImplicitParam(name = "address", value = "Address", dataType = "string", paramType = "path")
+      new ApiImplicitParam(name = "address", value = "Address", dataType = "string", paramType = "path"),
+      new ApiImplicitParam(
+        name = "activeOnly",
+        value = "Return active only orders (Accepted and PartiallyFilled)",
+        required = false,
+        dataType = "boolean",
+        paramType = "query",
+        defaultValue = "false"
+      ),
     ))
   def getAllOrderHistory: Route = (path("orders" / AddressPM) & get & withAuth) { address =>
     parameters('activeOnly.as[Boolean].?) { activeOnly =>
-      complete(StatusCodes.OK -> DBUtils.ordersByAddress(db, address, activeOnly.getOrElse(true), matcherSettings.maxOrdersPerRequest).map {
-        case (order, orderInfo) =>
-          orderJson(order, orderInfo)
-      })
+      loadOrders(address, None, activeOnly.getOrElse(true))
     }
   }
 
@@ -357,9 +437,12 @@ case class MatcherApiRoute(wallet: Wallet,
       new ApiImplicitParam(name = "priceAsset", value = "Price Asset Id in Pair, or 'ZBS'", dataType = "string", paramType = "path"),
       new ApiImplicitParam(name = "address", value = "Account Address", required = true, dataType = "string", paramType = "path")
     ))
-  def getTradableBalance: Route = (path("orderbook" / AssetPairPM / "tradableBalance" / AddressPM) & get) { (pair, address) =>
+  def tradableBalance: Route = (path("orderbook" / AssetPairPM / "tradableBalance" / AddressPM) & get) { (pair, address) =>
     withAssetPair(pair, redirectToInverse = true, s"/tradableBalance/$address") { pair =>
-      complete((orderHistory ? GetTradableBalance(pair, address, NTP.correctedTime())).mapTo[MatcherResponse])
+      complete {
+        askAddressActor[Map[Option[AssetId], Long]](address, AddressActor.GetTradableBalance(pair))
+          .map(stringifyAssetIds)
+      }
     }
   }
 
@@ -376,12 +459,10 @@ case class MatcherApiRoute(wallet: Wallet,
                            paramType = "header")
     ))
   def reservedBalance: Route = (path("balance" / "reserved" / PublicKeyPM) & get) { publicKey =>
-    (headerValueByName("Timestamp") & headerValueByName("Signature")) { (ts, sig) =>
-      checkGetSignature(publicKey, ts, sig) match {
-        case Success(pk) =>
-          complete(StatusCodes.OK -> Json.toJson(DBUtils.reservedBalance(db, pk).map { case (k, v) => AssetPair.assetIdStr(k) -> v }))
-        case Failure(ex) =>
-          complete(StatusCodes.BadRequest -> Json.obj("message" -> ex.getMessage))
+    signedGet(publicKey) {
+      complete {
+        askAddressActor[Map[Option[AssetId], Long]](publicKey, AddressActor.GetReservedBalance)
+          .map(stringifyAssetIds)
       }
     }
   }
@@ -396,15 +477,13 @@ case class MatcherApiRoute(wallet: Wallet,
     ))
   def orderStatus: Route = (path("orderbook" / AssetPairPM / ByteStrPM) & get) { (p, orderId) =>
     withAssetPair(p, redirectToInverse = true, s"/$orderId") { _ =>
-      complete(StatusCodes.OK -> DBUtils.orderInfo(db, orderId).status.json)
-    }
-  }
-
-  @Path("/orderbook")
-  @ApiOperation(value = "Get the open trading markets", notes = "Get the open trading markets along with trading pairs meta data", httpMethod = "GET")
-  def orderbooks: Route = path("orderbook") {
-    (pathEndOrSingleSlash & get) {
-      complete((matcher ? GetMarkets).mapTo[GetMarketsResponse])
+      complete(
+        DBUtils
+          .order(db, orderId)
+          .fold[Future[OrderStatus]](Future.successful(OrderStatus.NotFound)) { order =>
+            askAddressActor[OrderStatus](order.sender, GetOrderStatus(orderId))
+          }
+          .map(_.json))
     }
   }
 
@@ -417,7 +496,7 @@ case class MatcherApiRoute(wallet: Wallet,
     ))
   def orderBookDelete: Route = (path("orderbook" / AssetPairPM) & delete & withAuth) { p =>
     withAssetPair(p) { pair =>
-      complete((matcher ? DeleteOrderBookRequest(pair)).mapTo[MatcherResponse])
+      complete(storeEvent(QueueEvent.OrderBookDeleted(pair)).map(_ => SimpleResponse(StatusCodes.Accepted, "Deleting order book")))
     }
   }
 
@@ -430,53 +509,46 @@ case class MatcherApiRoute(wallet: Wallet,
       new ApiImplicitParam(name = "orderId", value = "Order Id", dataType = "string", paramType = "path")
     ))
   def getTransactionsByOrder: Route = (path("transactions" / ByteStrPM) & get) { orderId =>
-    complete((txWriter ? GetTransactionsByOrder(orderId)).mapTo[MatcherResponse])
+    complete(StatusCodes.OK -> Json.toJson(DBUtils.transactionsForOrder(db, orderId)))
+  }
+
+  @Path("/debug/currentOffset")
+  @ApiOperation(value = "Get a current offset in the queue", notes = "", httpMethod = "GET")
+  def getCurrentOffset: Route = (path("debug" / "currentOffset") & get & withAuth) {
+    complete(StatusCodes.OK -> currentOffset())
+  }
+
+  @Path("/debug/oldestSnapshotOffset")
+  @ApiOperation(value = "Get the oldest snapshot's offset in the queue", notes = "", httpMethod = "GET")
+  def getOldestSnapshotOffset: Route = (path("debug" / "oldestSnapshotOffset") & get & withAuth) {
+    complete {
+      (matcher ? GetSnapshotOffsets).mapTo[SnapshotOffsetsResponse].map { x =>
+        StatusCodes.OK -> x.offsets.valuesIterator.min
+      }
+    }
+  }
+
+  @Path("/debug/allSnapshotOffsets")
+  @ApiOperation(value = "Get all snapshots' offsets in the queue", notes = "", httpMethod = "GET")
+  def getAllSnapshotOffsets: Route = (path("debug" / "allSnapshotOffsets") & get & withAuth) {
+    complete {
+      (matcher ? GetSnapshotOffsets).mapTo[SnapshotOffsetsResponse].map { x =>
+        val js = Json.obj(
+          x.offsets.map {
+            case (assetPair, offset) =>
+              assetPair.key -> Json.toJsFieldJsValueWrapper(offset)
+          }.toSeq: _*
+        )
+
+        StatusCodes.OK -> js
+      }
+    }
   }
 }
 
 object MatcherApiRoute {
   private implicit val timeout: Timeout = 5.seconds
 
-  val cancelExecutor: ExecutionContextExecutor = ExecutionContext.fromExecutor(Executors.newCachedThreadPool())
-
-  val expiration = 15.minutes
-
-  val cancelRequestsTimestamps: scala.collection.mutable.Map[String, Duration] =
-    scala.collection.mutable.Map().withDefaultValue(NTP.correctedTime().millis)
-
-  def checkReuse(address: String, timestamp: Duration) = synchronized {
-    val old = cancelRequestsTimestamps(address)
-    if (old >= timestamp) {
-      true
-    } else {
-      cancelRequestsTimestamps(address) = timestamp
-      false
-    }
-  }
-
-  def checkTimestamp(address: String, timestamp: Duration)(proc: => Future[(StatusCode, JsValue)]): Future[(StatusCode, JsValue)] = {
-    val correct = NTP.correctedTime().millis
-    val delta   = timestamp - correct
-    if (delta < -60.second) {
-      Future.successful(StatusCodes.BadRequest -> Json.obj("message" -> "Timestamp is from future"))
-    } else if (delta > expiration) {
-      Future.successful(StatusCodes.BadRequest -> Json.obj("message" -> "Timestamp is too old"))
-    } else if (checkReuse(address, timestamp)) {
-      Future.successful(StatusCodes.BadRequest -> Json.obj("message" -> "Timestamp has already been used"))
-    } else {
-      proc
-    }
-  }
-
-  def orderJson(order: Order, orderInfo: OrderInfo): JsObject =
-    Json.obj(
-      "id"        -> order.id(),
-      "type"      -> order.orderType.toString,
-      "amount"    -> order.amount,
-      "price"     -> order.price,
-      "timestamp" -> order.timestamp,
-      "filled"    -> orderInfo.filled,
-      "status"    -> orderInfo.status.name,
-      "assetPair" -> order.assetPair.json
-    )
+  private def stringifyAssetIds(balances: Map[Option[AssetId], Long]): Map[String, Long] =
+    balances.map { case (aid, v) => AssetPair.assetIdStr(aid) -> v }
 }

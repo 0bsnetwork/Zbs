@@ -1,12 +1,12 @@
-package com.zbsplatform.api.http.leasing
+package com.zbsnetwork.api.http.leasing
 
 import io.swagger.annotations.ApiModelProperty
 import play.api.libs.json.{Format, Json}
-import com.zbsplatform.account.{AddressOrAlias, PublicKeyAccount}
-import com.zbsplatform.api.http.BroadcastRequest
-import com.zbsplatform.transaction.TransactionParsers.SignatureStringLength
-import com.zbsplatform.transaction.ValidationError
-import com.zbsplatform.transaction.lease.LeaseTransactionV1
+import com.zbsnetwork.account.{AddressOrAlias, PublicKeyAccount}
+import com.zbsnetwork.api.http.BroadcastRequest
+import com.zbsnetwork.transaction.TransactionParsers.SignatureStringLength
+import com.zbsnetwork.transaction.ValidationError
+import com.zbsnetwork.transaction.lease.LeaseTransactionV1
 
 case class SignedLeaseV1Request(@ApiModelProperty(value = "Base58 encoded sender public key", required = true)
                                 senderPublicKey: String,

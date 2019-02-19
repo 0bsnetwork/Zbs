@@ -1,9 +1,9 @@
-package com.zbsplatform.network.client
+package com.zbsnetwork.network.client
 
 import java.io.IOException
 
-import com.zbsplatform.network._
-import com.zbsplatform.utils.ScorexLogging
+import com.zbsnetwork.network._
+import com.zbsnetwork.utils.ScorexLogging
 import io.netty.channel._
 import io.netty.channel.socket.SocketChannel
 import io.netty.handler.codec.{LengthFieldBasedFrameDecoder, LengthFieldPrepender}

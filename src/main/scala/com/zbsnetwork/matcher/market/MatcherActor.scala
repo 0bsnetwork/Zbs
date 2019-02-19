@@ -1,49 +1,44 @@
-package com.zbsplatform.matcher.market
+package com.zbsnetwork.matcher.market
 
 import java.util.concurrent.atomic.AtomicReference
 
-import akka.actor.{Actor, ActorRef, Props, Terminated}
-import akka.http.scaladsl.model._
-import akka.persistence.{PersistentActor, RecoveryCompleted, _}
+import akka.actor.{ActorRef, Props, SupervisorStrategy, Terminated}
+import akka.persistence._
 import com.google.common.base.Charsets
-import com.zbsplatform.account.Address
-import com.zbsplatform.matcher.api.MatcherResponse
-import com.zbsplatform.matcher.market.OrderBookActor._
-import com.zbsplatform.matcher.model.OrderBook
-import com.zbsplatform.matcher.{AssetPairBuilder, MatcherSettings}
-import com.zbsplatform.settings.FunctionalitySettings
-import com.zbsplatform.state.{AssetDescription, Blockchain}
-import com.zbsplatform.transaction.AssetId
-import com.zbsplatform.transaction.assets.exchange.Validation.booleanOperators
-import com.zbsplatform.transaction.assets.exchange.{AssetPair, Order}
-import com.zbsplatform.utils.{Base58, NTP, ScorexLogging}
-import com.zbsplatform.utx.UtxPool
-import com.zbsplatform.wallet.Wallet
-import io.netty.channel.group.ChannelGroup
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.matcher.MatcherSettings
+import com.zbsnetwork.matcher.api.{DuringShutdown, OrderBookUnavailable}
+import com.zbsnetwork.matcher.market.OrderBookActor._
+import com.zbsnetwork.matcher.queue.QueueEventWithMeta.{Offset => EventOffset}
+import com.zbsnetwork.matcher.queue.{QueueEvent, QueueEventWithMeta}
+import com.zbsnetwork.state.AssetDescription
+import com.zbsnetwork.transaction.AssetId
+import com.zbsnetwork.transaction.assets.exchange.AssetPair
+import com.zbsnetwork.utils.ScorexLogging
 import play.api.libs.json._
 import scorex.utils._
 
-class MatcherActor(orderHistory: ActorRef,
-                   pairBuilder: AssetPairBuilder,
-                   orderBooks: AtomicReference[Map[AssetPair, ActorRef]],
-                   updateSnapshot: AssetPair => OrderBook => Unit,
-                   wallet: Wallet,
-                   utx: UtxPool,
-                   allChannels: ChannelGroup,
-                   settings: MatcherSettings,
-                   blockchain: Blockchain,
-                   functionalitySettings: FunctionalitySettings)
+class MatcherActor(settings: MatcherSettings,
+                   recoveryCompletedWithEventNr: Either[String, (ActorRef, Long)] => Unit,
+                   orderBooks: AtomicReference[Map[AssetPair, Either[Unit, ActorRef]]],
+                   orderBookActorProps: (AssetPair, ActorRef) => Props,
+                   assetDescription: ByteStr => Option[AssetDescription])
     extends PersistentActor
     with ScorexLogging {
 
   import MatcherActor._
 
-  private var tradedPairs            = Map.empty[AssetPair, MarketData]
-  private var lastSnapshotSequenceNr = 0L
+  override def supervisorStrategy: SupervisorStrategy = SupervisorStrategy.stoppingStrategy
+
+  private var tradedPairs: Map[AssetPair, MarketData] = Map.empty
+  private var childrenNames: Map[ActorRef, AssetPair] = Map.empty
+  private var lastSnapshotSequenceNr: Long            = 0L
+  private var lastProcessedNr: Long                   = 0L
+
+  private var snapshotsState = SnapshotsState.empty
 
   private var shutdownStatus: ShutdownStatus = ShutdownStatus(
     initiated = false,
-    orderBooksStopped = false,
     oldMessagesDeleted = false,
     oldSnapshotsDeleted = false,
     onComplete = () => ()
@@ -51,103 +46,90 @@ class MatcherActor(orderHistory: ActorRef,
 
   private def orderBook(pair: AssetPair) = Option(orderBooks.get()).flatMap(_.get(pair))
 
-  def getAssetName(asset: Option[AssetId], desc: Option[AssetDescription]): String =
+  private def getAssetName(asset: Option[AssetId], desc: Option[AssetDescription]): String =
     asset.fold(AssetPair.ZbsName) { _ =>
       desc.fold("Unknown")(d => new String(d.name, Charsets.UTF_8))
     }
 
-  def getAssetInfo(asset: Option[AssetId], desc: Option[AssetDescription]): Option[AssetInfo] =
+  private def getAssetInfo(asset: Option[AssetId], desc: Option[AssetDescription]): Option[AssetInfo] =
     asset.fold(Option(8))(_ => desc.map(_.decimals)).map(AssetInfo)
 
   private def createMarketData(pair: AssetPair): MarketData = {
-    val amountDesc = pair.amountAsset.flatMap(blockchain.assetDescription)
-    val priceDesc  = pair.priceAsset.flatMap(blockchain.assetDescription)
+    val amountDesc = pair.amountAsset.flatMap(assetDescription)
+    val priceDesc  = pair.priceAsset.flatMap(assetDescription)
 
     MarketData(
       pair,
       getAssetName(pair.amountAsset, amountDesc),
       getAssetName(pair.priceAsset, priceDesc),
-      NTP.correctedTime(),
+      System.currentTimeMillis(),
       getAssetInfo(pair.amountAsset, amountDesc),
       getAssetInfo(pair.priceAsset, priceDesc)
     )
   }
 
-  private def createOrderBookActor(pair: AssetPair): ActorRef = context.actorOf(
-    OrderBookActor.props(pair, updateSnapshot(pair), orderHistory, blockchain, settings, wallet, utx, allChannels, functionalitySettings),
-    OrderBookActor.name(pair)
-  )
-
-  def createOrderBook(pair: AssetPair): ActorRef = {
+  private def createOrderBook(pair: AssetPair): ActorRef = {
     log.info(s"Creating order book for $pair")
-    val orderBook = createOrderBookActor(pair)
-    orderBooks.updateAndGet(_ + (pair -> orderBook))
+    val orderBook = context.watch(context.actorOf(orderBookActorProps(pair, self), OrderBookActor.name(pair)))
+    childrenNames += orderBook -> pair
+    orderBooks.updateAndGet(_ + (pair -> Right(orderBook)))
     tradedPairs += pair -> createMarketData(pair)
     orderBook
   }
 
-  def checkBlacklistedAddress(address: Address)(f: => Unit): Unit = {
-    val v = !settings.blacklistedAddresses.contains(address.address) :| s"Invalid Address: ${address.address}"
-    if (v) f else sender() ! MatcherResponse(StatusCodes.Forbidden, v.messages())
-  }
+  /**
+    * @param f (sender, orderBook)
+    */
+  private def runFor(eventWithMeta: QueueEventWithMeta)(f: (ActorRef, ActorRef) => Unit): Unit = {
+    import eventWithMeta.event.assetPair
+    import eventWithMeta.offset
 
-  def createAndForward(order: Order): Unit = {
-    val orderBook = createOrderBook(order.assetPair)
-    persistAsync(OrderBookCreated(order.assetPair)) { _ =>
-      forwardReq(order)(orderBook)
-    }
-  }
-
-  def returnEmptyOrderBook(pair: AssetPair): Unit = {
-    sender() ! GetOrderBookResponse.empty(pair)
-  }
-
-  def forwardReq(req: Any)(orderBook: ActorRef): Unit = orderBook forward req
-
-  def checkAssetPair(assetPair: AssetPair, msg: Any)(f: => Unit): Unit =
-    pairBuilder.validateAssetPair(assetPair) match {
-      case Right(_) => f
-      case Left(e) =>
-        sender() ! pairBuilder
-          .validateAssetPair(assetPair.reverse)
-          .fold[MatcherResponse](
-            _ => StatusCodes.NotFound -> e,
-            _ => StatusCodes.Found    -> e
-          )
-    }
-
-  def getMatcherPublicKey: Array[Byte] = {
-    wallet.findPrivateKey(settings.account).map(_.publicKey).getOrElse(Array())
-  }
-
-  def forwardToOrderBook: Receive = {
-    case GetMarkets =>
-      sender() ! GetMarketsResponse(getMatcherPublicKey, tradedPairs.values.toSeq)
-
-    case order: Order =>
-      checkAssetPair(order.assetPair, order) {
-        checkBlacklistedAddress(order.senderPublicKey) {
-          orderBook(order.assetPair).fold(createAndForward(order))(forwardReq(order))
-        }
+    val s = sender()
+    if (shutdownStatus.initiated) s ! DuringShutdown
+    else
+      orderBook(assetPair) match {
+        case Some(Right(ob)) =>
+          f(s, ob)
+          snapshotsState.requiredSnapshot(offset).foreach {
+            case (assetPair, updatedSnapshotState) =>
+              log.info(
+                s"OrderBook $assetPair should do snapshot, the current offset is $offset. Next snapshot: ${updatedSnapshotState.nearestSnapshotOffset}")
+              orderBooks.get.get(assetPair).flatMap(_.toOption).foreach(_ ! SaveSnapshot(offset))
+              snapshotsState = updatedSnapshotState
+          }
+        case Some(Left(_)) => s ! OrderBookUnavailable
+        case None =>
+          val ob = createOrderBook(assetPair)
+          persistAsync(OrderBookCreated(assetPair))(_ => ())
+          f(s, ob)
       }
+  }
 
-    case ob: DeleteOrderBookRequest =>
-      checkAssetPair(ob.assetPair, ob) {
-        orderBook(ob.assetPair)
-          .fold(returnEmptyOrderBook(ob.assetPair))(forwardReq(ob))
-        removeOrderBook(ob.assetPair)
+  private def forwardToOrderBook: Receive = {
+    case GetMarkets => sender() ! tradedPairs.values.toSeq
+
+    case GetSnapshotOffsets => sender() ! SnapshotOffsetsResponse(snapshotsState.snapshotOffsets)
+
+    case request: QueueEventWithMeta =>
+      request.event match {
+        case QueueEvent.OrderBookDeleted(assetPair) =>
+          runFor(request) { (sender, ref) =>
+            ref.tell(request, sender)
+            orderBooks.getAndUpdate(_.filterNot { x =>
+              x._2.right.exists(_ == ref)
+            })
+
+            tradedPairs -= assetPair
+          }
+
+        case _ => runFor(request)((sender, orderBook) => orderBook.tell(request, sender))
       }
+      lastProcessedNr = math.max(request.offset, lastProcessedNr)
 
     case Shutdown =>
-      val s = sender()
-      shutdownStatus = shutdownStatus.copy(
-        initiated = true,
-        onComplete = { () =>
-          s ! ShutdownComplete
-          context.stop(self)
-        }
-      )
+      shutdownStatus = shutdownStatus.copy(initiated = true, onComplete = () => context.stop(self))
 
+      context.children.foreach(context.unwatch)
       context.become(snapshotsCommands orElse shutdownFallback)
 
       if (lastSnapshotSequenceNr < lastSequenceNr) saveSnapshot(Snapshot(tradedPairs.keySet))
@@ -157,28 +139,23 @@ class MatcherActor(orderHistory: ActorRef,
           oldMessagesDeleted = true,
           oldSnapshotsDeleted = true
         )
-      }
-
-      if (context.children.isEmpty) {
-        shutdownStatus = shutdownStatus.copy(orderBooksStopped = true)
         shutdownStatus.tryComplete()
-      } else {
-        context.actorOf(Props(classOf[GracefulShutdownActor], context.children.toVector, self))
       }
-  }
 
-  private def removeOrderBook(pair: AssetPair): Unit = {
-    if (tradedPairs.contains(pair)) {
-      tradedPairs -= pair
-      deleteMessages(lastSequenceNr)
-      saveSnapshot(Snapshot(tradedPairs.keySet))
-    }
+    case Terminated(ref) =>
+      log.error(s"$ref is terminated")
+      orderBooks.getAndUpdate { m =>
+        childrenNames.get(ref).fold(m)(m.updated(_, Left(())))
+      }
+
+    case OrderBookSnapshotUpdated(assetPair, eventNr) =>
+      snapshotsState = snapshotsState.updated(assetPair, eventNr, lastProcessedNr, settings.snapshotsInterval)
   }
 
   override def receiveRecover: Receive = {
-    case OrderBookCreated(pair) =>
+    case event @ OrderBookCreated(pair) =>
       if (orderBook(pair).isEmpty) {
-        log.info(s"Order book created for $pair")
+        log.debug(s"Replaying event $event")
         createOrderBook(pair)
       }
 
@@ -188,7 +165,59 @@ class MatcherActor(orderHistory: ActorRef,
       snapshot.tradedPairsSet.foreach(createOrderBook)
 
     case RecoveryCompleted =>
-      log.info("Recovery completed!")
+      if (orderBooks.get().isEmpty) {
+        log.info("Recovery completed!")
+        recoveryCompletedWithEventNr(Right((self, -1)))
+      } else {
+        val obs = orderBooks.get()
+        log.info(s"Recovery completed, waiting order books to restore: ${obs.keys.mkString(", ")}")
+        context.become(collectOrderBooks(obs.size, Long.MaxValue, Long.MinValue, Map.empty))
+      }
+  }
+
+  private def collectOrderBooks(restOrderBooksNumber: Long,
+                                oldestEventNr: Long,
+                                newestEventNr: Long,
+                                currentOffsets: Map[AssetPair, EventOffset]): Receive = {
+    case OrderBookSnapshotUpdated(assetPair, snapshotEventNr) =>
+      log.info(s"Last snapshot for $assetPair did at $snapshotEventNr")
+
+      val updatedRestOrderBooksNumber = restOrderBooksNumber - 1
+      val updatedOldestEventNr        = math.min(oldestEventNr, snapshotEventNr)
+      val updatedNewestEventNr        = math.max(newestEventNr, snapshotEventNr)
+      val updatedCurrentOffsets       = currentOffsets.updated(assetPair, snapshotEventNr)
+
+      if (updatedRestOrderBooksNumber > 0)
+        context.become(collectOrderBooks(updatedRestOrderBooksNumber, updatedOldestEventNr, updatedNewestEventNr, updatedCurrentOffsets))
+      else becomeWorking(updatedOldestEventNr, updatedNewestEventNr, updatedCurrentOffsets)
+
+    case Terminated(ref) =>
+      context.stop(self)
+      recoveryCompletedWithEventNr(Left(s"$ref is terminated"))
+
+    case Shutdown =>
+      context.children.foreach(context.unwatch)
+      context.stop(self)
+      recoveryCompletedWithEventNr(Left("Received Shutdown command"))
+
+    case _ => stash()
+  }
+
+  private def becomeWorking(oldestEventNr: EventOffset, newestEventNr: EventOffset, currentOffsets: Map[AssetPair, EventOffset]): Unit = {
+    context.become(receiveCommand)
+
+    snapshotsState = SnapshotsState(
+      startOffsetToSnapshot = lastProcessedNr,
+      currentOffsets = currentOffsets,
+      lastProcessedNr = lastProcessedNr,
+      interval = settings.snapshotsInterval
+    )
+
+    log.info(s"All snapshots are loaded, oldestEventNr: $oldestEventNr, newestEventNr: $newestEventNr")
+    log.trace(s"Expecting snapshots at: ${snapshotsState.nearestSnapshotOffsets}")
+
+    unstashAll()
+    recoveryCompletedWithEventNr(Right((self, oldestEventNr)))
   }
 
   private def snapshotsCommands: Receive = {
@@ -238,11 +267,7 @@ class MatcherActor(orderHistory: ActorRef,
   }
 
   private def shutdownFallback: Receive = {
-    case ShutdownComplete =>
-      shutdownStatus = shutdownStatus.copy(orderBooksStopped = true)
-      shutdownStatus.tryComplete()
-
-    case _ if shutdownStatus.initiated => sender() ! MatcherResponse(StatusCodes.ServiceUnavailable, "System is going shutdown")
+    case _ if shutdownStatus.initiated => sender() ! DuringShutdown
   }
 
   override def receiveCommand: Receive = forwardToOrderBook orElse snapshotsCommands
@@ -251,46 +276,33 @@ class MatcherActor(orderHistory: ActorRef,
 }
 
 object MatcherActor {
-  def name = "matcher"
+  def name: String = "matcher"
 
-  def props(orderHistoryActor: ActorRef,
-            pairBuilder: AssetPairBuilder,
-            orderBooks: AtomicReference[Map[AssetPair, ActorRef]],
-            updateSnapshot: AssetPair => OrderBook => Unit,
-            wallet: Wallet,
-            utx: UtxPool,
-            allChannels: ChannelGroup,
-            settings: MatcherSettings,
-            blockchain: Blockchain,
-            functionalitySettings: FunctionalitySettings): Props =
+  def props(matcherSettings: MatcherSettings,
+            recoveryCompletedWithEventNr: Either[String, (ActorRef, Long)] => Unit,
+            orderBooks: AtomicReference[Map[AssetPair, Either[Unit, ActorRef]]],
+            orderBookProps: (AssetPair, ActorRef) => Props,
+            assetDescription: ByteStr => Option[AssetDescription]): Props =
     Props(
-      new MatcherActor(orderHistoryActor,
-                       pairBuilder,
-                       orderBooks,
-                       updateSnapshot,
-                       wallet,
-                       utx,
-                       allChannels,
-                       settings,
-                       blockchain,
-                       functionalitySettings))
+      new MatcherActor(
+        matcherSettings,
+        recoveryCompletedWithEventNr,
+        orderBooks,
+        orderBookProps,
+        assetDescription
+      ))
 
-  private case class ShutdownStatus(initiated: Boolean,
-                                    oldMessagesDeleted: Boolean,
-                                    oldSnapshotsDeleted: Boolean,
-                                    orderBooksStopped: Boolean,
-                                    onComplete: () => Unit) {
+  private case class ShutdownStatus(initiated: Boolean, oldMessagesDeleted: Boolean, oldSnapshotsDeleted: Boolean, onComplete: () => Unit) {
     def completed: ShutdownStatus = copy(
       initiated = true,
       oldMessagesDeleted = true,
-      oldSnapshotsDeleted = true,
-      orderBooksStopped = true
+      oldSnapshotsDeleted = true
     )
-    def isCompleted: Boolean = initiated && oldMessagesDeleted && oldSnapshotsDeleted && orderBooksStopped
+    def isCompleted: Boolean = initiated && oldMessagesDeleted && oldSnapshotsDeleted
     def tryComplete(): Unit  = if (isCompleted) onComplete()
   }
 
-  case object SaveSnapshot
+  case class SaveSnapshot(globalEventNr: EventOffset)
 
   case class Snapshot(tradedPairsSet: Set[AssetPair])
 
@@ -298,28 +310,12 @@ object MatcherActor {
 
   case object GetMarkets
 
+  case object GetSnapshotOffsets
+  case class SnapshotOffsetsResponse(offsets: Map[AssetPair, EventOffset])
+
+  case class MatcherRecovered(oldestEventNr: Long)
+
   case object Shutdown
-
-  case object ShutdownComplete
-
-  case class GetMarketsResponse(publicKey: Array[Byte], markets: Seq[MarketData])
-      extends MatcherResponse(
-        StatusCodes.OK,
-        Json.obj(
-          "matcherPublicKey" -> Base58.encode(publicKey),
-          "markets" -> JsArray(
-            markets.map(m =>
-              Json.obj(
-                "amountAsset"     -> m.pair.amountAssetStr,
-                "amountAssetName" -> m.amountAssetName,
-                "amountAssetInfo" -> m.amountAssetInfo,
-                "priceAsset"      -> m.pair.priceAssetStr,
-                "priceAssetName"  -> m.priceAssetName,
-                "priceAssetInfo"  -> m.priceAssetinfo,
-                "created"         -> m.created
-            )))
-        )
-      )
 
   case class AssetInfo(decimals: Int)
   implicit val assetInfoFormat: Format[AssetInfo] = Json.format[AssetInfo]
@@ -336,20 +332,5 @@ object MatcherActor {
     else if (buffer1.isEmpty) -1
     else if (buffer2.isEmpty) 1
     else ByteArray.compare(buffer1.get, buffer2.get)
-  }
-
-  class GracefulShutdownActor(children: Vector[ActorRef], receiver: ActorRef) extends Actor {
-    children.map(context.watch).foreach(_ ! Shutdown)
-
-    override def receive: Receive = state(children.size)
-
-    private def state(expectedResponses: Int): Receive = {
-      case _: Terminated =>
-        if (expectedResponses > 1) context.become(state(expectedResponses - 1))
-        else {
-          receiver ! ShutdownComplete
-          context.stop(self)
-        }
-    }
   }
 }

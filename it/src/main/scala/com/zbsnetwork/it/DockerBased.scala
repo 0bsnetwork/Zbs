@@ -1,4 +1,4 @@
-package com.zbsplatform.it
+package com.zbsnetwork.it
 
 import monix.eval.Coeval
 import org.scalatest.{BeforeAndAfterAll, Suite}

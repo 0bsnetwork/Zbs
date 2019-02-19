@@ -1,12 +1,12 @@
-package com.zbsplatform.it.async
+package com.zbsnetwork.it.async
 
 import java.util.concurrent.TimeoutException
 
 import com.typesafe.config.{Config, ConfigFactory}
-import com.zbsplatform.it._
-import com.zbsplatform.it.api.AsyncHttpApi._
-import com.zbsplatform.it.transactions.NodesFromDocker
-import com.zbsplatform.it.util._
+import com.zbsnetwork.it._
+import com.zbsnetwork.it.api.AsyncHttpApi._
+import com.zbsnetwork.it.transactions.NodesFromDocker
+import com.zbsnetwork.it.util._
 import org.scalatest._
 
 import scala.concurrent.ExecutionContext.Implicits.global

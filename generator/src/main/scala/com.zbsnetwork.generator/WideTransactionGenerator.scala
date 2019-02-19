@@ -1,10 +1,10 @@
-package com.zbsplatform.generator
+package com.zbsnetwork.generator
 
 import cats.Show
-import com.zbsplatform.generator.WideTransactionGenerator.Settings
-import com.zbsplatform.generator.utils.Gen
-import com.zbsplatform.account.PrivateKeyAccount
-import com.zbsplatform.transaction.Transaction
+import com.zbsnetwork.generator.WideTransactionGenerator.Settings
+import com.zbsnetwork.generator.utils.Gen
+import com.zbsnetwork.account.PrivateKeyAccount
+import com.zbsnetwork.transaction.Transaction
 
 class WideTransactionGenerator(settings: Settings, accounts: Seq[PrivateKeyAccount]) extends TransactionGenerator {
   require(accounts.nonEmpty)

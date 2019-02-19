@@ -1,9 +1,9 @@
-package com.zbsplatform.network
+package com.zbsnetwork.network
 
 import java.net.{InetAddress, InetSocketAddress}
 
 import com.typesafe.config.ConfigFactory
-import com.zbsplatform.settings.{NetworkSettings, loadConfig}
+import com.zbsnetwork.settings.{NetworkSettings, loadConfig}
 import net.ceedubs.ficus.Ficus._
 import org.scalatest.{FeatureSpec, GivenWhenThen, ParallelTestExecution}
 

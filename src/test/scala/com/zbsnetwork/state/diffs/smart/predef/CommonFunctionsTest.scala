@@ -1,31 +1,35 @@
-package com.zbsplatform.state.diffs.smart.predef
+package com.zbsnetwork.state.diffs.smart.predef
 
-import com.zbsplatform.state._
-import com.zbsplatform.state.diffs._
-import com.zbsplatform.{NoShrink, TransactionGen}
+import com.zbsnetwork.account.{Address, Alias}
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.lang.Testing._
+import com.zbsnetwork.lang.v1.compiler.Terms.CONST_BYTESTR
+import com.zbsnetwork.lang.v1.evaluator.ctx.impl._
+import com.zbsnetwork.state.diffs._
+import com.zbsnetwork.transaction.{DataTransaction, Proofs}
+import com.zbsnetwork.{NoShrink, TransactionGen}
+import org.scalacheck.Gen
 import org.scalatest.prop.PropertyChecks
 import org.scalatest.{Assertions, Matchers, PropSpec}
-import scodec.bits.ByteVector
-import com.zbsplatform.account.{Address, Alias}
-import org.scalacheck.Gen
-import com.zbsplatform.transaction.{DataTransaction, Proofs}
+import shapeless.Coproduct
 
 class CommonFunctionsTest extends PropSpec with PropertyChecks with Matchers with TransactionGen with NoShrink {
 
   property("extract should transaction transfer assetId if exists") {
     forAll(transferV1Gen) {
-      case (transfer) =>
-        val result = runScript[ByteVector](
+      case transfer =>
+        val result = runScript(
           """
             |match tx {
             | case ttx : TransferTransaction  =>  extract(ttx.assetId)
             | case other => throw()
             | }
             |""".stripMargin,
-          transfer
+          Coproduct(transfer)
         )
         transfer.assetId match {
-          case Some(v) => result.explicitGet().toArray sameElements v.arr
+          case Some(v) => result.explicitGet().asInstanceOf[CONST_BYTESTR].bs.arr sameElements v.arr
           case None    => result should produce("extract() called on unit")
         }
     }
@@ -33,52 +37,52 @@ class CommonFunctionsTest extends PropSpec with PropertyChecks with Matchers wit
 
   property("isDefined should return true if transfer assetId exists") {
     forAll(transferV1Gen) {
-      case (transfer) =>
-        val result = runScript[Boolean](
+      case transfer =>
+        val result = runScript(
           """
                                           |match tx {
                                           | case ttx : TransferTransaction  =>  isDefined(ttx.assetId)
                                           | case other => throw()
                                           | }
                                           |""".stripMargin,
-          transfer
+          Coproduct(transfer)
         )
-        transfer.assetId.isDefined shouldEqual result.explicitGet()
+        result shouldEqual evaluated(transfer.assetId.isDefined)
     }
   }
 
   property("Some/None/extract/isDefined") {
     val some3 = "if true then 3 else unit"
     val none  = "if false then 3 else unit"
-    runScript[Any](some3) shouldBe Right(3L)
-    runScript[Any](none) shouldBe Right(())
-    runScript[Boolean](s"isDefined($some3)") shouldBe Right(true)
-    runScript[Boolean](s"isDefined($none)") shouldBe Right(false)
-    runScript[Long](s"extract($some3)") shouldBe Right(3L)
-    runScript[Long](s"extract($none)") should produce("extract() called on unit")
+    runScript(some3) shouldBe evaluated(3L)
+    runScript(none) shouldBe evaluated(unit)
+    runScript(s"isDefined($some3)") shouldBe evaluated(true)
+    runScript(s"isDefined($none)") shouldBe evaluated(false)
+    runScript(s"extract($some3)") shouldBe evaluated(3L)
+    runScript(s"extract($none)") should produce("extract() called on unit")
   }
 
   property("size()") {
     val arr = Array(1: Byte, 2: Byte, 3: Byte)
-    runScript[Long]("size(base58'')".stripMargin) shouldBe Right(0L)
-    runScript[Long](s"size(base58'${ByteStr(arr).base58}')".stripMargin) shouldBe Right(3L)
+    runScript("size(base58'')".stripMargin) shouldBe evaluated(0L)
+    runScript(s"size(base58'${ByteStr(arr).base58}')".stripMargin) shouldBe evaluated(3L)
   }
 
   property("getTransfer should extract MassTransfer transfers") {
-    import scodec.bits.ByteVector
-    forAll(massTransferGen.retryUntil(tg => tg.transfers.size > 0 && tg.transfers.map(_.address).forall(_.isInstanceOf[Address]))) {
-      case (massTransfer) =>
-        val resultAmount = runScript[Long](
+
+    forAll(massTransferGen.retryUntil(tg => tg.transfers.nonEmpty && tg.transfers.map(_.address).forall(_.isInstanceOf[Address]))) {
+      case massTransfer =>
+        val resultAmount = runScript(
           """
             |match tx {
             | case mttx : MassTransferTransaction  =>  mttx.transfers[0].amount
             | case other => throw()
             | }
             |""".stripMargin,
-          massTransfer
+          Coproduct(massTransfer)
         )
-        resultAmount shouldBe Right(massTransfer.transfers(0).amount)
-        val resultAddress = runScript[ByteVector](
+        resultAmount shouldBe evaluated(massTransfer.transfers(0).amount)
+        val resultAddress = runScript(
           """
                                                       |match tx {
                                                       | case mttx : MassTransferTransaction  =>
@@ -89,31 +93,31 @@ class CommonFunctionsTest extends PropSpec with PropertyChecks with Matchers wit
                                                       | case other => throw()
                                                       | }
                                                       |""".stripMargin,
-          massTransfer
+          Coproduct(massTransfer)
         )
-        resultAddress shouldBe Right(ByteVector(massTransfer.transfers(0).address.bytes.arr))
-        val resultLen = runScript[Long](
+        resultAddress shouldBe evaluated(massTransfer.transfers(0).address.bytes)
+        val resultLen = runScript(
           """
                                            |match tx {
                                            | case mttx : MassTransferTransaction  =>  size(mttx.transfers)
                                            | case other => throw()
                                            | }
                                            |""".stripMargin,
-          massTransfer
+          Coproduct(massTransfer)
         )
-        resultLen shouldBe Right(massTransfer.transfers.size.toLong)
+        resultLen shouldBe evaluated(massTransfer.transfers.size.toLong)
     }
   }
 
   property("+ should check overflow") {
-    runScript[Long]("2 + 3") shouldBe Right(5L)
-    runScript[Long](s"1 + ${Long.MaxValue}") should produce("long overflow")
+    runScript("2 + 3") shouldBe evaluated(5L)
+    runScript(s"1 + ${Long.MaxValue}") should produce("long overflow")
   }
 
   property("general shadowing verification") {
     forAll(Gen.oneOf(transferV1Gen, transferV2Gen, issueGen, massTransferGen(10))) {
       case (transfer) =>
-        val result = runScript[Boolean](
+        val result = runScript(
           s"""
             |match tx {
             | case tx : TransferTransaction  => tx.id == base58'${transfer.id().base58}'
@@ -122,9 +126,9 @@ class CommonFunctionsTest extends PropSpec with PropertyChecks with Matchers wit
             | case other => throw()
             | }
             |""".stripMargin,
-          transfer
+          Coproduct(transfer)
         )
-        result shouldBe Right(true)
+        result shouldBe evaluated(true)
     }
   }
 
@@ -132,7 +136,7 @@ class CommonFunctionsTest extends PropSpec with PropertyChecks with Matchers wit
     forAll(Gen.oneOf(transferV2Gen, issueGen, massTransferGen(10))) {
       case (transfer) =>
         try {
-          runScript[Boolean](
+          runScript(
             s"""
                |let t = 100
                |match tx {
@@ -142,7 +146,7 @@ class CommonFunctionsTest extends PropSpec with PropertyChecks with Matchers wit
                | case other => throw()
                | }
                |""".stripMargin,
-            transfer
+            Coproduct(transfer)
           )
         } catch {
           case ex: MatchError =>
@@ -154,7 +158,7 @@ class CommonFunctionsTest extends PropSpec with PropertyChecks with Matchers wit
 
   property("shadowing of empty ref") {
     try {
-      runScript[Boolean](
+      runScript(
         s"""
                |match p {
                | case tx: TransferTransaction  => true
@@ -170,9 +174,9 @@ class CommonFunctionsTest extends PropSpec with PropertyChecks with Matchers wit
 
   property("shadowing of inner pattern matching") {
     forAll(Gen.oneOf(transferV2Gen, issueGen)) {
-      case (transfer) =>
+      case transfer =>
         val result =
-          runScript[Boolean](
+          runScript(
             s"""
                |match tx {
                | case tx: TransferTransaction | IssueTransaction => {
@@ -184,16 +188,16 @@ class CommonFunctionsTest extends PropSpec with PropertyChecks with Matchers wit
                | case other => throw()
                |}
                |""".stripMargin,
-            transfer
+            Coproduct(transfer)
           )
-        result shouldBe Right(true)
+        result shouldBe evaluated(true)
     }
   }
 
   property("shadowing of external variable") {
     //TODO: script can be simplified after NODE-837 fix
     try {
-      runScript[Boolean](
+      runScript(
         s"""
            |match {
            |  let aaa = 1
@@ -217,7 +221,7 @@ class CommonFunctionsTest extends PropSpec with PropertyChecks with Matchers wit
         case addr: Address => s"tx.recipient == Address(base58'${addr.address}')"
         case alias: Alias  => s"""tx.recipient == Alias("${alias.name}")"""
       }
-      val transferResult = runScript[Boolean](
+      val transferResult = runScript(
         s"""
            |match tx {
            |  case tx: TransferTransaction =>
@@ -230,12 +234,12 @@ class CommonFunctionsTest extends PropSpec with PropertyChecks with Matchers wit
            |  case _ => throw()
            |}
            |""".stripMargin,
-        t
+        Coproduct(t)
       )
-      transferResult shouldBe Right(true)
+      transferResult shouldBe evaluated(true)
 
-      val dataTx = DataTransaction.create(1: Byte, t.sender, List(entry), 100000L, t.timestamp, Proofs(Seq.empty)).explicitGet()
-      val dataResult = runScript[Boolean](
+      val dataTx = DataTransaction.create(t.sender, List(entry), 100000L, t.timestamp, Proofs(Seq.empty)).explicitGet()
+      val dataResult = runScript(
         s"""
            |match tx {
            |  case tx: DataTransaction =>
@@ -251,9 +255,9 @@ class CommonFunctionsTest extends PropSpec with PropertyChecks with Matchers wit
            |  case _ => throw()
            |}
          """.stripMargin,
-        dataTx
+        Coproduct(dataTx)
       )
-      dataResult shouldBe Right(true)
+      dataResult shouldBe evaluated(true)
     }
   }
 
@@ -267,7 +271,7 @@ class CommonFunctionsTest extends PropSpec with PropertyChecks with Matchers wit
     )
     for ((clause, err) <- cases) {
       try {
-        runScript[Unit](
+        runScript(
           s"""
              |match tx {
              |  case tx: TransferTransaction =>

@@ -1,9 +1,9 @@
-package com.zbsplatform.consensus
+package com.zbsnetwork.consensus
 
 import cats.data.NonEmptyList
 import cats.implicits._
 import org.scalatest.{Matchers, PropSpec}
-import com.zbsplatform.account.PrivateKeyAccount
+import com.zbsnetwork.account.PrivateKeyAccount
 
 import scala.util.Random
 

@@ -1,25 +1,24 @@
-package com.zbsplatform.transaction.transfer
+package com.zbsnetwork.transaction.transfer
 
 import cats.implicits._
 import com.google.common.primitives.{Bytes, Longs, Shorts}
-import com.zbsplatform.account.{AddressOrAlias, PrivateKeyAccount, PublicKeyAccount}
-import com.zbsplatform.crypto
-import com.zbsplatform.serialization.Deser
-import com.zbsplatform.state._
-import com.zbsplatform.transaction.ValidationError.Validation
-import com.zbsplatform.transaction._
-import com.zbsplatform.transaction.transfer.MassTransferTransaction.{ParsedTransfer, toJson}
-import com.zbsplatform.utils.Base58
+import com.zbsnetwork.account.{AddressOrAlias, PrivateKeyAccount, PublicKeyAccount}
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.{Base58, EitherExt2}
+import com.zbsnetwork.crypto
+import com.zbsnetwork.crypto._
+import com.zbsnetwork.serialization.Deser
+import com.zbsnetwork.transaction.ValidationError.Validation
+import com.zbsnetwork.transaction._
+import com.zbsnetwork.transaction.transfer.MassTransferTransaction.{ParsedTransfer, toJson}
 import io.swagger.annotations.{ApiModel, ApiModelProperty}
 import monix.eval.Coeval
 import play.api.libs.json.{Format, JsObject, JsValue, Json}
-import scorex.crypto.signatures.Curve25519._
 
 import scala.annotation.meta.field
 import scala.util.{Either, Failure, Success, Try}
 
-case class MassTransferTransaction private (version: Byte,
-                                            assetId: Option[AssetId],
+case class MassTransferTransaction private (assetId: Option[AssetId],
                                             sender: PublicKeyAccount,
                                             transfers: List[ParsedTransfer],
                                             timestamp: Long,
@@ -29,12 +28,12 @@ case class MassTransferTransaction private (version: Byte,
     extends ProvenTransaction
     with VersionedTransaction
     with FastHashId {
+
   override val builder: MassTransferTransaction.type = MassTransferTransaction
-
-  override val assetFee: (Option[AssetId], Long) = (None, fee)
-
   override val bodyBytes: Coeval[Array[Byte]] = Coeval.evalOnce {
+
     val assetIdBytes = assetId.map(a => (1: Byte) +: a.arr).getOrElse(Array(0: Byte))
+
     val transferBytes = transfers
       .map { case ParsedTransfer(recipient, amount) => recipient.bytes.arr ++ Longs.toByteArray(amount) }
       .fold(Array())(_ ++ _)
@@ -50,8 +49,11 @@ case class MassTransferTransaction private (version: Byte,
       Deser.serializeArray(attachment)
     )
   }
+  override val bytes: Coeval[Array[Byte]] = Coeval.evalOnce(Bytes.concat(bodyBytes(), proofs.bytes()))
 
-  override def jsonBase(): JsObject =
+  override val assetFee: (Option[AssetId], Long) = (None, fee)
+
+  override def jsonBase(): JsObject = {
     super.jsonBase() ++ Json.obj(
       "version"       -> version,
       "assetId"       -> assetId.map(_.base58),
@@ -59,6 +61,7 @@ case class MassTransferTransaction private (version: Byte,
       "transferCount" -> transfers.size,
       "totalAmount"   -> transfers.map(_.amount).sum
     )
+  }
 
   override val json: Coeval[JsObject] = Coeval.evalOnce {
     jsonBase() ++ Json.obj("transfers" -> toJson(transfers))
@@ -67,28 +70,26 @@ case class MassTransferTransaction private (version: Byte,
   def compactJson(recipients: Set[AddressOrAlias]): JsObject =
     jsonBase() ++ Json.obj("transfers" -> toJson(transfers.filter(t => recipients.contains(t.address))))
 
-  override val bytes: Coeval[Array[Byte]] = Coeval.evalOnce(Bytes.concat(bodyBytes(), proofs.bytes()))
+  override def checkedAssets(): Seq[AssetId] = assetId.toSeq
+  override def version: Byte                 = MassTransferTransaction.version
 }
 
 object MassTransferTransaction extends TransactionParserFor[MassTransferTransaction] with TransactionParser.OneVersion {
 
   override val typeId: Byte  = 11
   override val version: Byte = 1
-
-  val MaxTransferCount = 100
+  val MaxTransferCount       = 100
 
   @ApiModel
-  case class Transfer(@(ApiModelProperty @field)(dataType = "string",
-                                                 example = "3Mciuup51AxRrpSz7XhutnQYTkNT9691HAk",
-                                                 required = true,
-                                                 allowEmptyValue = false) recipient: String,
-                      @(ApiModelProperty @field)(dataType = "long", example = "3000000000", required = true, allowEmptyValue = false) amount: Long)
+  case class Transfer(
+      @(ApiModelProperty @field)(dataType = "string", example = "3Mciuup51AxRrpSz7XhutnQYTkNT9691HAk", required = true) recipient: String,
+      @(ApiModelProperty @field)(dataType = "long", example = "3000000000", required = true) amount: Long)
 
   case class ParsedTransfer(address: AddressOrAlias, amount: Long)
 
   implicit val transferFormat: Format[Transfer] = Json.format
 
-  override protected def parseTail(version: Byte, bytes: Array[Byte]): Try[TransactionT] =
+  override protected def parseTail(bytes: Array[Byte]): Try[TransactionT] = {
     Try {
       val sender           = PublicKeyAccount(bytes.slice(0, KeyLength))
       val (assetIdOpt, s0) = Deser.parseByteArrayOption(bytes, KeyLength, AssetIdLength)
@@ -113,13 +114,13 @@ object MassTransferTransaction extends TransactionParserFor[MassTransferTransact
         feeAmount               = Longs.fromByteArray(bytes.slice(s1 + 8, s1 + 16))
         (attachment, attachEnd) = Deser.parseArraySize(bytes, s1 + 16)
         proofs <- Proofs.fromBytes(bytes.drop(attachEnd))
-        mtt    <- MassTransferTransaction.create(version, assetIdOpt.map(ByteStr(_)), sender, transfers, timestamp, feeAmount, attachment, proofs)
+        mtt    <- MassTransferTransaction.create(assetIdOpt.map(ByteStr(_)), sender, transfers, timestamp, feeAmount, attachment, proofs)
       } yield mtt
       tx.fold(left => Failure(new Exception(left.toString)), right => Success(right))
     }.flatten
+  }
 
-  def create(version: Byte,
-             assetId: Option[AssetId],
+  def create(assetId: Option[AssetId],
              sender: PublicKeyAccount,
              transfers: List[ParsedTransfer],
              timestamp: Long,
@@ -131,10 +132,8 @@ object MassTransferTransaction extends TransactionParserFor[MassTransferTransact
     }.fold(
       ex => Left(ValidationError.OverflowError),
       totalAmount =>
-        if (version != MassTransferTransaction.version) {
-          Left(ValidationError.UnsupportedVersion(version))
-        } else if (transfers.lengthCompare(MaxTransferCount) > 0) {
-          Left(ValidationError.GenericError(s"Number of transfers is greater than $MaxTransferCount"))
+        if (transfers.lengthCompare(MaxTransferCount) > 0) {
+          Left(ValidationError.GenericError(s"Number of transfers ${transfers.length} is greater than $MaxTransferCount"))
         } else if (transfers.exists(_.amount < 0)) {
           Left(ValidationError.GenericError("One of the transfers has negative amount"))
         } else if (attachment.length > TransferTransaction.MaxAttachmentSize) {
@@ -142,32 +141,30 @@ object MassTransferTransaction extends TransactionParserFor[MassTransferTransact
         } else if (feeAmount <= 0) {
           Left(ValidationError.InsufficientFee())
         } else {
-          Right(MassTransferTransaction(version, assetId, sender, transfers, timestamp, feeAmount, attachment, proofs))
+          Right(MassTransferTransaction(assetId, sender, transfers, timestamp, feeAmount, attachment, proofs))
       }
     )
   }
 
-  def signed(version: Byte,
-             assetId: Option[AssetId],
+  def signed(assetId: Option[AssetId],
              sender: PublicKeyAccount,
              transfers: List[ParsedTransfer],
              timestamp: Long,
              feeAmount: Long,
              attachment: Array[Byte],
              signer: PrivateKeyAccount): Either[ValidationError, TransactionT] = {
-    create(version, assetId, sender, transfers, timestamp, feeAmount, attachment, Proofs.empty).right.map { unsigned =>
+    create(assetId, sender, transfers, timestamp, feeAmount, attachment, Proofs.empty).right.map { unsigned =>
       unsigned.copy(proofs = Proofs.create(Seq(ByteStr(crypto.sign(signer, unsigned.bodyBytes())))).explicitGet())
     }
   }
 
-  def selfSigned(version: Byte,
-                 assetId: Option[AssetId],
+  def selfSigned(assetId: Option[AssetId],
                  sender: PrivateKeyAccount,
                  transfers: List[ParsedTransfer],
                  timestamp: Long,
                  feeAmount: Long,
                  attachment: Array[Byte]): Either[ValidationError, TransactionT] = {
-    signed(version, assetId, sender, transfers, timestamp, feeAmount, attachment, sender)
+    signed(assetId, sender, transfers, timestamp, feeAmount, attachment, sender)
   }
 
   def parseTransfersList(transfers: List[Transfer]): Validation[List[ParsedTransfer]] = {
@@ -177,6 +174,7 @@ object MassTransferTransaction extends TransactionParserFor[MassTransferTransact
     }
   }
 
-  private def toJson(transfers: List[ParsedTransfer]): JsValue =
+  private def toJson(transfers: List[ParsedTransfer]): JsValue = {
     Json.toJson(transfers.map { case ParsedTransfer(address, amount) => Transfer(address.stringRepr, amount) })
+  }
 }

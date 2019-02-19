@@ -1,4 +1,4 @@
-package com.zbsplatform.network
+package com.zbsnetwork.network
 
 import java.net.{InetAddress, InetSocketAddress}
 

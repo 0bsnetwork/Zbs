@@ -1,8 +1,7 @@
-package com.zbsplatform.api.http
-
-import com.zbsplatform.state.ByteStr
-import com.zbsplatform.transaction.ValidationError
-import com.zbsplatform.transaction.ValidationError.Validation
+package com.zbsnetwork.api.http
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.transaction.ValidationError
+import com.zbsnetwork.transaction.ValidationError.Validation
 
 trait BroadcastRequest {
   protected def parseBase58(v: String, error: String, maxLength: Int): Validation[ByteStr] =

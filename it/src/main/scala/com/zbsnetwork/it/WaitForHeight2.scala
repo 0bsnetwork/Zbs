@@ -1,7 +1,7 @@
-package com.zbsplatform.it
+package com.zbsnetwork.it
 
-import com.zbsplatform.it.api.AsyncHttpApi._
-import com.zbsplatform.utils.ScorexLogging
+import com.zbsnetwork.it.api.AsyncHttpApi._
+import com.zbsnetwork.utils.ScorexLogging
 import org.scalatest._
 
 import scala.concurrent.{Await, Future}

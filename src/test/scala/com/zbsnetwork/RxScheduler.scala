@@ -1,15 +1,17 @@
-package com.zbsplatform
+package com.zbsnetwork
 
-import com.zbsplatform.state._
+import com.zbsnetwork.account.PrivateKeyAccount
+import com.zbsnetwork.block.{Block, MicroBlock, SignerData}
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.crypto._
+import com.zbsnetwork.lagonaki.mocks.TestBlock
+import com.zbsnetwork.transaction.transfer._
 import monix.execution.schedulers.SchedulerService
 import monix.execution.{Ack, Scheduler}
 import monix.reactive.Observer
 import org.scalatest.{BeforeAndAfterAll, Suite}
-import com.zbsplatform.account.PrivateKeyAccount
-import com.zbsplatform.block.{Block, MicroBlock, SignerData}
-import com.zbsplatform.lagonaki.mocks.TestBlock
-import com.zbsplatform.transaction.transfer._
-import scorex.crypto.signatures.Curve25519._
+
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
 

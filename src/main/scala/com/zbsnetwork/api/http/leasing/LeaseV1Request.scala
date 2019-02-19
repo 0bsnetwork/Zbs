@@ -1,4 +1,4 @@
-package com.zbsplatform.api.http.leasing
+package com.zbsnetwork.api.http.leasing
 
 import io.swagger.annotations.ApiModelProperty
 import play.api.libs.json.{Format, Json}

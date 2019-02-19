@@ -1,12 +1,12 @@
-package com.zbsplatform.discovery.actors
+package com.zbsnetwork.discovery.actors
 
 import java.net.{InetAddress, InetSocketAddress}
 import java.util.concurrent.TimeUnit
 
 import akka.actor.Actor
-import com.zbsplatform.discovery._
-import com.zbsplatform.discovery.network._
-import com.zbsplatform.network.{GetPeers, Handshake, KnownPeers, LegacyFrameCodec, PeerDatabase, PipelineInitializer}
+import com.zbsnetwork.discovery._
+import com.zbsnetwork.discovery.network._
+import com.zbsnetwork.network.{GetPeers, Handshake, KnownPeers, LegacyFrameCodec, PeerDatabase, PipelineInitializer}
 import io.netty.bootstrap.Bootstrap
 import io.netty.channel.Channel
 import io.netty.channel.nio.NioEventLoopGroup

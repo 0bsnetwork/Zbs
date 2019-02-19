@@ -1,6 +1,6 @@
-package com.zbsplatform.it
+package com.zbsnetwork.it
 
-import com.zbsplatform.account.AddressScheme
+import com.zbsnetwork.account.AddressScheme
 
 trait IntegrationTestsScheme {
   AddressScheme.current = new AddressScheme {

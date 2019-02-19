@@ -1,11 +1,11 @@
-package com.zbsplatform.mining
+package com.zbsnetwork.mining
 
 import cats.data.NonEmptyList
-import com.zbsplatform.features.BlockchainFeatures
-import com.zbsplatform.features.FeatureProvider._
-import com.zbsplatform.settings.MinerSettings
-import com.zbsplatform.state.Blockchain
-import com.zbsplatform.block.Block
+import com.zbsnetwork.features.BlockchainFeatures
+import com.zbsnetwork.features.FeatureProvider._
+import com.zbsnetwork.settings.MinerSettings
+import com.zbsnetwork.state.Blockchain
+import com.zbsnetwork.block.Block
 
 case class MiningConstraints(total: MiningConstraint, keyBlock: MiningConstraint, micro: MiningConstraint)
 
@@ -14,7 +14,7 @@ object MiningConstraints {
   private val ClassicAmountOfTxsInBlock = 100
   private val MaxTxsSizeInBytes         = 1 * 1024 * 1024 // 1 megabyte
 
-  def apply(minerSettings: MinerSettings, blockchain: Blockchain, height: Int): MiningConstraints = {
+  def apply(blockchain: Blockchain, height: Int, minerSettings: Option[MinerSettings] = None): MiningConstraints = {
     val activatedFeatures     = blockchain.activatedFeaturesAt(height)
     val isNgEnabled           = activatedFeatures.contains(BlockchainFeatures.NG.id)
     val isMassTransferEnabled = activatedFeatures.contains(BlockchainFeatures.MassTransfer.id)
@@ -33,13 +33,17 @@ object MiningConstraints {
           MultiDimensionalMiningConstraint(NonEmptyList.of(OneDimensionalMiningConstraint(MaxScriptRunsInBlock, TxEstimators.scriptRunNumber), total))
         else total,
       keyBlock =
-        if (isMassTransferEnabled) OneDimensionalMiningConstraint(0, TxEstimators.one)
-        else {
-          val maxTxsForKeyBlock = if (isNgEnabled) minerSettings.maxTransactionsInKeyBlock else ClassicAmountOfTxsInBlock
-          OneDimensionalMiningConstraint(maxTxsForKeyBlock, TxEstimators.one)
-        },
+        if (isNgEnabled)
+          if (isMassTransferEnabled)
+            OneDimensionalMiningConstraint(0, TxEstimators.one)
+          else
+            minerSettings
+              .map(ms => OneDimensionalMiningConstraint(ms.maxTransactionsInKeyBlock, TxEstimators.one))
+              .getOrElse(MiningConstraint.Unlimited)
+        else OneDimensionalMiningConstraint(ClassicAmountOfTxsInBlock, TxEstimators.one),
       micro =
-        if (isNgEnabled) OneDimensionalMiningConstraint(minerSettings.maxTransactionsInMicroBlock, TxEstimators.one)
+        if (isNgEnabled && minerSettings.isDefined)
+          OneDimensionalMiningConstraint(minerSettings.get.maxTransactionsInMicroBlock, TxEstimators.one)
         else MiningConstraint.Unlimited
     )
   }

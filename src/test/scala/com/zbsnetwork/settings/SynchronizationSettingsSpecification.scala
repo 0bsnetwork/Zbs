@@ -1,8 +1,8 @@
-package com.zbsplatform.settings
+package com.zbsnetwork.settings
 
 import com.typesafe.config.ConfigFactory
-import com.zbsplatform.network.InvalidBlockStorageImpl.InvalidBlockStorageSettings
-import com.zbsplatform.settings.SynchronizationSettings.{HistoryReplierSettings, MicroblockSynchronizerSettings, UtxSynchronizerSettings}
+import com.zbsnetwork.network.InvalidBlockStorageImpl.InvalidBlockStorageSettings
+import com.zbsnetwork.settings.SynchronizationSettings.{HistoryReplierSettings, MicroblockSynchronizerSettings, UtxSynchronizerSettings}
 import org.scalatest.{FlatSpec, Matchers}
 
 import scala.concurrent.duration._

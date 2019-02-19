@@ -1,15 +1,15 @@
-package com.zbsplatform.it.api
+package com.zbsnetwork.it.api
 
-import com.zbsplatform.state.ByteStr
-import com.zbsplatform.transaction.assets.exchange.AssetPair
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.transaction.assets.exchange.AssetPair
 import play.api.libs.json._
 
 import scala.util.{Failure, Success}
 
 // USCE no longer contains references to non-serializable Request/Response objects
 // to work around https://github.com/scalatest/scalatest/issues/556
-case class UnexpectedStatusCodeException(requestUrl: String, statusCode: Int, responseBody: String)
-    extends Exception(s"Request: $requestUrl; Unexpected status code ($statusCode): $responseBody")
+case class UnexpectedStatusCodeException(requestMethod: String, requestUrl: String, statusCode: Int, responseBody: String)
+    extends Exception(s"Request: $requestMethod $requestUrl; Unexpected status code ($statusCode): $responseBody")
 
 case class Status(blockchainHeight: Int, stateHeight: Int, updatedTimestamp: Long, updatedDate: String)
 object Status {
@@ -31,12 +31,17 @@ object Balance {
   implicit val balanceFormat: Format[Balance] = Json.format
 }
 
+case class BalanceDetails(address: String, regular: Long, generating: Long, available: Long, effective: Long)
+object BalanceDetails {
+  implicit val balanceDetailsFormat: Format[BalanceDetails] = Json.format
+}
+
 case class AssetBalance(address: String, assetId: String, balance: Long)
 object AssetBalance {
   implicit val assetBalanceFormat: Format[AssetBalance] = Json.format
 }
 
-case class CompiledScript(script: String)
+case class CompiledScript(script: String, complexity: Long, extraFee: Long)
 object CompiledScript {
   implicit val compiledScriptFormat: Format[CompiledScript] = Json.format
 }
@@ -56,6 +61,11 @@ object FullAssetsInfo {
   implicit val fullAssetsInfoFormat: Format[FullAssetsInfo] = Json.format
 }
 
+case class ScriptAssetInfo(scriptComplexity: Long, script: String, scriptText: String)
+object ScriptAssetInfo {
+  implicit val scriptAssetInfoFormat: Format[ScriptAssetInfo] = Json.format
+}
+
 case class AssetInfo(assetId: String,
                      issueHeight: Int,
                      issueTimestamp: Long,
@@ -65,7 +75,8 @@ case class AssetInfo(assetId: String,
                      decimals: Int,
                      reissuable: Boolean,
                      quantity: Long,
-                     minSponsoredAssetFee: Option[Long])
+                     minSponsoredAssetFee: Option[Long],
+                     scriptDetails: Option[ScriptAssetInfo])
 object AssetInfo {
   implicit val AssetInfoFormat: Format[AssetInfo] = Json.format
 }
@@ -88,17 +99,19 @@ object TransactionInfo {
 }
 
 case class OrderInfo(id: String,
+                     version: Option[Byte],
                      sender: String,
                      senderPublicKey: String,
                      matcherPublicKey: String,
                      assetPair: AssetPairResponse,
                      orderType: String,
-                     price: Long,
                      amount: Long,
+                     price: Long,
                      timestamp: Long,
                      expiration: Long,
                      matcherFee: Long,
-                     signature: String)
+                     signature: String,
+                     proofs: Option[Seq[String]])
 object OrderInfo {
   implicit val transactionFormat: Format[OrderInfo] = Json.format
 }
@@ -109,16 +122,17 @@ object AssetPairResponse {
 }
 
 case class ExchangeTransaction(`type`: Int,
+                               version: Option[Byte],
                                id: String,
                                sender: String,
                                senderPublicKey: String,
                                fee: Long,
                                timestamp: Long,
-                               signature: String,
+                               proofs: Option[Seq[String]],
                                order1: OrderInfo,
                                order2: OrderInfo,
-                               price: Long,
                                amount: Long,
+                               price: Long,
                                buyMatcherFee: Long,
                                sellMatcherFee: Long,
                                height: Option[Int])
@@ -156,6 +170,11 @@ object MatcherMessage {
 case class MatcherResponse(status: String, message: MatcherMessage)
 object MatcherResponse {
   implicit val matcherResponseFormat: Format[MatcherResponse] = Json.format
+}
+
+case class MatcherErrorResponse(status: Option[String], message: Option[String])
+object MatcherErrorResponse {
+  implicit val matcherErrorResponseFormat: Format[MatcherErrorResponse] = Json.format
 }
 
 case class MarketDataInfo(matcherPublicKey: String, markets: Seq[MarketData])
@@ -221,7 +240,7 @@ object PairResponse {
   implicit val pairResponseFormat: Format[PairResponse] = Json.format
 }
 
-case class LevelResponse(price: Long, amount: Long)
+case class LevelResponse(amount: Long, price: Long)
 object LevelResponse {
   implicit val levelResponseFormat: Format[LevelResponse] = Json.format
 }
@@ -229,6 +248,16 @@ object LevelResponse {
 case class OrderBookResponse(timestamp: Long, pair: PairResponse, bids: List[LevelResponse], asks: List[LevelResponse])
 object OrderBookResponse {
   implicit val orderBookResponseFormat: Format[OrderBookResponse] = Json.format
+}
+
+case class MarketStatusResponse(lastPrice: Option[Long],
+                                lastSide: Option[String],
+                                bid: Option[Long],
+                                bidAmount: Option[Long],
+                                ask: Option[Long],
+                                askAmount: Option[Long])
+object MarketStatusResponse {
+  implicit val marketResponseFormat: Format[MarketStatusResponse] = Json.format
 }
 
 case class DebugInfo(stateHeight: Long, stateHash: Long)
@@ -244,6 +273,11 @@ object BlacklistedPeer {
 case class State(address: String, miningBalance: Long, timestamp: Long)
 object State {
   implicit val StateFormat: Format[State] = Json.format
+}
+
+case class TransactionSerialize(bytes: Array[Int])
+object TransactionSerialize {
+  implicit val TransactionSerializeFormat: Format[TransactionSerialize] = Json.format
 }
 
 case class FeeInfo(feeAssetId: Option[String], feeAmount: Long)

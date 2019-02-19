@@ -1,12 +1,13 @@
-package com.zbsplatform.transaction
+package com.zbsnetwork.transaction
 
 import com.google.common.primitives.{Bytes, Ints, Longs}
-import com.zbsplatform.crypto
-import com.zbsplatform.state.{ByteStr, _}
+import com.zbsnetwork.account.Address
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.crypto
+import com.zbsnetwork.transaction.TransactionParsers._
 import monix.eval.Coeval
 import play.api.libs.json.{JsObject, Json}
-import com.zbsplatform.account.Address
-import com.zbsplatform.transaction.TransactionParsers._
 
 import scala.util.{Failure, Success, Try}
 
@@ -39,6 +40,8 @@ case class GenesisTransaction private (recipient: Address, amount: Long, timesta
     require(res.length == TypeLength + BASE_LENGTH)
     res
   }
+
+  override val bodyBytes: Coeval[Array[Byte]] = bytes
 }
 
 object GenesisTransaction extends TransactionParserFor[GenesisTransaction] with TransactionParser.HardcodedVersion1 {
@@ -49,6 +52,7 @@ object GenesisTransaction extends TransactionParserFor[GenesisTransaction] with 
   private val BASE_LENGTH      = TimestampLength + RECIPIENT_LENGTH + AmountLength
 
   def generateSignature(recipient: Address, amount: Long, timestamp: Long): Array[Byte] = {
+
     val typeBytes      = Bytes.ensureCapacity(Ints.toByteArray(typeId), TypeLength, 0)
     val timestampBytes = Bytes.ensureCapacity(Longs.toByteArray(timestamp), TimestampLength, 0)
     val amountBytes    = Longs.toByteArray(amount)
@@ -60,7 +64,7 @@ object GenesisTransaction extends TransactionParserFor[GenesisTransaction] with 
     Bytes.concat(h, h)
   }
 
-  override protected def parseTail(version: Byte, bytes: Array[Byte]): Try[TransactionT] =
+  override protected def parseTail(bytes: Array[Byte]): Try[TransactionT] = {
     Try {
       require(bytes.length >= BASE_LENGTH, "Data does not match base length")
 
@@ -79,6 +83,7 @@ object GenesisTransaction extends TransactionParserFor[GenesisTransaction] with 
 
       GenesisTransaction.create(recipient, amount, timestamp).fold(left => Failure(new Exception(left.toString)), right => Success(right))
     }.flatten
+  }
 
   def create(recipient: Address, amount: Long, timestamp: Long): Either[ValidationError, GenesisTransaction] = {
     if (amount < 0) {

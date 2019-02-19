@@ -1,15 +1,15 @@
-package com.zbsplatform.consensus.nxt.api.http
+package com.zbsnetwork.consensus.nxt.api.http
 
 import akka.http.scaladsl.server.Route
-import com.zbsplatform.consensus.GeneratingBalanceProvider
-import com.zbsplatform.features.BlockchainFeatures
-import com.zbsplatform.settings.{FunctionalitySettings, RestAPISettings}
-import com.zbsplatform.state.Blockchain
+import com.zbsnetwork.account.Address
+import com.zbsnetwork.api.http.{ApiRoute, CommonApiFunctions, InvalidAddress}
+import com.zbsnetwork.consensus.GeneratingBalanceProvider
+import com.zbsnetwork.features.BlockchainFeatures
+import com.zbsnetwork.settings.{FunctionalitySettings, RestAPISettings}
+import com.zbsnetwork.state.Blockchain
 import io.swagger.annotations._
 import javax.ws.rs.Path
 import play.api.libs.json.Json
-import com.zbsplatform.account.Address
-import com.zbsplatform.api.http.{ApiRoute, CommonApiFunctions, InvalidAddress}
 
 @Path("/consensus")
 @Api(value = "/consensus")
@@ -32,7 +32,7 @@ case class NxtConsensusApiRoute(settings: RestAPISettings, blockchain: Blockchai
     Address.fromString(address) match {
       case Left(_) => complete(InvalidAddress)
       case Right(account) =>
-        complete(Json.obj("address" -> account.address, "balance" -> GeneratingBalanceProvider.balance(blockchain, fs, blockchain.height, account)))
+        complete(Json.obj("address" -> account.address, "balance" -> GeneratingBalanceProvider.balance(blockchain, fs, account)))
     }
   }
 

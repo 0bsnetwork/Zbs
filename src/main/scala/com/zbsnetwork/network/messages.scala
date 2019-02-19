@@ -1,13 +1,13 @@
-package com.zbsplatform.network
+package com.zbsnetwork.network
 
 import java.net.InetSocketAddress
 
-import com.zbsplatform.crypto
-import com.zbsplatform.state.ByteStr
+import com.zbsnetwork.crypto
 import monix.eval.Coeval
-import com.zbsplatform.account.{PrivateKeyAccount, PublicKeyAccount}
-import com.zbsplatform.block.{Block, MicroBlock}
-import com.zbsplatform.transaction.{Signed, Transaction}
+import com.zbsnetwork.account.{PrivateKeyAccount, PublicKeyAccount}
+import com.zbsnetwork.block.{Block, MicroBlock}
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.transaction.{Signed, Transaction}
 
 sealed trait Message
 

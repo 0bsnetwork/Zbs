@@ -1,6 +1,6 @@
-package com.zbsplatform.it
+package com.zbsnetwork.it
 
-import com.zbsplatform.settings.Constants
+import com.zbsnetwork.settings.Constants
 import io.netty.util.Timer
 
 import scala.concurrent.duration.FiniteDuration
@@ -25,6 +25,6 @@ package object util {
       f.flatMap(v => if (cond(v)) Future.successful(v) else schedule(retryUntil(f, cond, retryInterval), retryInterval))
   }
   implicit class DoubleExt(val d: Double) extends AnyVal {
-    def zbs: Long = (d * Constants.UnitsInZbs).toLong
+    def zbs: Long = (BigDecimal(d) * Constants.UnitsInZbs).toLong
   }
 }

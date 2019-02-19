@@ -1,4 +1,4 @@
-package com.zbsplatform.network
+package com.zbsnetwork.network
 
 import io.netty.channel.ChannelHandler.Sharable
 import io.netty.channel._

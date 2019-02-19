@@ -1,19 +1,20 @@
-package com.zbsplatform.db
+package com.zbsnetwork.db
 
 import com.typesafe.config.ConfigFactory
-import com.zbsplatform.database.LevelDBWriter
-import com.zbsplatform.settings.{TestFunctionalitySettings, ZbsSettings, loadConfig}
-import com.zbsplatform.state.{BlockchainUpdaterImpl, _}
-import com.zbsplatform.{TransactionGen, WithDB}
+import com.zbsnetwork.account.PrivateKeyAccount
+import com.zbsnetwork.block.Block
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.database.LevelDBWriter
+import com.zbsnetwork.lagonaki.mocks.TestBlock
+import com.zbsnetwork.settings.{TestFunctionalitySettings, ZbsSettings, loadConfig}
+import com.zbsnetwork.state.{BlockchainUpdaterImpl, _}
+import com.zbsnetwork.transaction.smart.SetScriptTransaction
+import com.zbsnetwork.transaction.smart.script.{Script, ScriptCompiler}
+import com.zbsnetwork.transaction.{BlockchainUpdater, GenesisTransaction}
+import com.zbsnetwork.utils.Time
+import com.zbsnetwork.{TransactionGen, WithDB}
 import org.scalacheck.Gen
 import org.scalatest.{FreeSpec, Matchers}
-import com.zbsplatform.account.PrivateKeyAccount
-import com.zbsplatform.utils.{Time, TimeImpl}
-import com.zbsplatform.block.Block
-import com.zbsplatform.lagonaki.mocks.TestBlock
-import com.zbsplatform.transaction.smart.SetScriptTransaction
-import com.zbsplatform.transaction.smart.script.{Script, ScriptCompiler}
-import com.zbsplatform.transaction.{BlockchainUpdater, GenesisTransaction}
 
 class ScriptCacheTest extends FreeSpec with Matchers with WithDB with TransactionGen {
 
@@ -27,7 +28,8 @@ class ScriptCacheTest extends FreeSpec with Matchers with WithDB with Transactio
         s"""
            |let ind = $ind
            |true
-          """.stripMargin
+          """.stripMargin,
+        isAssetScript = false
       ).explicitGet()
 
       script
@@ -52,7 +54,7 @@ class ScriptCacheTest extends FreeSpec with Matchers with WithDB with Transactio
             .map {
               case (account, script) =>
                 SetScriptTransaction
-                  .selfSigned(1, account, Some(script), FEE, ts + accounts.length + accounts.indexOf(account) + 1)
+                  .selfSigned(account, Some(script), FEE, ts + accounts.length + accounts.indexOf(account) + 1)
                   .explicitGet()
             }
 
@@ -104,7 +106,7 @@ class ScriptCacheTest extends FreeSpec with Matchers with WithDB with Transactio
           val lastBlock = bcu.lastBlock.get
 
           val newScriptTx = SetScriptTransaction
-            .selfSigned(1, account, None, FEE, lastBlock.timestamp + 1)
+            .selfSigned(account, None, FEE, lastBlock.timestamp + 1)
             .explicitGet()
 
           val blockWithEmptyScriptTx = TestBlock
@@ -127,13 +129,12 @@ class ScriptCacheTest extends FreeSpec with Matchers with WithDB with Transactio
   }
 
   def withBlockchain(gen: Time => Gen[(Seq[PrivateKeyAccount], Seq[Block])])(f: (Seq[PrivateKeyAccount], BlockchainUpdater with NG) => Unit): Unit = {
-    val time          = new TimeImpl
-    val defaultWriter = new LevelDBWriter(db, TestFunctionalitySettings.Stub, CACHE_SIZE)
+    val defaultWriter = new LevelDBWriter(db, ignorePortfolioChanged, TestFunctionalitySettings.Stub, CACHE_SIZE, 2000, 120 * 60 * 1000)
     val settings0     = ZbsSettings.fromConfig(loadConfig(ConfigFactory.load()))
     val settings      = settings0.copy(featuresSettings = settings0.featuresSettings.copy(autoShutdownOnUnsupportedFeature = false))
-    val bcu           = new BlockchainUpdaterImpl(defaultWriter, settings, time)
+    val bcu           = new BlockchainUpdaterImpl(defaultWriter, ignorePortfolioChanged, settings, ntpTime)
     try {
-      val (accounts, blocks) = gen(time).sample.get
+      val (accounts, blocks) = gen(ntpTime).sample.get
 
       blocks.foreach { block =>
         bcu.processBlock(block).explicitGet()
@@ -142,7 +143,6 @@ class ScriptCacheTest extends FreeSpec with Matchers with WithDB with Transactio
       f(accounts, bcu)
       bcu.shutdown()
     } finally {
-      time.close()
       bcu.shutdown()
       db.close()
     }

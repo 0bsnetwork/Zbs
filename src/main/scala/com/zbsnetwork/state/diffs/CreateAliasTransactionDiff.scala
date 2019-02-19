@@ -1,10 +1,10 @@
-package com.zbsplatform.state.diffs
+package com.zbsnetwork.state.diffs
 
-import com.zbsplatform.features.BlockchainFeatures
-import com.zbsplatform.state.{Blockchain, Diff, LeaseBalance, Portfolio}
-import com.zbsplatform.transaction.ValidationError.GenericError
-import com.zbsplatform.transaction.{CreateAliasTransaction, ValidationError}
-import com.zbsplatform.features.FeatureProvider._
+import com.zbsnetwork.features.BlockchainFeatures
+import com.zbsnetwork.state.{Blockchain, Diff, LeaseBalance, Portfolio}
+import com.zbsnetwork.transaction.ValidationError.GenericError
+import com.zbsnetwork.transaction.{CreateAliasTransaction, ValidationError}
+import com.zbsnetwork.features.FeatureProvider._
 
 import scala.util.Right
 

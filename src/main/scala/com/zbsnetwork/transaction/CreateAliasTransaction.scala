@@ -1,11 +1,11 @@
-package com.zbsplatform.transaction
+package com.zbsnetwork.transaction
 
 import com.google.common.primitives.{Bytes, Longs}
-import com.zbsplatform.account.{Alias, PublicKeyAccount}
-import com.zbsplatform.serialization.Deser
+import com.zbsnetwork.account.{Alias, PublicKeyAccount}
+import com.zbsnetwork.serialization.Deser
 import monix.eval.Coeval
 import play.api.libs.json.{JsObject, Json}
-import scorex.crypto.signatures.Curve25519._
+import com.zbsnetwork.crypto._
 
 import scala.util.{Failure, Success, Try}
 

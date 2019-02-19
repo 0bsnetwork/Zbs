@@ -1,8 +1,9 @@
-package com.zbsplatform.transaction
+package com.zbsnetwork.transaction
 
 import cats.data.{Validated, ValidatedNel}
 import cats.implicits._
-import com.zbsplatform.transaction.transfer._
+import cats.{Order => _}
+import com.zbsnetwork.transaction.transfer._
 
 import scala.util.Try
 

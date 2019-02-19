@@ -1,4 +1,4 @@
-package com.zbsplatform.discovery
+package com.zbsnetwork.discovery
 
 import java.net.InetSocketAddress
 

@@ -1,6 +1,6 @@
-package com.zbsplatform.network
+package com.zbsnetwork.network
 
-import com.zbsplatform.TransactionGen
+import com.zbsnetwork.TransactionGen
 import io.netty.channel.embedded.EmbeddedChannel
 import org.scalamock.scalatest.MockFactory
 import org.scalatest.prop.PropertyChecks

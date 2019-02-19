@@ -1,4 +1,4 @@
-package com.zbsplatform.serialization
+package com.zbsnetwork.serialization
 
 import monix.eval.Coeval
 import play.api.libs.json.JsObject

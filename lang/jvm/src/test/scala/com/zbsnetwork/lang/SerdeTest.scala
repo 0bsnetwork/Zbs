@@ -1,29 +1,46 @@
-package com.zbsplatform.lang
+package com.zbsnetwork.lang
 
-import com.zbsplatform.lang.Common._
-import com.zbsplatform.lang.v1.compiler.CompilerV1
-import com.zbsplatform.lang.v1.compiler.Terms._
-import com.zbsplatform.lang.v1.evaluator.ctx.impl.PureContext
-import com.zbsplatform.lang.v1.parser.Expressions
-import com.zbsplatform.lang.v1.testing.ScriptGen
-import com.zbsplatform.lang.v1.{FunctionHeader, Serde}
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.lang.Common._
+import com.zbsnetwork.lang.StdLibVersion._
+import com.zbsnetwork.lang.v1.compiler.ExpressionCompiler
+import com.zbsnetwork.lang.v1.compiler.Terms._
+import com.zbsnetwork.lang.v1.evaluator.ctx.impl.PureContext
+import com.zbsnetwork.lang.v1.parser.Expressions
+import com.zbsnetwork.lang.v1.testing.ScriptGen
+import com.zbsnetwork.lang.v1.{FunctionHeader, Serde}
+import org.scalacheck.{Arbitrary, Gen}
 import org.scalatest.prop.PropertyChecks
 import org.scalatest.{Assertion, FreeSpec, Matchers}
-import scodec.bits.ByteVector
 
 class SerdeTest extends FreeSpec with PropertyChecks with Matchers with ScriptGen with NoShrink {
 
   "roundtrip" - {
     "CONST_LONG" in roundTripTest(CONST_LONG(1))
-    "CONST_BYTEVECTOR" in roundTripTest(CONST_BYTEVECTOR(ByteVector[Byte](1)))
+    "CONST_BYTESTR" in roundTripTest(CONST_BYTESTR(ByteStr.fromBytes(1)))
     "CONST_STRING" in roundTripTest(CONST_STRING("foo"))
 
     "IF" in roundTripTest(IF(TRUE, CONST_LONG(0), CONST_LONG(1)))
 
-    "BLOCK" in roundTripTest(
-      BLOCK(
+    "BLOCKV1" in roundTripTest(
+      LET_BLOCK(
         let = LET("foo", TRUE),
         body = FALSE
+      )
+    )
+
+    "BLOCKV2 with LET" in roundTripTest(
+      BLOCK(
+        dec = LET("foo", TRUE),
+        body = FALSE
+      )
+    )
+
+    "BLOCKV2 with FUNC" in roundTripTest(
+      BLOCK(
+        FUNC("foo", List("bar", "buz"), CONST_BOOLEAN(true)),
+        CONST_BOOLEAN(false)
       )
     )
 
@@ -77,8 +94,31 @@ class SerdeTest extends FreeSpec with PropertyChecks with Matchers with ScriptGe
     }
   }
 
+  "spec input" in {
+    val byteArr   = Array[Byte](1, 113, -1, 63, 0, -1, 127, 0, -1, 39, -1, 87, -41, 50, -111, -38, 12, 1, 0, -19, 101, -128, -1, 54)
+    val (r, time) = measureTime(Serde.deserialize(byteArr).map(_._1))
+
+    r shouldBe an[Either[_, _]]
+    time should be <= 1000L
+  }
+
+  "any input" in {
+    forAll(Gen.containerOf[Array, Byte](Arbitrary.arbByte.arbitrary)) { byteArr =>
+      val (r, time) = measureTime(Serde.deserialize(byteArr).map(_._1))
+
+      r shouldBe an[Either[_, _]]
+      time should be <= 1000L
+    }
+  }
+
+  def measureTime[A](f: => A): (A, Long) = {
+    val start  = System.currentTimeMillis()
+    val result = f
+    (result, System.currentTimeMillis() - start)
+  }
+
   private def roundTripTest(untypedExpr: Expressions.EXPR): Assertion = {
-    val typedExpr = CompilerV1(PureContext.compilerContext, untypedExpr).map(_._1).explicitGet()
+    val typedExpr = ExpressionCompiler(PureContext.build(V1).compilerContext, untypedExpr).map(_._1).explicitGet()
     roundTripTest(typedExpr)
   }
 
@@ -86,7 +126,7 @@ class SerdeTest extends FreeSpec with PropertyChecks with Matchers with ScriptGe
     val encoded = Serde.serialize(typedExpr)
     encoded.nonEmpty shouldBe true
 
-    val decoded = Serde.deserialize(encoded).explicitGet()
+    val decoded = Serde.deserialize(encoded).map(_._1).explicitGet()
     withClue(s"encoded bytes: [${encoded.mkString(", ")}]") {
       decoded shouldEqual typedExpr
     }

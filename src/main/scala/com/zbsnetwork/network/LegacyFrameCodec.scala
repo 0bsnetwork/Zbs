@@ -1,15 +1,16 @@
-package com.zbsplatform.network
+package com.zbsnetwork.network
 
 import java.util
 
 import com.google.common.cache.CacheBuilder
-import com.zbsplatform.crypto
-import com.zbsplatform.utils.{Base64, ScorexLogging}
+import com.zbsnetwork.common.utils.Base64
+import com.zbsnetwork.crypto
+import com.zbsnetwork.utils.ScorexLogging
 import io.netty.buffer.ByteBuf
 import io.netty.buffer.Unpooled._
 import io.netty.channel.ChannelHandlerContext
 import io.netty.handler.codec.ByteToMessageCodec
-import com.zbsplatform.network.message.Message._
+import com.zbsnetwork.network.message.Message._
 
 import scala.concurrent.duration.FiniteDuration
 import scala.util.control.NonFatal

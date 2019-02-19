@@ -1,26 +1,26 @@
-package com.zbsplatform.api.http
+package com.zbsnetwork.api.http
 
 import java.nio.charset.StandardCharsets
 
-import javax.ws.rs.Path
 import akka.http.scaladsl.marshalling.ToResponseMarshallable
 import akka.http.scaladsl.server.Route
-import com.zbsplatform.consensus.GeneratingBalanceProvider
-import com.zbsplatform.crypto
-import com.zbsplatform.settings.{FunctionalitySettings, RestAPISettings}
-import com.zbsplatform.state.Blockchain
-import com.zbsplatform.state.diffs.CommonValidation
-import com.zbsplatform.utils.{Base58, Time}
-import com.zbsplatform.utx.UtxPool
+import com.zbsnetwork.account.{Address, PublicKeyAccount}
+import com.zbsnetwork.common.utils.{Base58, Base64}
+import com.zbsnetwork.consensus.GeneratingBalanceProvider
+import com.zbsnetwork.crypto
+import com.zbsnetwork.http.BroadcastRoute
+import com.zbsnetwork.settings.{FunctionalitySettings, RestAPISettings}
+import com.zbsnetwork.state.Blockchain
+import com.zbsnetwork.state.diffs.CommonValidation
+import com.zbsnetwork.transaction.TransactionFactory
+import com.zbsnetwork.transaction.smart.script.Script
+import com.zbsnetwork.utils.Time
+import com.zbsnetwork.utx.UtxPool
+import com.zbsnetwork.wallet.Wallet
 import io.netty.channel.group.ChannelGroup
 import io.swagger.annotations._
+import javax.ws.rs.Path
 import play.api.libs.json._
-import com.zbsplatform.account.{Address, PublicKeyAccount}
-import com.zbsplatform.http.BroadcastRoute
-import com.zbsplatform.transaction.ValidationError.GenericError
-import com.zbsplatform.transaction.smart.script.ScriptCompiler
-import com.zbsplatform.transaction.{TransactionFactory, ValidationError}
-import com.zbsplatform.wallet.Wallet
 
 import scala.util.{Failure, Success, Try}
 
@@ -56,7 +56,7 @@ case class AddressApiRoute(settings: RestAPISettings,
     complete(
       Address
         .fromString(address)
-        .flatMap(addressScriptInfoJson)
+        .map(addressScriptInfoJson)
         .map(ToResponseMarshallable(_))
     )
   }
@@ -127,7 +127,7 @@ case class AddressApiRoute(settings: RestAPISettings,
         value = "Json with data",
         required = true,
         paramType = "body",
-        dataType = "com.zbsplatform.api.http.SignedMessage",
+        dataType = "com.zbsnetwork.api.http.SignedMessage",
         defaultValue =
           "{\n\t\"message\":\"Base58-encoded message\",\n\t\"signature\":\"Base58-encoded signature\",\n\t\"publickey\":\"Base58-encoded public key\"\n}"
       )
@@ -148,7 +148,7 @@ case class AddressApiRoute(settings: RestAPISettings,
         value = "Json with data",
         required = true,
         paramType = "body",
-        dataType = "com.zbsplatform.api.http.SignedMessage",
+        dataType = "com.zbsnetwork.api.http.SignedMessage",
         defaultValue =
           "{\n\t\"message\":\"Plain message\",\n\t\"signature\":\"Base58-encoded signature\",\n\t\"publickey\":\"Base58-encoded public key\"\n}"
       )
@@ -260,8 +260,9 @@ case class AddressApiRoute(settings: RestAPISettings,
         value = "Json with data",
         required = true,
         paramType = "body",
-        dataType = "com.zbsplatform.api.http.DataRequest",
-        defaultValue = "{\n\t\"version\": 1,\n\t\"sender\": \"3Mx2afTZ2KbRrLNbytyzTtXukZvqEB8SkW7\",\n\t\"fee\": 100000,\n\t\"data\": {}\n}"
+        dataType = "com.zbsnetwork.api.http.DataRequest",
+        defaultValue =
+          "{\n\t\"version\": 1,\n\t\"sender\": \"3Mx2afTZ2KbRrLNbytyzTtXukZvqEB8SkW7\",\n\t\"fee\": 100000,\n\t\"data\": [{\"key\":\"intValue\", \"type\":\"integer\", \"value\":17},{\"key\":\"stringValue\", \"type\":\"string\", \"value\":\"seventeen\"},{\"key\":\"boolValue\", \"type\":\"boolean\", \"value\":false},{\"key\":\"binaryArray\", \"type\":\"binary\", \"value\":\"EQ==\"}]\n}"
       )
     ))
   @ApiResponses(Array(new ApiResponse(code = 200, message = "Json with response or error")))
@@ -358,30 +359,30 @@ case class AddressApiRoute(settings: RestAPISettings,
     BalanceDetails(
       account.address,
       portfolio.balance,
-      GeneratingBalanceProvider.balance(blockchain, functionalitySettings, blockchain.height, account),
+      GeneratingBalanceProvider.balance(blockchain, functionalitySettings, account),
       portfolio.balance - portfolio.lease.out,
       portfolio.effectiveBalance
     )
   }
 
-  private def addressScriptInfoJson(account: Address): Either[ValidationError, AddressScriptInfo] =
-    for {
-      script     <- Right(blockchain.accountScript(account))
-      complexity <- script.fold[Either[ValidationError, Long]](Right(0))(x => ScriptCompiler.estimate(x).left.map(GenericError(_)))
-    } yield
-      AddressScriptInfo(
-        address = account.address,
-        script = script.map(_.bytes().base64),
-        scriptText = script.map(_.text),
-        complexity = complexity,
-        extraFee = if (script.isEmpty) 0 else CommonValidation.ScriptExtraFee
-      )
+  private def addressScriptInfoJson(account: Address): AddressScriptInfo = {
+    val script: Option[Script] = blockchain
+      .accountScript(account)
+
+    AddressScriptInfo(
+      address = account.address,
+      script = script.map(_.bytes().base64),
+      scriptText = script.map(_.expr.toString), // [WAIT] script.map(Script.decompile),
+      complexity = script.map(_.complexity).getOrElse(0),
+      extraFee = if (script.isEmpty) 0 else CommonValidation.ScriptExtraFee
+    )
+  }
 
   private def effectiveBalanceJson(address: String, confirmations: Int): ToResponseMarshallable = {
     Address
       .fromString(address)
       .right
-      .map(acc => ToResponseMarshallable(Balance(acc.address, confirmations, blockchain.effectiveBalance(acc, blockchain.height, confirmations))))
+      .map(acc => ToResponseMarshallable(Balance(acc.address, confirmations, blockchain.effectiveBalance(acc, confirmations))))
       .getOrElse(InvalidAddress)
   }
 
@@ -422,7 +423,9 @@ case class AddressApiRoute(settings: RestAPISettings,
         InvalidAddress
       } else {
         //DECODE SIGNATURE
-        val msg: Try[Array[Byte]] = if (decode) Base58.decode(m.message) else Success(m.message.getBytes)
+        val msg: Try[Array[Byte]] =
+          if (decode) if (m.message.startsWith("base64:")) Base64.decode(m.message) else Base58.decode(m.message, 2048)
+          else Success(m.message.getBytes)
         verifySigned(msg, m.signature, m.publickey, address)
       }
     }

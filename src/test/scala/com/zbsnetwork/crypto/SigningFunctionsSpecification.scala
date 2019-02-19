@@ -1,9 +1,9 @@
-package com.zbsplatform.crypto
+package com.zbsnetwork.crypto
 
-import com.zbsplatform.crypto
+import com.zbsnetwork.crypto
 import org.scalatest.prop.PropertyChecks
 import org.scalatest.{Matchers, PropSpec}
-import com.zbsplatform.account.PrivateKeyAccount
+import com.zbsnetwork.account.PrivateKeyAccount
 
 class SigningFunctionsSpecification extends PropSpec with PropertyChecks with Matchers {
 

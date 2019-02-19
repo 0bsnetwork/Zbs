@@ -1,10 +1,10 @@
-package com.zbsplatform.mining
+package com.zbsnetwork.mining
 
-import com.zbsplatform.state.Blockchain
-import com.zbsplatform.transaction.assets.exchange.ExchangeTransaction
-import com.zbsplatform.transaction.assets.{BurnTransaction, ReissueTransaction, SponsorFeeTransaction}
-import com.zbsplatform.transaction.transfer.{MassTransferTransaction, TransferTransaction}
-import com.zbsplatform.transaction.{Authorized, Transaction}
+import com.zbsnetwork.state.Blockchain
+import com.zbsnetwork.transaction.assets.exchange.ExchangeTransaction
+import com.zbsnetwork.transaction.assets.{BurnTransaction, ReissueTransaction, SponsorFeeTransaction}
+import com.zbsnetwork.transaction.transfer.{MassTransferTransaction, TransferTransaction}
+import com.zbsnetwork.transaction.{Authorized, Transaction}
 
 object TxEstimators {
   abstract class Fn extends ((Blockchain, Transaction) => Long) {

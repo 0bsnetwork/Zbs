@@ -1,16 +1,18 @@
-package com.zbsplatform.state.diffs.smart.predef
+package com.zbsnetwork.state.diffs.smart.predef
 
-import com.zbsplatform.lagonaki.mocks.TestBlock
-import com.zbsplatform.lang.v1.compiler.CompilerV1
-import com.zbsplatform.lang.v1.parser.Parser
-import com.zbsplatform.settings.TestFunctionalitySettings
-import com.zbsplatform.state._
-import com.zbsplatform.state.diffs.{ENOUGH_AMT, assertDiffAndState}
-import com.zbsplatform.transaction.smart.SetScriptTransaction
-import com.zbsplatform.transaction.smart.script.v1.ScriptV1
-import com.zbsplatform.transaction.{GenesisTransaction, PaymentTransaction}
-import com.zbsplatform.utils.dummyCompilerContext
-import com.zbsplatform.{NoShrink, TransactionGen}
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.lagonaki.mocks.TestBlock
+import com.zbsnetwork.lang.StdLibVersion.V1
+import com.zbsnetwork.lang.v1.compiler.ExpressionCompiler
+import com.zbsnetwork.lang.v1.parser.Parser
+import com.zbsnetwork.settings.TestFunctionalitySettings
+import com.zbsnetwork.state.diffs.{ENOUGH_AMT, assertDiffAndState}
+import com.zbsnetwork.transaction.smart.SetScriptTransaction
+import com.zbsnetwork.transaction.smart.script.v1.ExprScript
+import com.zbsnetwork.transaction.{GenesisTransaction, PaymentTransaction}
+import com.zbsnetwork.utils.compilerContext
+import com.zbsnetwork.{NoShrink, TransactionGen}
 import org.scalatest.prop.PropertyChecks
 import org.scalatest.{Matchers, PropSpec}
 
@@ -73,16 +75,16 @@ class ObsoleteTransactionBindingsTest extends PropSpec with PropertyChecks with 
     fee       <- smallFeeGen
     genesis: GenesisTransaction = GenesisTransaction.create(master, ENOUGH_AMT * 3, ts).explicitGet()
     payment                     = PaymentTransaction.create(master, recipient, ENOUGH_AMT * 2, fee, ts).explicitGet()
-    untypedScript               = Parser(script(genesis, payment)).get.value
-    typedScript                 = ScriptV1(CompilerV1(dummyCompilerContext, untypedScript).explicitGet()._1).explicitGet()
+    untypedScript               = Parser.parseExpr(script(genesis, payment)).get.value
+    typedScript                 = ExprScript(ExpressionCompiler(compilerContext(V1, isAssetScript = false), untypedScript).explicitGet()._1).explicitGet()
     setScriptTransaction: SetScriptTransaction = SetScriptTransaction
-      .selfSigned(1, recipient, Some(typedScript), 100000000L, ts)
+      .selfSigned(recipient, Some(typedScript), 100000000L, ts)
       .explicitGet()
     nextTransfer <- transferGeneratorPV2(ts, recipient, master.toAddress, ENOUGH_AMT)
   } yield (genesis, payment, setScriptTransaction, nextTransfer)
 
   val settings = TestFunctionalitySettings.Enabled.copy(blockVersion3AfterHeight = 100)
-  property("Diff doesn't break invariant before block version 3") {
+  property("Obsolete transaction bindings") {
     forAll(preconditionsAndPayments) {
       case ((genesis, payment, setScriptTransaction, nextTransfer)) =>
         assertDiffAndState(Seq(TestBlock.create(Seq(genesis, payment, setScriptTransaction))), TestBlock.create(Seq(nextTransfer)), settings) {

@@ -1,11 +1,11 @@
-package com.zbsplatform.api.http.alias
+package com.zbsnetwork.api.http.alias
 
 import io.swagger.annotations.ApiModelProperty
 import play.api.libs.json.{Format, Json}
-import com.zbsplatform.account.{Alias, PublicKeyAccount}
-import com.zbsplatform.api.http.BroadcastRequest
-import com.zbsplatform.transaction.TransactionParsers.SignatureStringLength
-import com.zbsplatform.transaction.{CreateAliasTransactionV1, ValidationError}
+import com.zbsnetwork.account.{Alias, PublicKeyAccount}
+import com.zbsnetwork.api.http.BroadcastRequest
+import com.zbsnetwork.transaction.TransactionParsers.SignatureStringLength
+import com.zbsnetwork.transaction.{CreateAliasTransactionV1, ValidationError}
 
 case class SignedCreateAliasV1Request(@ApiModelProperty(value = "Base58 encoded sender public key", required = true)
                                       senderPublicKey: String,
@@ -22,7 +22,7 @@ case class SignedCreateAliasV1Request(@ApiModelProperty(value = "Base58 encoded 
     for {
       _sender    <- PublicKeyAccount.fromBase58String(senderPublicKey)
       _signature <- parseBase58(signature, "invalid.signature", SignatureStringLength)
-      _alias     <- Alias.buildWithCurrentNetworkByte(alias)
+      _alias     <- Alias.buildWithCurrentChainId(alias)
       _t         <- CreateAliasTransactionV1.create(_sender, _alias, fee, timestamp, _signature)
     } yield _t
 }

@@ -1,17 +1,17 @@
-package com.zbsplatform.state.diffs
+package com.zbsnetwork.state.diffs
 
-import com.zbsplatform.TransactionGen
-import com.zbsplatform.features.BlockchainFeatures
-import com.zbsplatform.settings.{Constants, TestFunctionalitySettings}
-import com.zbsplatform.state._
-import com.zbsplatform.utils.Base58
+import com.zbsnetwork.TransactionGen
+import com.zbsnetwork.common.utils.{Base58, EitherExt2}
+import com.zbsnetwork.features.BlockchainFeatures
+import com.zbsnetwork.lagonaki.mocks.TestBlock.{create => block}
+import com.zbsnetwork.settings.{Constants, TestFunctionalitySettings}
+import com.zbsnetwork.state._
+import com.zbsnetwork.transaction.GenesisTransaction
+import com.zbsnetwork.transaction.assets.{IssueTransactionV1, SponsorFeeTransaction}
+import com.zbsnetwork.transaction.lease.LeaseTransactionV1
+import com.zbsnetwork.transaction.transfer._
 import org.scalatest.prop.PropertyChecks
 import org.scalatest.{Matchers, PropSpec}
-import com.zbsplatform.lagonaki.mocks.TestBlock.{create => block}
-import com.zbsplatform.transaction.GenesisTransaction
-import com.zbsplatform.transaction.assets.{IssueTransactionV1, SponsorFeeTransaction}
-import com.zbsplatform.transaction.lease.LeaseTransactionV1
-import com.zbsplatform.transaction.transfer._
 
 class SponsorshipDiffTest extends PropSpec with PropertyChecks with Matchers with TransactionGen {
 
@@ -84,7 +84,7 @@ class SponsorshipDiffTest extends PropSpec with PropertyChecks with Matchers wit
       case (genesis, issue, sponsor) =>
         val setupBlocks = Seq(block(Seq(genesis, issue)))
         assertDiffEi(setupBlocks, block(Seq(sponsor)), s) { blockDiffEi =>
-          blockDiffEi should produce("SponsorFeeTransaction transaction has not been activated")
+          blockDiffEi should produce("SponsorFeeTransaction has not been activated")
         }
     }
   }
@@ -192,11 +192,11 @@ class SponsorshipDiffTest extends PropSpec with PropertyChecks with Matchers wit
       recipient                  <- accountGen
       assetId = issueTx.id()
       senderNotIssuer = SponsorFeeTransaction
-        .selfSigned(1, notSponsor, assetId, None, 1 * Constants.UnitsInZbs, ts + 1)
+        .selfSigned(notSponsor, assetId, None, 1 * Constants.UnitsInZbs, ts + 1)
         .right
         .get
       insufficientFee = SponsorFeeTransaction
-        .selfSigned(1, notSponsor, assetId, None, 1 * Constants.UnitsInZbs - 1, ts + 1)
+        .selfSigned(notSponsor, assetId, None, 1 * Constants.UnitsInZbs - 1, ts + 1)
         .right
         .get
     } yield (genesis, issueTx, sponsorTx, senderNotIssuer, insufficientFee)
@@ -225,11 +225,11 @@ class SponsorshipDiffTest extends PropSpec with PropertyChecks with Matchers wit
       assetId = issueTx.id()
       minFee <- smallFeeGen
       senderNotIssuer = SponsorFeeTransaction
-        .selfSigned(1, notSponsor, assetId, Some(minFee), 1 * Constants.UnitsInZbs, ts + 1)
+        .selfSigned(notSponsor, assetId, Some(minFee), 1 * Constants.UnitsInZbs, ts + 1)
         .right
         .get
       insufficientFee = SponsorFeeTransaction
-        .selfSigned(1, notSponsor, assetId, Some(minFee), 1 * Constants.UnitsInZbs - 1, ts + 1)
+        .selfSigned(master, assetId, Some(minFee), 1 * Constants.UnitsInZbs - 1, ts + 1)
         .right
         .get
     } yield (genesis, issueTx, sponsorTx, senderNotIssuer, insufficientFee)
@@ -257,7 +257,7 @@ class SponsorshipDiffTest extends PropSpec with PropertyChecks with Matchers wit
         .selfSigned(master, Base58.decode("Asset").get, Array.emptyByteArray, 100, 2, reissuable = false, 100000000, ts + 1)
         .explicitGet()
       assetId = issue.id()
-      sponsor = SponsorFeeTransaction.selfSigned(1, master, assetId, Some(100), 100000000, ts + 2).explicitGet()
+      sponsor = SponsorFeeTransaction.selfSigned(master, assetId, Some(100), 100000000, ts + 2).explicitGet()
       assetTransfer = TransferTransactionV1
         .selfSigned(Some(assetId), master, recipient, issue.quantity, ts + 3, None, 100000, Array.emptyByteArray)
         .right

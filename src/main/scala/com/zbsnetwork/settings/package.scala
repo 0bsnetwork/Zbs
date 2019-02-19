@@ -1,10 +1,10 @@
-package com.zbsplatform
+package com.zbsnetwork
 
 import java.io.File
 import java.net.{InetSocketAddress, URI}
 
 import com.typesafe.config.{Config, ConfigException, ConfigFactory, ConfigValueType}
-import com.zbsplatform.state.ByteStr
+import com.zbsnetwork.common.state.ByteStr
 import net.ceedubs.ficus.readers.namemappers.HyphenNameMapper
 import net.ceedubs.ficus.readers.{NameMapper, ValueReader}
 

@@ -1,10 +1,10 @@
-package com.zbsplatform.discovery.network
+package com.zbsnetwork.discovery.network
 
 import java.util
 
-import com.zbsplatform.Version
-import com.zbsplatform.network.Handshake
-import com.zbsplatform.settings.Constants
+import com.zbsnetwork.Version
+import com.zbsnetwork.network.Handshake
+import com.zbsnetwork.settings.Constants
 import io.netty.buffer.ByteBuf
 import io.netty.channel.ChannelHandlerContext
 import io.netty.handler.codec.ReplayingDecoder

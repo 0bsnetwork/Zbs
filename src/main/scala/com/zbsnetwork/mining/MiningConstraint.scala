@@ -1,8 +1,8 @@
-package com.zbsplatform.mining
+package com.zbsnetwork.mining
 
 import cats.data.NonEmptyList
-import com.zbsplatform.state.Blockchain
-import com.zbsplatform.transaction.Transaction
+import com.zbsnetwork.state.Blockchain
+import com.zbsnetwork.transaction.Transaction
 
 trait MiningConstraint {
   def isEmpty: Boolean

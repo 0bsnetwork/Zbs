@@ -1,23 +1,25 @@
-package com.zbsplatform.state
+package com.zbsnetwork.state
 
 import java.io.File
 import java.nio.file.Files
 
-import com.zbsplatform.TransactionGenBase
-import com.zbsplatform.database.LevelDBWriter
-import com.zbsplatform.db.LevelDBFactory
-import com.zbsplatform.mining.MiningConstraint
-import com.zbsplatform.settings.FunctionalitySettings
-import com.zbsplatform.state.diffs.BlockDiffer
+import com.zbsnetwork.account.PrivateKeyAccount
+import com.zbsnetwork.block.Block
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.database.LevelDBWriter
+import com.zbsnetwork.db.LevelDBFactory
+import com.zbsnetwork.lagonaki.mocks.TestBlock
+import com.zbsnetwork.mining.MiningConstraint
+import com.zbsnetwork.settings.FunctionalitySettings
+import com.zbsnetwork.state.diffs.BlockDiffer
+import com.zbsnetwork.transaction.{GenesisTransaction, Transaction}
+import monix.execution.UncaughtExceptionReporter
+import monix.reactive.Observer
 import org.iq80.leveldb.{DB, Options}
 import org.openjdk.jmh.annotations.{Setup, TearDown}
-import org.scalacheck.Gen
-import com.zbsplatform.account.PrivateKeyAccount
-import com.zbsplatform.block.Block
-import com.zbsplatform.lagonaki.mocks.TestBlock
-import com.zbsplatform.transaction.{GenesisTransaction, Transaction}
+import org.scalacheck.{Arbitrary, Gen}
 
-trait BaseState extends TransactionGenBase {
+trait BaseState {
   import BaseState._
 
   private val fsSettings: FunctionalitySettings = updateFunctionalitySettings(FunctionalitySettings.TESTNET)
@@ -28,13 +30,17 @@ trait BaseState extends TransactionGenBase {
     LevelDBFactory.factory.open(new File(dir), options)
   }
 
-  val state: LevelDBWriter = new LevelDBWriter(db, fsSettings)
+  private val portfolioChanges = Observer.empty(UncaughtExceptionReporter.LogExceptionsToStandardErr)
+  val state: LevelDBWriter     = new LevelDBWriter(db, portfolioChanges, fsSettings, 100000, 2000, 120 * 60 * 1000)
 
   private var _richAccount: PrivateKeyAccount = _
   def richAccount: PrivateKeyAccount          = _richAccount
 
   private var _lastBlock: Block = _
   def lastBlock: Block          = _lastBlock
+
+  protected def zbs(n: Float): Long                = (n * 100000000L).toLong
+  protected val accountGen: Gen[PrivateKeyAccount] = Gen.containerOfN[Array, Byte](32, Arbitrary.arbitrary[Byte]).map(seed => PrivateKeyAccount(seed))
 
   protected def updateFunctionalitySettings(base: FunctionalitySettings): FunctionalitySettings = base
 
@@ -90,8 +96,7 @@ trait BaseState extends TransactionGenBase {
   }
 
   @TearDown
-  override def close(): Unit = {
-    super.close()
+  def close(): Unit = {
     db.close()
   }
 }

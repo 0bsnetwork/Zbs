@@ -1,16 +1,17 @@
-package com.zbsplatform.it
+package com.zbsnetwork.it
 
 import java.net.{InetSocketAddress, URL}
 
 import com.typesafe.config.Config
-import com.zbsplatform.it.util.GlobalTimer
-import com.zbsplatform.settings.ZbsSettings
-import com.zbsplatform.state.EitherExt2
-import com.zbsplatform.utils.{Base58, LoggerFacade}
+import com.zbsnetwork.account.{PrivateKeyAccount, PublicKeyAccount}
+import com.zbsnetwork.common.utils.{Base58, EitherExt2}
+import com.zbsnetwork.it.util.GlobalTimer
+import com.zbsnetwork.settings.ZbsSettings
+import com.zbsnetwork.state.diffs.CommonValidation
+import com.zbsnetwork.utils.LoggerFacade
 import org.asynchttpclient.Dsl.{config => clientConfig, _}
 import org.asynchttpclient._
 import org.slf4j.LoggerFactory
-import com.zbsplatform.account.{PrivateKeyAccount, PublicKeyAccount}
 
 import scala.concurrent.duration.FiniteDuration
 
@@ -44,7 +45,7 @@ object Node {
 
     def publicKeyStr = Base58.encode(n.publicKey.publicKey)
 
-    def fee(txTypeId: Byte, asset: String = "ZBS"): Long = n.settings.feesSettings.fees(txTypeId).find(_.asset == asset).get.fee
+    def fee(txTypeId: Byte): Long = CommonValidation.FeeConstants(txTypeId) * CommonValidation.FeeUnit
 
     def blockDelay: FiniteDuration = n.settings.blockchainSettings.genesisSettings.averageBlockDelay
   }

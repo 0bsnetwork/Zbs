@@ -1,4 +1,4 @@
-package com.zbsplatform.settings
+package com.zbsnetwork.settings
 
 import java.net.InetSocketAddress
 

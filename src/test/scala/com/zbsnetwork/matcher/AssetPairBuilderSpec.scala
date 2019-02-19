@@ -1,12 +1,13 @@
-package com.zbsplatform.matcher
+package com.zbsnetwork.matcher
 
 import com.google.common.base.Charsets
 import com.typesafe.config.ConfigFactory
-import com.zbsplatform.account.PublicKeyAccount
-import com.zbsplatform.settings.loadConfig
-import com.zbsplatform.state.diffs.produce
-import com.zbsplatform.state.{AssetDescription, Blockchain, ByteStr}
-import com.zbsplatform.transaction.assets.exchange.AssetPair
+import com.zbsnetwork.account.PublicKeyAccount
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.settings.loadConfig
+import com.zbsnetwork.state.diffs.produce
+import com.zbsnetwork.state.{AssetDescription, Blockchain}
+import com.zbsnetwork.transaction.assets.exchange.AssetPair
 import org.scalamock.scalatest.MockFactory
 import org.scalatest.prop.TableDrivenPropertyChecks._
 import org.scalatest.{FreeSpec, Matchers}

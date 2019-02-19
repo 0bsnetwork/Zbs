@@ -1,13 +1,13 @@
-package com.zbsplatform.api.http.assets
+package com.zbsnetwork.api.http.assets
 
 import com.google.common.base.Charsets
 import io.swagger.annotations.{ApiModel, ApiModelProperty}
 import play.api.libs.json.{Format, Json}
-import com.zbsplatform.account.PublicKeyAccount
-import com.zbsplatform.api.http.BroadcastRequest
-import com.zbsplatform.transaction.TransactionParsers.SignatureStringLength
-import com.zbsplatform.transaction.ValidationError
-import com.zbsplatform.transaction.assets.IssueTransactionV1
+import com.zbsnetwork.account.PublicKeyAccount
+import com.zbsnetwork.api.http.BroadcastRequest
+import com.zbsnetwork.transaction.TransactionParsers.SignatureStringLength
+import com.zbsnetwork.transaction.ValidationError
+import com.zbsnetwork.transaction.assets.IssueTransactionV1
 
 object SignedIssueV1Request {
   implicit val assetIssueRequestReads: Format[SignedIssueV1Request] = Json.format

@@ -1,7 +1,8 @@
-package com.zbsplatform.state.patch
+package com.zbsnetwork.state.patch
 
-import com.zbsplatform.state.{Diff, _}
-import com.zbsplatform.utils.ScorexLogging
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.state.{Diff, _}
+import com.zbsnetwork.utils.ScorexLogging
 
 object CancelInvalidLeaseIn extends ScorexLogging {
   def apply(blockchain: Blockchain): Diff = {

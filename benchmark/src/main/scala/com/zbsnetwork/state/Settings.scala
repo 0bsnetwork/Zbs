@@ -1,4 +1,4 @@
-package com.zbsplatform.state
+package com.zbsnetwork.state
 
 import com.typesafe.config.Config
 import net.ceedubs.ficus.Ficus._
@@ -9,6 +9,10 @@ case class Settings(networkConfigFile: String,
                     aliasesFromHeight: Int,
                     restTxsFile: String,
                     restTxsFromHeight: Int,
+                    txsAddressesFile: String,
+                    txsAddressesFromHeight: Int,
+                    blocksFile: String,
+                    blocksFromHeight: Int,
                     accountsFile: String,
                     accountsFromHeight: Int,
                     assetsFile: String,

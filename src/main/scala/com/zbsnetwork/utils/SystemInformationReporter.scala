@@ -1,4 +1,4 @@
-package com.zbsplatform.utils
+package com.zbsnetwork.utils
 
 import com.typesafe.config.{Config, ConfigFactory, ConfigRenderOptions}
 

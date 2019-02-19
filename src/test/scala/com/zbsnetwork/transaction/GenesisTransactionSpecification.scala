@@ -1,11 +1,10 @@
-package com.zbsplatform.transaction
+package com.zbsnetwork.transaction
 
-import com.zbsplatform.state.EitherExt2
-import com.zbsplatform.utils.Base58
+import com.zbsnetwork.account.{PrivateKeyAccount, PublicKeyAccount}
+import com.zbsnetwork.common.utils.{Base58, EitherExt2}
 import org.scalacheck.{Arbitrary, Gen}
 import org.scalatest._
 import org.scalatest.prop.PropertyChecks
-import com.zbsplatform.account.{PrivateKeyAccount, PublicKeyAccount}
 
 class GenesisTransactionSpecification extends PropSpec with PropertyChecks with Matchers {
 

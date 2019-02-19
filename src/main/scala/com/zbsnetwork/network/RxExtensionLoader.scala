@@ -1,20 +1,20 @@
-package com.zbsplatform.network
+package com.zbsnetwork.network
 
-import com.zbsplatform.network.RxExtensionLoader.ApplierState.Buffer
-import com.zbsplatform.network.RxExtensionLoader.LoaderState.WithPeer
-import com.zbsplatform.network.RxScoreObserver.{ChannelClosedAndSyncWith, SyncWith}
-import com.zbsplatform.state.ByteStr
-import com.zbsplatform.utils.ScorexLogging
+import com.zbsnetwork.network.RxExtensionLoader.ApplierState.Buffer
+import com.zbsnetwork.network.RxExtensionLoader.LoaderState.WithPeer
+import com.zbsnetwork.network.RxScoreObserver.{ChannelClosedAndSyncWith, SyncWith}
+import com.zbsnetwork.utils.ScorexLogging
 import io.netty.channel._
 import monix.eval.{Coeval, Task}
 import monix.execution.CancelableFuture
 import monix.execution.schedulers.SchedulerService
 import monix.reactive.subjects.{ConcurrentSubject, Subject}
 import monix.reactive.{Observable, Observer}
-import com.zbsplatform.block.Block
-import com.zbsplatform.block.Block.BlockId
-import com.zbsplatform.transaction.ValidationError
-import com.zbsplatform.transaction.ValidationError.GenericError
+import com.zbsnetwork.block.Block
+import com.zbsnetwork.block.Block.BlockId
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.transaction.ValidationError
+import com.zbsnetwork.transaction.ValidationError.GenericError
 
 import scala.concurrent.duration._
 

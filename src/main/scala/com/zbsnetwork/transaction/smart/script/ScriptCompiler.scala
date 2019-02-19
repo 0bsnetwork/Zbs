@@ -1,43 +1,48 @@
-package com.zbsplatform.transaction.smart.script
+package com.zbsnetwork.transaction.smart.script
 
-import cats.implicits._
-import com.zbsplatform.lang.ScriptVersion
-import com.zbsplatform.lang.ScriptVersion.Versions.V1
-import com.zbsplatform.lang.directives.{Directive, DirectiveKey, DirectiveParser}
-import com.zbsplatform.lang.v1.ScriptEstimator
-import com.zbsplatform.lang.v1.compiler.CompilerV1
-import com.zbsplatform.lang.v1.compiler.Terms.EXPR
-import com.zbsplatform.utils
-import com.zbsplatform.utils.{ScorexLogging, functionCosts}
-import com.zbsplatform.transaction.smart.script.v1.ScriptV1
-
-import scala.util.{Failure, Success, Try}
+import com.zbsnetwork.lang.ScriptType.ScriptType
+import com.zbsnetwork.lang.StdLibVersion.StdLibVersion
+import com.zbsnetwork.lang.directives.DirectiveParser
+import com.zbsnetwork.lang.utils._
+import com.zbsnetwork.lang.v1.ScriptEstimator
+import com.zbsnetwork.lang.v1.compiler.{ContractCompiler, ExpressionCompiler}
+import com.zbsnetwork.lang.v1.parser.Parser
+import com.zbsnetwork.lang.{ScriptType, StdLibVersion}
+import com.zbsnetwork.transaction.smart.script.ContractScript._
+import com.zbsnetwork.transaction.smart.script.v1.ExprScript
+import com.zbsnetwork.transaction.smart.script.v1.ExprScript.ExprScriprImpl
+import com.zbsnetwork.utils._
 
 object ScriptCompiler extends ScorexLogging {
 
-  private val v1Compiler = new CompilerV1(utils.dummyCompilerContext)
+  def contract(scriptText: String): Either[String, Script] = {
+    val ctx = compilerContext(StdLibVersion.V3, isAssetScript = false)
+    ContractCompiler(ctx, Parser.parseContract(scriptText).get.value)
+      .flatMap(s => ContractScript(StdLibVersion.V3, s))
+  }
 
-  def apply(scriptText: String): Either[String, (Script, Long)] = {
+  def apply(scriptText: String, isAssetScript: Boolean): Either[String, (Script, Long)] = {
     val directives = DirectiveParser(scriptText)
 
     val scriptWithoutDirectives =
-      scriptText.lines
+      scriptText.linesIterator
         .filter(str => !str.contains("{-#"))
         .mkString("\n")
 
     for {
-      v <- extractVersion(directives)
-      expr <- v match {
-        case V1 => tryCompile(scriptWithoutDirectives, directives)
-      }
-      script     <- ScriptV1(expr)
-      complexity <- ScriptEstimator(utils.dummyVarNames, functionCosts, expr)
-    } yield (script, complexity)
+      ver    <- extractStdLibVersion(directives)
+      tpe    <- extractScriptType(directives)
+      script <- tryCompile(scriptWithoutDirectives, tpe, ver, isAssetScript)
+    } yield (script, script.complexity)
   }
 
-  def tryCompile(src: String, directives: List[Directive]): Either[String, EXPR] = {
+  def tryCompile(src: String, tpe: ScriptType, version: StdLibVersion, isAssetScript: Boolean): Either[String, Script] = {
+    val ctx = compilerContext(version, isAssetScript)
     try {
-      v1Compiler.compile(src, directives)
+      tpe match {
+        case ScriptType.Expression => ExpressionCompiler.compile(src, ctx).flatMap(expr => ExprScript.apply(version, expr))
+        case ScriptType.Contract   => ContractCompiler.compile(src, ctx).flatMap(expr => ContractScript.apply(version, expr))
+      }
     } catch {
       case ex: Throwable =>
         log.error("Error compiling script", ex)
@@ -47,23 +52,10 @@ object ScriptCompiler extends ScorexLogging {
     }
   }
 
-  def estimate(script: Script): Either[String, Long] = script match {
-    case Script.Expr(expr) => ScriptEstimator(utils.dummyVarNames, functionCosts, expr)
-  }
-
-  private def extractVersion(directives: List[Directive]): Either[String, ScriptVersion] = {
-    directives
-      .find(_.key == DirectiveKey.LANGUAGE_VERSION)
-      .map(d =>
-        Try(d.value.toInt) match {
-          case Success(v) =>
-            ScriptVersion
-              .fromInt(v)
-              .fold[Either[String, ScriptVersion]](Left("Unsupported language version"))(_.asRight)
-          case Failure(ex) =>
-            Left("Can't parse language version")
-      })
-      .getOrElse(V1.asRight)
+  def estimate(script: Script, version: StdLibVersion): Either[String, Long] = script match {
+    case s: ExprScriprImpl     => ScriptEstimator(varNames(version), functionCosts(version), s.expr)
+    case s: ContractScriptImpl => ContractScript.estimateComplexity(version, s.expr).map(_._2)
+    case _                     => ???
   }
 
 }

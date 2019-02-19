@@ -1,10 +1,12 @@
-package com.zbsplatform.consensus
+package com.zbsnetwork.consensus
 
-import com.zbsplatform.features.BlockchainFeatures
-import com.zbsplatform.settings.FunctionalitySettings
-import com.zbsplatform.state.Blockchain
-import com.zbsplatform.account.Address
-import com.zbsplatform.block.Block
+import com.zbsnetwork.account.Address
+import com.zbsnetwork.block.Block
+import com.zbsnetwork.block.Block.BlockId
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.features.BlockchainFeatures
+import com.zbsnetwork.settings.FunctionalitySettings
+import com.zbsnetwork.state.Blockchain
 
 object GeneratingBalanceProvider {
   private val MinimalEffectiveBalanceForGenerator1: Long = 1000000000000L
@@ -23,8 +25,11 @@ object GeneratingBalanceProvider {
         .get(BlockchainFeatures.SmallerMinimalGeneratingBalance.id)
         .exists(height >= _) && effectiveBalance >= MinimalEffectiveBalanceForGenerator2
 
-  def balance(blockchain: Blockchain, fs: FunctionalitySettings, height: Int, account: Address): Long = {
+  def balance(blockchain: Blockchain, fs: FunctionalitySettings, account: Address, blockId: BlockId = ByteStr.empty): Long = {
+    val height =
+      if (blockId.isEmpty) blockchain.height
+      else blockchain.heightOf(blockId).getOrElse(throw new IllegalArgumentException(s"Invalid block ref: $blockId"))
     val depth = if (height >= fs.generationBalanceDepthFrom50To1000AfterHeight) SecondDepth else FirstDepth
-    blockchain.effectiveBalance(account, height, depth)
+    blockchain.effectiveBalance(account, depth, blockId)
   }
 }

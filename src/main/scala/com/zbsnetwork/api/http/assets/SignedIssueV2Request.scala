@@ -1,22 +1,42 @@
-package com.zbsplatform.api.http.assets
+package com.zbsnetwork.api.http.assets
 
 import cats.implicits._
 import com.google.common.base.Charsets
-import com.zbsplatform.account.{AddressScheme, PublicKeyAccount}
-import com.zbsplatform.api.http.BroadcastRequest
-import com.zbsplatform.transaction.assets.IssueTransactionV2
-import com.zbsplatform.transaction.{Proofs, ValidationError}
+import com.zbsnetwork.account.{AddressScheme, PublicKeyAccount}
+import com.zbsnetwork.api.http.BroadcastRequest
+import com.zbsnetwork.transaction.assets.{IssueTransaction, IssueTransactionV2}
+import com.zbsnetwork.transaction.smart.script.Script
+import com.zbsnetwork.transaction.{Proofs, ValidationError}
 import io.swagger.annotations.{ApiModel, ApiModelProperty}
-import play.api.libs.json.{Format, Json}
+import play.api.libs.functional.syntax._
+import play.api.libs.json._
 
 object SignedIssueV2Request {
-  implicit val signedExchangeRequestFormat: Format[SignedIssueV2Request] = Json.format
+  implicit val signedExchangeRequestReads: Reads[SignedIssueV2Request] = {
+    (
+      (JsPath \ "senderPublicKey").read[String] and
+        (JsPath \ "name").read[String] and
+        (JsPath \ "description").read[String] and
+        (JsPath \ "quantity").read[Long] and
+        (JsPath \ "decimals").read[Byte] and
+        (JsPath \ "reissuable").read[Boolean] and
+        (JsPath \ "fee").read[Long] and
+        (JsPath \ "timestamp").read[Long] and
+        (JsPath \ "proofs").read[List[ProofStr]] and
+        (JsPath \ "script").readNullable[String]
+    )(SignedIssueV2Request.apply _)
+  }
+  implicit val writes: Writes[SignedIssueV2Request] =
+    Json
+      .writes[SignedIssueV2Request]
+      .transform(
+        (request: JsObject) =>
+          request + ("version" -> JsNumber(2))
+            + ("type"          -> JsNumber(IssueTransaction.typeId.toInt)))
 }
 
 @ApiModel(value = "Signed Smart issue transaction")
-case class SignedIssueV2Request(@ApiModelProperty(required = true)
-                                version: Byte,
-                                @ApiModelProperty(value = "Base58 encoded Issuer public key", required = true)
+case class SignedIssueV2Request(@ApiModelProperty(value = "Base58 encoded Issuer public key", required = true)
                                 senderPublicKey: String,
                                 @ApiModelProperty(required = true)
                                 name: String,
@@ -33,15 +53,20 @@ case class SignedIssueV2Request(@ApiModelProperty(required = true)
                                 @ApiModelProperty(required = true)
                                 timestamp: Long,
                                 @ApiModelProperty(required = true)
-                                proofs: List[String])
+                                proofs: List[String],
+                                @ApiModelProperty(value = "Base58 encoded compiled asset script")
+                                script: Option[String])
     extends BroadcastRequest {
   def toTx: Either[ValidationError, IssueTransactionV2] =
     for {
       _sender     <- PublicKeyAccount.fromBase58String(senderPublicKey)
       _proofBytes <- proofs.traverse(s => parseBase58(s, "invalid proof", Proofs.MaxProofStringSize))
       _proofs     <- Proofs.create(_proofBytes)
+      _script <- script match {
+        case None    => Right(None)
+        case Some(s) => Script.fromBase64String(s).map(Some(_))
+      }
       t <- IssueTransactionV2.create(
-        version,
         AddressScheme.current.chainId,
         _sender,
         name.getBytes(Charsets.UTF_8),
@@ -49,7 +74,7 @@ case class SignedIssueV2Request(@ApiModelProperty(required = true)
         quantity,
         decimals,
         reissuable,
-        None,
+        _script,
         fee,
         timestamp,
         _proofs

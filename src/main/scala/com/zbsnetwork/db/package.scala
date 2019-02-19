@@ -1,8 +1,8 @@
-package com.zbsplatform
+package com.zbsnetwork
 
 import java.io.File
 
-import com.zbsplatform.utils.ScorexLogging
+import com.zbsnetwork.utils.ScorexLogging
 import org.iq80.leveldb.{DB, Options}
 
 package object db extends ScorexLogging {

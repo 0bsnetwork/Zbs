@@ -1,74 +1,173 @@
-package com.zbsplatform.matcher.model
+package com.zbsnetwork.matcher.model
 
 import cats.implicits._
-import com.zbsplatform.account.PublicKeyAccount
-import com.zbsplatform.matcher.MatcherSettings
-import com.zbsplatform.matcher.model.OrderHistory.OrderInfoChange
-import com.zbsplatform.metrics.TimerExt
-import com.zbsplatform.state._
-import com.zbsplatform.transaction.AssetAcc
-import com.zbsplatform.transaction.ValidationError.GenericError
-import com.zbsplatform.transaction.assets.exchange.Validation.booleanOperators
-import com.zbsplatform.transaction.assets.exchange.{Order, Validation}
-import com.zbsplatform.utils.NTP
-import com.zbsplatform.utx.UtxPool
-import com.zbsplatform.wallet.Wallet
+import cats.kernel.Monoid
+import com.zbsnetwork.account.{Address, PublicKeyAccount}
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.features.BlockchainFeatures
+import com.zbsnetwork.features.FeatureProvider._
+import com.zbsnetwork.lang.v1.compiler.Terms.{FALSE, TRUE}
+import com.zbsnetwork.matcher.smart.MatcherScriptRunner
+import com.zbsnetwork.metrics.TimerExt
+import com.zbsnetwork.state._
+import com.zbsnetwork.transaction._
+import com.zbsnetwork.transaction.assets.exchange._
+import com.zbsnetwork.transaction.smart.Verifier
+import com.zbsnetwork.transaction.smart.script.ScriptRunner
+import com.zbsnetwork.utils.Time
 import kamon.Kamon
+import shapeless.Coproduct
 
-trait OrderValidator {
-  val orderHistory: OrderHistory
-  val utxPool: UtxPool
-  val settings: MatcherSettings
-  val wallet: Wallet
+import scala.util.control.NonFatal
 
-  lazy val matcherPubKey: PublicKeyAccount = wallet.findPrivateKey(settings.account).explicitGet()
-  val MinExpiration                        = 60 * 1000L
+object OrderValidator {
 
-  private val timer = Kamon.timer("matcher.validation")
+  type ValidationResult = Either[String, Order]
 
-  private def isBalanceWithOpenOrdersEnough(order: Order): Validation = {
-    val lo = LimitOrder(order)
+  private val timer = Kamon.timer("matcher.validation").refine("type" -> "blockchain")
 
-    val b: Map[Option[ByteStr], Long] = Seq(lo.spentAcc, lo.feeAcc).map(a => a.assetId -> spendableBalance(a)).toMap
+  val MinExpiration: Long   = 60 * 1000L
+  val MaxActiveOrders: Long = 200
 
-    val change = OrderInfoChange(lo.order, None, OrderInfo(order.amount, 0L, None, None, order.matcherFee, Some(0L)))
-    val newOrder = OrderHistory
-      .diff(Map(lo.order.id() -> change))
-      .getOrElse(order.senderPublicKey.toAddress, OpenPortfolio.empty)
+  private def verifySignature(order: Order): ValidationResult =
+    Verifier
+      .verifyAsEllipticCurveSignature(order)
+      .leftMap(_.toString)
 
-    val open  = b.keySet.map(id => id -> orderHistory.openVolume(order.senderPublicKey, id)).toMap
-    val needs = OpenPortfolio(open).combine(newOrder)
-
-    val res: Boolean = b.combine(needs.orders.mapValues(-_)).forall(_._2 >= 0)
-
-    res :| s"Not enough tradable balance: ${b.combine(open.mapValues(-_))}, needs: $newOrder"
-  }
-
-  def getTradableBalance(acc: AssetAcc): Long = timer.refine("action" -> "tradableBalance").measure {
-    math.max(0l, spendableBalance(acc) - orderHistory.openVolume(acc.account, acc.assetId))
-  }
-
-  def validateNewOrder(order: Order): Either[GenericError, Order] =
-    timer
-      .refine("action" -> "place", "pair" -> order.assetPair.toString)
-      .measure {
-        val v =
-          (order.matcherPublicKey == matcherPubKey) :| "Incorrect matcher public key" &&
-            (order.expiration > NTP.correctedTime() + MinExpiration) :| "Order expiration should be > 1 min" &&
-            order.signaturesValid().isRight :| "signature should be valid" &&
-            order.isValid(NTP.correctedTime()) &&
-            (order.matcherFee >= settings.minOrderFee) :| s"Order matcherFee should be >= ${settings.minOrderFee}" &&
-            (orderHistory.orderInfo(order.id()).status == LimitOrder.NotFound) :| "Order is already accepted" &&
-            isBalanceWithOpenOrdersEnough(order)
-        Either
-          .cond(v, order, GenericError(v.messages()))
-      }
-
-  private def spendableBalance(a: AssetAcc): Long = {
-    val portfolio = utxPool.portfolio(a.account)
-    a.assetId match {
-      case Some(x) => portfolio.assets.getOrElse(x, 0)
-      case None    => portfolio.spendableBalance
+  private def verifyOrderByAccountScript(blockchain: Blockchain, address: Address, order: Order) =
+    blockchain.accountScript(address).fold(verifySignature(order)) { script =>
+      if (!blockchain.isFeatureActivated(BlockchainFeatures.SmartAccountTrading, blockchain.height))
+        Left("Trading on scripted account isn't allowed yet")
+      else if (order.version <= 1) Left("Can't process order with signature from scripted account")
+      else
+        try MatcherScriptRunner(script, order, isTokenScript = false) match {
+          case (_, Left(execError)) => Left(s"Error executing script for $address: $execError")
+          case (_, Right(FALSE))    => Left(s"Order rejected by script for $address")
+          case (_, Right(TRUE))     => Right(order)
+          case (_, Right(x))        => Left(s"Script returned not a boolean result, but $x")
+        } catch {
+          case NonFatal(e) => Left(s"Caught ${e.getClass.getCanonicalName} while executing script for $address: ${e.getMessage}")
+        }
     }
+
+  private def verifySmartToken(blockchain: Blockchain, assetId: AssetId, tx: ExchangeTransaction) =
+    blockchain.assetScript(assetId).fold[Either[String, Unit]](Right(())) { script =>
+      if (!blockchain.isFeatureActivated(BlockchainFeatures.SmartAssets, blockchain.height))
+        Left("Trading of scripted asset isn't allowed yet")
+      else {
+        try ScriptRunner(blockchain.height, Coproduct(tx), blockchain, script, isTokenScript = true) match {
+          case (_, Left(execError)) => Left(s"Error executing script of asset $assetId: $execError")
+          case (_, Right(FALSE))    => Left(s"Order rejected by script of asset $assetId")
+          case (_, Right(TRUE))     => Right(())
+          case (_, Right(x))        => Left(s"Script returned not a boolean result, but $x")
+        } catch {
+          case NonFatal(e) => Left(s"Caught ${e.getClass.getCanonicalName} while executing script of asset $assetId: ${e.getMessage}")
+        }
+      }.left.map(_.toString)
+    }
+
+  @inline private def decimals(blockchain: Blockchain, assetId: Option[AssetId]) = assetId.fold[Either[String, Int]](Right(8)) { aid =>
+    blockchain.assetDescription(aid).map(_.decimals).toRight(s"Invalid asset id $aid")
   }
+
+  private def validateDecimals(blockchain: Blockchain, o: Order): ValidationResult =
+    for {
+      pd <- decimals(blockchain, o.assetPair.priceAsset)
+      ad <- decimals(blockchain, o.assetPair.amountAsset)
+      insignificantDecimals = (pd - ad).max(0)
+      _ <- Either.cond(o.price % BigDecimal(10).pow(insignificantDecimals).toLongExact == 0,
+                       o,
+                       s"Invalid price, last $insignificantDecimals digits must be 0")
+    } yield o
+
+  def blockchainAware(
+      blockchain: Blockchain,
+      transactionCreator: (LimitOrder, LimitOrder, Long) => Either[ValidationError, ExchangeTransaction],
+      orderMatchTxFee: Long,
+      matcherAddress: Address,
+      time: Time,
+  )(order: Order): ValidationResult = timer.measure {
+    lazy val exchangeTx = {
+      val fakeOrder: Order = order match {
+        case x: OrderV1 => x.copy(orderType = x.orderType.opposite)
+        case x: OrderV2 => x.copy(orderType = x.orderType.opposite)
+      }
+      transactionCreator(LimitOrder(fakeOrder), LimitOrder(order), time.correctedTime()).left.map(_.toString)
+    }
+
+    def verifyAssetScript(assetId: Option[AssetId]) = assetId.fold[ValidationResult](Right(order)) { assetId =>
+      exchangeTx.flatMap(verifySmartToken(blockchain, assetId, _)).right.map(_ => order)
+    }
+
+    for {
+      _ <- (Right(order): ValidationResult)
+        .ensure("Orders of version 1 are only accepted, because SmartAccountTrading has not been activated yet")(
+          _.version == 1 || blockchain.isFeatureActivated(BlockchainFeatures.SmartAccountTrading, blockchain.height))
+        .ensure("Order expiration should be > 1 min")(_.expiration > time.correctedTime() + MinExpiration)
+      mof = ExchangeTransactionCreator.minFee(blockchain, orderMatchTxFee, matcherAddress, order.assetPair)
+      _ <- (Right(order): ValidationResult).ensure(s"Order matcherFee should be >= $mof")(_.matcherFee >= mof)
+      _ <- validateDecimals(blockchain, order)
+      _ <- verifyOrderByAccountScript(blockchain, order.sender, order)
+      _ <- verifyAssetScript(order.assetPair.amountAsset)
+      _ <- verifyAssetScript(order.assetPair.priceAsset)
+    } yield order
+  }
+
+  private def formatBalance(b: Map[Option[AssetId], Long]): String =
+    b.map { case (k, v) => s"${AssetPair.assetIdStr(k)}:$v" } mkString ("{", ", ", "}")
+
+  private def validateBalance(order: Order, tradableBalance: Option[AssetId] => Long): ValidationResult = {
+    val lo               = LimitOrder(order)
+    val requiredForOrder = lo.requiredBalance
+
+    val available = requiredForOrder.keySet.map { assetId =>
+      assetId -> tradableBalance(assetId)
+    }.toMap
+
+    val negativeBalances = Monoid.combine(available, requiredForOrder.mapValues(-_)).filter(_._2 < 0)
+
+    Either.cond(
+      negativeBalances.isEmpty,
+      order,
+      s"Not enough tradable balance. Order requires ${formatBalance(requiredForOrder)}, but only ${formatBalance(available)} is available"
+    )
+  }
+
+  def matcherSettingsAware(
+      matcherPublicKey: PublicKeyAccount,
+      blacklistedAddresses: Set[Address],
+      blacklistedAssets: Set[Option[AssetId]],
+  )(order: Order): ValidationResult = {
+    for {
+      _ <- (Right(order): ValidationResult)
+        .ensure("Incorrect matcher public key")(_.matcherPublicKey == matcherPublicKey)
+        .ensure("Invalid address")(_ => !blacklistedAddresses.contains(order.sender.toAddress))
+        .ensure(s"Invalid amount asset ${order.assetPair.amountAsset}")(_ => !blacklistedAssets(order.assetPair.amountAsset))
+        .ensure(s"Invalid price asset ${order.assetPair.priceAsset}")(_ => !blacklistedAssets(order.assetPair.priceAsset))
+    } yield order
+  }
+
+  def timeAware(time: Time)(order: Order): ValidationResult = {
+    for {
+      _ <- (Right(order): ValidationResult)
+        .ensure("Order expiration should be > 1 min")(_.expiration > time.correctedTime() + MinExpiration)
+      _ <- order.isValid(time.correctedTime()).toEither
+    } yield order
+  }
+
+  def accountStateAware(
+      sender: Address,
+      tradableBalance: Option[AssetId] => Long,
+      activeOrderCount: => Int,
+      lowestOrderTimestamp: => Long,
+      orderExists: ByteStr => Boolean,
+  )(order: Order): ValidationResult =
+    for {
+      _ <- (Right(order): ValidationResult)
+        .ensure(s"Order sender ${order.sender.toAddress} does not match expected $sender")(_.sender.toAddress == sender)
+        .ensure(s"Limit of $MaxActiveOrders active orders has been reached")(_ => activeOrderCount < MaxActiveOrders)
+        .ensure(s"Order should have a timestamp after $lowestOrderTimestamp, but it is ${order.timestamp}")(_.timestamp > lowestOrderTimestamp)
+        .ensure("Order has already been placed")(o => !orderExists(o.id()))
+      _ <- validateBalance(order, tradableBalance)
+    } yield order
 }

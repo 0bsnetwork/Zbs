@@ -1,6 +1,6 @@
-package com.zbsplatform.features
+package com.zbsnetwork.features
 
-import com.zbsplatform.state.Blockchain
+import com.zbsnetwork.state.Blockchain
 
 object FeatureProvider {
   implicit class FeatureProviderExt(provider: Blockchain) {

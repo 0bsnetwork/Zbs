@@ -1,4 +1,4 @@
-package com.zbsplatform.db
+package com.zbsnetwork.db
 
 import java.nio.charset.StandardCharsets
 

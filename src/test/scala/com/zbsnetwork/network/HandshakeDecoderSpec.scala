@@ -1,9 +1,9 @@
-package com.zbsplatform.network
+package com.zbsnetwork.network
 
 import java.nio.charset.StandardCharsets
 
 import com.google.common.primitives.{Ints, Longs}
-import com.zbsplatform.{NoShrink, TransactionGen}
+import com.zbsnetwork.{NoShrink, TransactionGen}
 import io.netty.buffer.Unpooled
 import io.netty.channel.embedded.EmbeddedChannel
 import io.netty.channel.{ChannelHandlerContext, ChannelInboundHandlerAdapter}

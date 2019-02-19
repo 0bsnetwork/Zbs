@@ -1,4 +1,4 @@
-package com.zbsplatform.generator.utils
+package com.zbsnetwork.generator.utils
 
 import java.util.concurrent.ThreadLocalRandom
 

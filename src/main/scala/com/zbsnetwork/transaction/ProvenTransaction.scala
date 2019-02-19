@@ -1,14 +1,11 @@
-package com.zbsplatform.transaction
+package com.zbsnetwork.transaction
 
-import monix.eval.Coeval
-import play.api.libs.json.{JsObject, Json}
-import com.zbsplatform.utils.Base58
+import com.zbsnetwork.common.utils.Base58
+import play.api.libs.json._
 
 trait ProvenTransaction extends Transaction with Proven {
 
-  protected def proofField: (String, Json.JsValueWrapper) = "proofs" -> this.proofs.proofs.map(_.base58)
-
-  val bodyBytes: Coeval[Array[Byte]]
+  protected def proofField: Seq[(String, JsValue)] = Seq("proofs" -> JsArray(this.proofs.proofs.map(p => JsString(p.base58))))
 
   protected def jsonBase(): JsObject =
     Json.obj(
@@ -18,5 +15,5 @@ trait ProvenTransaction extends Transaction with Proven {
       "senderPublicKey" -> Base58.encode(sender.publicKey),
       "fee"             -> assetFee._2,
       "timestamp"       -> timestamp
-    ) ++ Json.obj(proofField)
+    ) ++ JsObject(proofField)
 }

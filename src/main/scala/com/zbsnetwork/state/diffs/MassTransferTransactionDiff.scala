@@ -1,12 +1,12 @@
-package com.zbsplatform.state.diffs
+package com.zbsnetwork.state.diffs
 
 import cats.implicits._
-import com.zbsplatform.state._
-import com.zbsplatform.account.Address
-import com.zbsplatform.transaction.ValidationError
-import com.zbsplatform.transaction.ValidationError.{GenericError, Validation}
-import com.zbsplatform.transaction.transfer.MassTransferTransaction.ParsedTransfer
-import com.zbsplatform.transaction.transfer._
+import com.zbsnetwork.state._
+import com.zbsnetwork.account.Address
+import com.zbsnetwork.transaction.ValidationError
+import com.zbsnetwork.transaction.ValidationError.{GenericError, Validation}
+import com.zbsnetwork.transaction.transfer.MassTransferTransaction.ParsedTransfer
+import com.zbsnetwork.transaction.transfer._
 
 object MassTransferTransactionDiff {
 

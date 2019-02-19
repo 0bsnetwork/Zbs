@@ -1,8 +1,9 @@
-package com.zbsplatform.lang.v1
+package com.zbsnetwork.lang.v1
 
 import java.util.concurrent.TimeUnit
 
-import com.zbsplatform.lang.v1.LangSerdeBenchmark.St
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.lang.v1.LangSerdeBenchmark.St
 import org.openjdk.jmh.annotations._
 import org.openjdk.jmh.infra.Blackhole
 

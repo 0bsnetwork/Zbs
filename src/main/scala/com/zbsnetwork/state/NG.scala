@@ -1,7 +1,8 @@
-package com.zbsplatform.state
+package com.zbsnetwork.state
 
-import com.zbsplatform.block.Block.BlockId
-import com.zbsplatform.block.MicroBlock
+import com.zbsnetwork.block.Block.BlockId
+import com.zbsnetwork.block.MicroBlock
+import com.zbsnetwork.common.state.ByteStr
 
 trait NG extends Blockchain {
   def microBlock(id: ByteStr): Option[MicroBlock]

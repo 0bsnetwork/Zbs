@@ -1,4 +1,4 @@
-package com.zbsplatform
+package com.zbsnetwork
 
 import java.io.File
 import java.security.Security
@@ -10,29 +10,28 @@ import akka.http.scaladsl.Http.ServerBinding
 import akka.stream.ActorMaterializer
 import cats.instances.all._
 import com.typesafe.config._
-import com.zbsplatform.account.AddressScheme
-import com.zbsplatform.actor.RootActorSystem
-import com.zbsplatform.api.http._
-import com.zbsplatform.api.http.alias.{AliasApiRoute, AliasBroadcastApiRoute}
-import com.zbsplatform.api.http.assets.{AssetsApiRoute, AssetsBroadcastApiRoute}
-import com.zbsplatform.api.http.leasing.{LeaseApiRoute, LeaseBroadcastApiRoute}
-import com.zbsplatform.consensus.PoSSelector
-import com.zbsplatform.consensus.nxt.api.http.NxtConsensusApiRoute
-import com.zbsplatform.db.openDB
-import com.zbsplatform.features.api.ActivationApiRoute
-import com.zbsplatform.history.{CheckpointServiceImpl, StorageFactory}
-import com.zbsplatform.http.{DebugApiRoute, NodeApiRoute, ZbsApiRoute}
-import com.zbsplatform.matcher.Matcher
-import com.zbsplatform.metrics.Metrics
-import com.zbsplatform.mining.{Miner, MinerImpl}
-import com.zbsplatform.network.RxExtensionLoader.RxExtensionLoaderShutdownHook
-import com.zbsplatform.network._
-import com.zbsplatform.settings._
-import com.zbsplatform.state.appender.{BlockAppender, CheckpointAppender, ExtensionAppender, MicroblockAppender}
-import com.zbsplatform.transaction._
-import com.zbsplatform.utils.{NTP, ScorexLogging, SystemInformationReporter, Time, forceStopApplication}
-import com.zbsplatform.utx.{MatcherUtxPool, UtxPool, UtxPoolImpl}
-import com.zbsplatform.wallet.Wallet
+import com.zbsnetwork.account.{Address, AddressScheme}
+import com.zbsnetwork.actor.RootActorSystem
+import com.zbsnetwork.api.http._
+import com.zbsnetwork.api.http.alias.{AliasApiRoute, AliasBroadcastApiRoute}
+import com.zbsnetwork.api.http.assets.{AssetsApiRoute, AssetsBroadcastApiRoute}
+import com.zbsnetwork.api.http.leasing.{LeaseApiRoute, LeaseBroadcastApiRoute}
+import com.zbsnetwork.consensus.PoSSelector
+import com.zbsnetwork.consensus.nxt.api.http.NxtConsensusApiRoute
+import com.zbsnetwork.db.openDB
+import com.zbsnetwork.features.api.ActivationApiRoute
+import com.zbsnetwork.history.StorageFactory
+import com.zbsnetwork.http.{DebugApiRoute, NodeApiRoute, ZbsApiRoute}
+import com.zbsnetwork.matcher.Matcher
+import com.zbsnetwork.metrics.Metrics
+import com.zbsnetwork.mining.{Miner, MinerImpl}
+import com.zbsnetwork.network.RxExtensionLoader.RxExtensionLoaderShutdownHook
+import com.zbsnetwork.network._
+import com.zbsnetwork.settings._
+import com.zbsnetwork.state.appender.{BlockAppender, ExtensionAppender, MicroblockAppender}
+import com.zbsnetwork.utils.{NTP, ScorexLogging, SystemInformationReporter, forceStopApplication}
+import com.zbsnetwork.utx.{UtxPool, UtxPoolImpl}
+import com.zbsnetwork.wallet.Wallet
 import io.netty.channel.Channel
 import io.netty.channel.group.DefaultChannelGroup
 import io.netty.util.concurrent.GlobalEventExecutor
@@ -51,7 +50,7 @@ import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.util.Try
 
-class Application(val actorSystem: ActorSystem, val settings: ZbsSettings, configRoot: ConfigObject) extends ScorexLogging {
+class Application(val actorSystem: ActorSystem, val settings: ZbsSettings, configRoot: ConfigObject, time: NTP) extends ScorexLogging {
 
   import monix.execution.Scheduler.Implicits.{global => scheduler}
 
@@ -59,10 +58,11 @@ class Application(val actorSystem: ActorSystem, val settings: ZbsSettings, confi
 
   private val LocalScoreBroadcastDebounce = 1.second
 
-  private val blockchainUpdater = StorageFactory(settings, db, NTP)
+  private val portfolioChanged = ConcurrentSubject.publish[Address]
 
-  private val checkpointService = new CheckpointServiceImpl(db, settings.checkpointsSettings)
-  private lazy val upnp         = new UPnP(settings.networkSettings.uPnPSettings) // don't initialize unless enabled
+  private val blockchainUpdater = StorageFactory(settings, db, time, portfolioChanged)
+
+  private lazy val upnp = new UPnP(settings.networkSettings.uPnPSettings) // don't initialize unless enabled
 
   private val wallet: Wallet = try {
     Wallet(settings.walletSettings)
@@ -98,60 +98,32 @@ class Application(val actorSystem: ActorSystem, val settings: ZbsSettings, confi
     if (wallet.privateKeyAccounts.isEmpty)
       wallet.generateNewAccounts(1)
 
-    val feeCalculator          = new FeeCalculator(settings.feesSettings, blockchainUpdater)
-    val time: Time             = NTP
     val establishedConnections = new ConcurrentHashMap[Channel, PeerInfo]
     val allChannels            = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE)
-    val innerUtxStorage =
-      new UtxPoolImpl(time, blockchainUpdater, feeCalculator, settings.blockchainSettings.functionalitySettings, settings.utxSettings)
+    val utxStorage =
+      new UtxPoolImpl(time, blockchainUpdater, portfolioChanged, settings.blockchainSettings.functionalitySettings, settings.utxSettings)
+    maybeUtx = Some(utxStorage)
 
     matcher = if (settings.matcherSettings.enable) {
-      val m = new Matcher(actorSystem,
-                          wallet,
-                          innerUtxStorage,
-                          allChannels,
-                          blockchainUpdater,
-                          settings.blockchainSettings,
-                          settings.restAPISettings,
-                          settings.matcherSettings)
-      m.runMatcher()
-      Some(m)
+      Matcher(actorSystem, time, wallet, utxStorage, allChannels, blockchainUpdater, portfolioChanged, settings)
     } else None
-
-    val utxStorage =
-      if (settings.matcherSettings.enable) new MatcherUtxPool(innerUtxStorage, settings.matcherSettings, actorSystem.eventStream) else innerUtxStorage
-    maybeUtx = Some(utxStorage)
 
     val knownInvalidBlocks = new InvalidBlockStorageImpl(settings.synchronizationSettings.invalidBlocksStorage)
 
-    val pos = new PoSSelector(blockchainUpdater, settings.blockchainSettings)
+    val pos = new PoSSelector(blockchainUpdater, settings.blockchainSettings, settings.synchronizationSettings)
 
     val miner =
       if (settings.minerSettings.enable)
-        new MinerImpl(allChannels, blockchainUpdater, checkpointService, settings, time, utxStorage, wallet, pos, minerScheduler, appenderScheduler)
+        new MinerImpl(allChannels, blockchainUpdater, settings, time, utxStorage, wallet, pos, minerScheduler, appenderScheduler)
       else Miner.Disabled
 
     val processBlock =
-      BlockAppender(checkpointService, blockchainUpdater, time, utxStorage, pos, settings, allChannels, peerDatabase, miner, appenderScheduler) _
+      BlockAppender(blockchainUpdater, time, utxStorage, pos, settings, allChannels, peerDatabase, miner, appenderScheduler) _
 
-    val processCheckpoint =
-      CheckpointAppender(checkpointService, blockchainUpdater, blockchainUpdater, peerDatabase, miner, allChannels, appenderScheduler) _
-
-    val processFork = ExtensionAppender(
-      checkpointService,
-      blockchainUpdater,
-      utxStorage,
-      pos,
-      time,
-      settings,
-      knownInvalidBlocks,
-      peerDatabase,
-      miner,
-      allChannels,
-      appenderScheduler
-    ) _
+    val processFork =
+      ExtensionAppender(blockchainUpdater, utxStorage, pos, time, settings, knownInvalidBlocks, peerDatabase, miner, allChannels, appenderScheduler) _
     val processMicroBlock =
-      MicroblockAppender(checkpointService, blockchainUpdater, utxStorage, allChannels, peerDatabase, appenderScheduler) _
+      MicroblockAppender(blockchainUpdater, utxStorage, allChannels, peerDatabase, appenderScheduler) _
 
     import blockchainUpdater.lastBlockInfo
 
@@ -170,7 +142,7 @@ class Application(val actorSystem: ActorSystem, val settings: ZbsSettings, confi
     val network =
       NetworkServer(settings, lastBlockInfo, blockchainUpdater, historyReplier, utxStorage, peerDatabase, allChannels, establishedConnections)
     maybeNetwork = Some(network)
-    val (signatures, blocks, blockchainScores, checkpoints, microblockInvs, microblockResponses, transactions) = network.messages
+    val (signatures, blocks, blockchainScores, microblockInvs, microblockResponses, transactions) = network.messages
 
     val timeoutSubject: ConcurrentSubject[Channel, Channel] = ConcurrentSubject.publish[Channel]
 
@@ -209,9 +181,8 @@ class Application(val actorSystem: ActorSystem, val settings: ZbsSettings, confi
     UtxPoolSynchronizer.start(utxStorage, settings.synchronizationSettings.utxSynchronizerSettings, allChannels, transactions)
     val microBlockSink = microblockDatas.mapTask(scala.Function.tupled(processMicroBlock))
     val blockSink      = newBlocks.mapTask(scala.Function.tupled(processBlock))
-    val checkpointSink = checkpoints.mapTask { case (s, c) => processCheckpoint(Some(s), c) }
 
-    Observable.merge(microBlockSink, blockSink, checkpointSink).subscribe()
+    Observable.merge(microBlockSink, blockSink).subscribe()
     miner.scheduleMining()
 
     for (addr <- settings.networkSettings.declaredAddress if settings.networkSettings.uPnPSettings.enable) {
@@ -224,7 +195,7 @@ class Application(val actorSystem: ActorSystem, val settings: ZbsSettings, confi
     if (settings.restAPISettings.enable) {
       val apiRoutes = Seq(
         NodeApiRoute(settings.restAPISettings, blockchainUpdater, () => apiShutdown()),
-        BlocksApiRoute(settings.restAPISettings, blockchainUpdater, allChannels, c => processCheckpoint(None, c)),
+        BlocksApiRoute(settings.restAPISettings, blockchainUpdater, allChannels),
         TransactionsApiRoute(settings.restAPISettings,
                              settings.blockchainSettings.functionalitySettings,
                              wallet,
@@ -246,6 +217,7 @@ class Application(val actorSystem: ActorSystem, val settings: ZbsSettings, confi
                         settings.blockchainSettings.functionalitySettings),
         DebugApiRoute(
           settings,
+          time,
           blockchainUpdater,
           wallet,
           blockchainUpdater,
@@ -277,21 +249,16 @@ class Application(val actorSystem: ActorSystem, val settings: ZbsSettings, confi
         classOf[TransactionsApiRoute],
         classOf[NxtConsensusApiRoute],
         classOf[WalletApiRoute],
-        classOf[PaymentApiRoute],
         classOf[UtilsApiRoute],
         classOf[PeersApiRoute],
         classOf[AddressApiRoute],
         classOf[DebugApiRoute],
-        classOf[ZbsApiRoute],
         classOf[AssetsApiRoute],
         classOf[ActivationApiRoute],
-        classOf[AssetsBroadcastApiRoute],
         classOf[LeaseApiRoute],
-        classOf[LeaseBroadcastApiRoute],
-        classOf[AliasApiRoute],
-        classOf[AliasBroadcastApiRoute]
+        classOf[AliasApiRoute]
       )
-      val combinedRoute = CompositeHttpService(actorSystem, apiTypes, apiRoutes, settings.restAPISettings).loggingCompositeRoute
+      val combinedRoute = CompositeHttpService(apiTypes, apiRoutes, settings.restAPISettings)(actorSystem).loggingCompositeRoute
       val httpFuture    = Http().bindAndHandle(combinedRoute, settings.restAPISettings.bindAddress, settings.restAPISettings.port)
       serverBinding = Await.result(httpFuture, 20.seconds)
       log.info(s"REST API was bound on ${settings.restAPISettings.bindAddress}:${settings.restAPISettings.port}")
@@ -312,6 +279,7 @@ class Application(val actorSystem: ActorSystem, val settings: ZbsSettings, confi
     if (!shutdownInProgress) {
       shutdownInProgress = true
 
+      portfolioChanged.onComplete()
       utx.close()
 
       shutdownAndWait(historyRepliesScheduler, "HistoryReplier", 5.minutes)
@@ -324,7 +292,7 @@ class Application(val actorSystem: ActorSystem, val settings: ZbsSettings, confi
         upnp.deletePort(addr.getPort)
       }
 
-      matcher.foreach(_.shutdownMatcher())
+      matcher.foreach(_.shutdown())
 
       log.debug("Closing peer database")
       peerDatabase.close()
@@ -347,6 +315,7 @@ class Application(val actorSystem: ActorSystem, val settings: ZbsSettings, confi
       log.info("Closing storage")
       db.close()
 
+      time.close()
       log.info("Shutdown complete")
     }
   }
@@ -383,7 +352,7 @@ object Application extends ScorexLogging {
         if (!cfg.hasPath("zbs")) {
           log.error("Malformed configuration file was provided! Aborting!")
           log.error("Please, read following article about configuration file format:")
-          log.error("https://github.com/zbsplatform/Zbs/wiki/Zbs-Node-configuration-file")
+          log.error("https://github.com/0bsnetwork/Zbs/wiki/Zbs-Node-configuration-file")
           forceStopApplication()
         }
         loadConfig(cfg)
@@ -419,6 +388,12 @@ object Application extends ScorexLogging {
     }
 
     val settings = ZbsSettings.fromConfig(config)
+
+    // Initialize global var with actual address scheme
+    AddressScheme.current = new AddressScheme {
+      override val chainId: Byte = settings.blockchainSettings.addressSchemeCharacter.toByte
+    }
+
     if (config.getBoolean("kamon.enable")) {
       log.info("Aggregated metrics are enabled")
       Kamon.reconfigure(config)
@@ -426,9 +401,10 @@ object Application extends ScorexLogging {
       SystemMetrics.startCollecting()
     }
 
-    val isMetricsStarted = Metrics.start(settings.metrics)
+    val time             = new NTP(settings.ntpServer)
+    val isMetricsStarted = Metrics.start(settings.metrics, time)
 
-    RootActorSystem.start("zbsplatform", config) { actorSystem =>
+    RootActorSystem.start("zbsnetwork", config) { actorSystem =>
       import actorSystem.dispatcher
       isMetricsStarted.foreach { started =>
         if (started) {
@@ -447,14 +423,9 @@ object Application extends ScorexLogging {
         }
       }
 
-      // Initialize global var with actual address scheme
-      AddressScheme.current = new AddressScheme {
-        override val chainId: Byte = settings.blockchainSettings.addressSchemeCharacter.toByte
-      }
-
       log.info(s"${Constants.AgentName} Blockchain Id: ${settings.blockchainSettings.addressSchemeCharacter}")
 
-      new Application(actorSystem, settings, config.root()).run()
+      new Application(actorSystem, settings, config.root(), time).run()
     }
   }
 }

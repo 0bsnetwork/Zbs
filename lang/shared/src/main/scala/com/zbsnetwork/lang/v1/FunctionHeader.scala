@@ -1,4 +1,4 @@
-package com.zbsplatform.lang.v1
+package com.zbsnetwork.lang.v1
 
 sealed trait FunctionHeader
 object FunctionHeader {

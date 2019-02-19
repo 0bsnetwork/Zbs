@@ -1,4 +1,4 @@
-package com.zbsplatform
+package com.zbsnetwork
 
 import kamon.metric.{Histogram, Timer}
 
@@ -17,7 +17,7 @@ package object metrics {
       result
     }
 
-    def measure[A](f: => Future[A])(implicit ec: ExecutionContext): Future[A] = {
+    def measureFuture[A](f: => Future[A])(implicit ec: ExecutionContext): Future[A] = {
       val st     = timer.start()
       val future = f
       future.onComplete(_ => st.stop())

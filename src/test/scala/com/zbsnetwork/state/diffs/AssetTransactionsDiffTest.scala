@@ -1,24 +1,26 @@
-package com.zbsplatform.state.diffs
+package com.zbsnetwork.state.diffs
 
 import cats._
-import com.zbsplatform.features.BlockchainFeatures
-import com.zbsplatform.lang.v1.compiler.CompilerV1
-import com.zbsplatform.lang.v1.parser.Parser
-import com.zbsplatform.state._
-import com.zbsplatform.state.diffs.smart.smartEnabledFS
-import com.zbsplatform.utils.dummyCompilerContext
-import com.zbsplatform.{NoShrink, TransactionGen, WithDB}
+import com.zbsnetwork.account.AddressScheme
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.features.BlockchainFeatures
+import com.zbsnetwork.lagonaki.mocks.TestBlock
+import com.zbsnetwork.lang.StdLibVersion.V1
+import com.zbsnetwork.lang.v1.compiler.ExpressionCompiler
+import com.zbsnetwork.lang.v1.parser.Parser
+import com.zbsnetwork.settings.TestFunctionalitySettings
+import com.zbsnetwork.state._
+import com.zbsnetwork.state.diffs.smart.smartEnabledFS
+import com.zbsnetwork.transaction.GenesisTransaction
+import com.zbsnetwork.transaction.assets._
+import com.zbsnetwork.transaction.smart.script.v1.ExprScript
+import com.zbsnetwork.transaction.transfer._
+import com.zbsnetwork.utils.compilerContext
+import com.zbsnetwork.{NoShrink, TransactionGen, WithDB}
 import fastparse.core.Parsed
 import org.scalacheck.{Arbitrary, Gen}
 import org.scalatest.prop.PropertyChecks
 import org.scalatest.{Matchers, PropSpec}
-import com.zbsplatform.account.AddressScheme
-import com.zbsplatform.settings.TestFunctionalitySettings
-import com.zbsplatform.lagonaki.mocks.TestBlock
-import com.zbsplatform.transaction.GenesisTransaction
-import com.zbsplatform.transaction.assets._
-import com.zbsplatform.transaction.smart.script.v1.ScriptV1
-import com.zbsplatform.transaction.transfer._
 
 class AssetTransactionsDiffTest extends PropSpec with PropertyChecks with Matchers with TransactionGen with NoShrink with WithDB {
 
@@ -217,8 +219,8 @@ class AssetTransactionsDiffTest extends PropSpec with PropertyChecks with Matche
   }
 
   private def createScript(code: String) = {
-    val Parsed.Success(expr, _) = Parser(code).get
-    ScriptV1(CompilerV1(dummyCompilerContext, expr).explicitGet()._1).explicitGet()
+    val Parsed.Success(expr, _) = Parser.parseExpr(code).get
+    ExprScript(ExpressionCompiler(compilerContext(V1, isAssetScript = false), expr).explicitGet()._1).explicitGet()
   }
 
   def genesisIssueTransferReissue(code: String): Gen[(Seq[GenesisTransaction], IssueTransactionV2, TransferTransactionV1, ReissueTransactionV1)] =
@@ -234,8 +236,7 @@ class AssetTransactionsDiffTest extends PropSpec with PropertyChecks with Matche
       reissuable = true
       (_, assetName, description, quantity, decimals, _, _, _) <- issueParamGen
       issue = IssueTransactionV2
-        .selfSigned(version,
-                    AddressScheme.current.chainId,
+        .selfSigned(AddressScheme.current.chainId,
                     accountA,
                     assetName,
                     description,
@@ -306,13 +307,11 @@ class AssetTransactionsDiffTest extends PropSpec with PropertyChecks with Matche
     }
   }
 
-  property("Can reissue when script evaluates to TRUE even if sender is not original issuer") {
+  property("Only issuer can reissue") {
     forAll(genesisIssueTransferReissue("true")) {
       case (gen, issue, _, reissue) =>
-        assertDiffAndState(Seq(TestBlock.create(gen)), TestBlock.create(Seq(issue, reissue)), smartEnabledFS) {
-          case (blockDiff, newState) =>
-            val totalPortfolioDiff = Monoid.combineAll(blockDiff.portfolios.values)
-            totalPortfolioDiff.assets(issue.id()) shouldEqual (issue.quantity + reissue.quantity)
+        assertDiffEi(Seq(TestBlock.create(gen)), TestBlock.create(Seq(issue, reissue)), smartEnabledFS) { ei =>
+          ei should produce("Asset was issued by other address")
         }
     }
   }

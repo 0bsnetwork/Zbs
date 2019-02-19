@@ -1,9 +1,9 @@
-package com.zbsplatform.network
+package com.zbsnetwork.network
 
 import java.net.InetAddress
 
-import com.zbsplatform.settings.UPnPSettings
-import com.zbsplatform.utils.ScorexLogging
+import com.zbsnetwork.settings.UPnPSettings
+import com.zbsnetwork.utils.ScorexLogging
 import org.bitlet.weupnp.{GatewayDevice, GatewayDiscover}
 
 import scala.collection.JavaConverters._

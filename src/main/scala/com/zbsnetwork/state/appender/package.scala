@@ -1,18 +1,20 @@
-package com.zbsplatform.state
+package com.zbsnetwork.state
 
-import com.zbsplatform.consensus.{GeneratingBalanceProvider, PoSSelector, TransactionsOrdering}
-import com.zbsplatform.mining._
-import com.zbsplatform.network._
-import com.zbsplatform.settings.{FunctionalitySettings, ZbsSettings}
-import com.zbsplatform.utx.UtxPool
+import cats.implicits._
+import com.zbsnetwork.block.Block
+import com.zbsnetwork.block.Block.BlockId
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.consensus.{GeneratingBalanceProvider, PoSSelector}
+import com.zbsnetwork.mining._
+import com.zbsnetwork.network._
+import com.zbsnetwork.settings.{FunctionalitySettings, ZbsSettings}
+import com.zbsnetwork.transaction.ValidationError.{BlockAppendError, BlockFromFuture, GenericError}
+import com.zbsnetwork.transaction._
+import com.zbsnetwork.utils.{ScorexLogging, Time}
+import com.zbsnetwork.utx.UtxPool
 import io.netty.channel.Channel
 import io.netty.channel.group.ChannelGroup
 import monix.eval.Task
-import com.zbsplatform.block.Block
-import com.zbsplatform.transaction.ValidationError.{BlockAppendError, BlockFromFuture, GenericError}
-import com.zbsplatform.transaction._
-import cats.implicits._
-import com.zbsplatform.utils.{ScorexLogging, Time}
 
 import scala.util.{Left, Right}
 
@@ -48,25 +50,31 @@ package object appender extends ScorexLogging {
     }
   }
 
-  private[appender] def appendBlock(checkpoint: CheckpointService,
-                                    blockchainUpdater: BlockchainUpdater with Blockchain,
+  private[appender] def appendBlock(blockchainUpdater: BlockchainUpdater with Blockchain,
+                                    utxStorage: UtxPool,
+                                    pos: PoSSelector,
+                                    time: Time,
+                                    settings: ZbsSettings,
+                                    verify: Boolean)(block: Block): Either[ValidationError, Option[Int]] = {
+    val append: Block => Either[ValidationError, Option[Int]] =
+      if (verify) appendBlock(blockchainUpdater, utxStorage, pos, time, settings) _
+      else appendBlock(blockchainUpdater, utxStorage, false) _
+    append(block)
+  }
+
+  private[appender] def appendBlock(blockchainUpdater: BlockchainUpdater with Blockchain,
                                     utxStorage: UtxPool,
                                     pos: PoSSelector,
                                     time: Time,
                                     settings: ZbsSettings)(block: Block): Either[ValidationError, Option[Int]] =
     for {
       _ <- Either.cond(
-        checkpoint.isBlockValid(block.signerData.signature, blockchainUpdater.height + 1),
-        (),
-        BlockAppendError(s"Block $block at height ${blockchainUpdater.height + 1} is not valid w.r.t. checkpoint", block)
-      )
-      _ <- Either.cond(
         !blockchainUpdater.hasScript(block.sender),
         (),
         BlockAppendError(s"Account(${block.sender.toAddress}) is scripted are therefore not allowed to forge blocks", block)
       )
-      _ <- blockConsensusValidation(blockchainUpdater, settings, pos, time.correctedTime(), block) { height =>
-        val balance = GeneratingBalanceProvider.balance(blockchainUpdater, settings.blockchainSettings.functionalitySettings, height, block.sender)
+      _ <- blockConsensusValidation(blockchainUpdater, settings, pos, time.correctedTime(), block) { (height, parent) =>
+        val balance = GeneratingBalanceProvider.balance(blockchainUpdater, settings.blockchainSettings.functionalitySettings, block.sender, parent)
         Either.cond(
           GeneratingBalanceProvider.isEffectiveBalanceValid(blockchainUpdater,
                                                             settings.blockchainSettings.functionalitySettings,
@@ -77,18 +85,21 @@ package object appender extends ScorexLogging {
           s"generator's effective balance $balance is less that required for generation"
         )
       }
-      baseHeight = blockchainUpdater.height
-      maybeDiscardedTxs <- blockchainUpdater.processBlock(block)
-    } yield {
+      baseHeight <- appendBlock(blockchainUpdater, utxStorage, verify = true)(block)
+    } yield baseHeight
+
+  private[appender] def appendBlock(blockchainUpdater: BlockchainUpdater with Blockchain, utxStorage: UtxPool, verify: Boolean)(
+      block: Block): Either[ValidationError, Option[Int]] =
+    blockchainUpdater.processBlock(block, verify).map { maybeDiscardedTxs =>
       utxStorage.removeAll(block.transactionData)
-      utxStorage.batched { ops =>
-        maybeDiscardedTxs.toSeq.flatten.foreach(ops.putIfNew)
+      maybeDiscardedTxs.map { discarded =>
+        discarded.foreach(utxStorage.putIfNew)
+        blockchainUpdater.height
       }
-      maybeDiscardedTxs.map(_ => baseHeight)
     }
 
   private def blockConsensusValidation(blockchain: Blockchain, settings: ZbsSettings, pos: PoSSelector, currentTs: Long, block: Block)(
-      genBalance: Int => Either[String, Long]): Either[ValidationError, Unit] = {
+      genBalance: (Int, BlockId) => Either[String, Long]): Either[ValidationError, Unit] = {
 
     val blockTime = block.timestamp
 
@@ -96,10 +107,9 @@ package object appender extends ScorexLogging {
       height <- blockchain.heightOf(block.reference).toRight(GenericError(s"height: history does not contain parent ${block.reference}"))
       parent <- blockchain.parent(block).toRight(GenericError(s"parent: history does not contain parent ${block.reference}"))
       grandParent = blockchain.parent(parent, 2)
-      effectiveBalance <- genBalance(height).left.map(GenericError(_))
+      effectiveBalance <- genBalance(height, block.reference).left.map(GenericError(_))
       _                <- validateBlockVersion(height, block, settings.blockchainSettings.functionalitySettings)
       _                <- Either.cond(blockTime - currentTs < MaxTimeDrift, (), BlockFromFuture(blockTime))
-      _                <- validateTransactionSorting(height, block, settings.blockchainSettings.functionalitySettings)
       _                <- pos.validateBaseTarget(height, block, parent, grandParent)
       _                <- pos.validateGeneratorSignature(height, block)
       _                <- pos.validateBlockDelay(height, block, parent, effectiveBalance).orElse(checkExceptions(height, block))
@@ -128,18 +138,4 @@ package object appender extends ScorexLogging {
       GenericError(s"Block Version 3 can only appear at height greater than $version3Height")
     )
   }
-
-  private def validateTransactionSorting(height: Int, block: Block, settings: FunctionalitySettings): Either[ValidationError, Unit] = {
-    val blockTime = block.timestamp
-    for {
-      _ <- Either.cond(
-        blockTime < settings.requireSortedTransactionsAfter
-          || height > settings.dontRequireSortedTransactionsAfter
-          || block.transactionData.sorted(TransactionsOrdering.InBlock) == block.transactionData,
-        (),
-        GenericError("transactions are not sorted")
-      )
-    } yield ()
-  }
-
 }

@@ -1,19 +1,26 @@
-package com.zbsplatform
+package com.zbsnetwork
 
 import java.io.File
 import java.nio.ByteBuffer
 import java.util
 
+import com.google.common.primitives.Shorts
 import com.typesafe.config.ConfigFactory
-import com.zbsplatform.account.{Address, AddressScheme}
-import com.zbsplatform.database.{Keys, LevelDBWriter}
-import com.zbsplatform.db.openDB
-import com.zbsplatform.settings.{ZbsSettings, loadConfig}
-import com.zbsplatform.state.{ByteStr, EitherExt2}
-import com.zbsplatform.utils.{Base58, Base64, ScorexLogging}
+import com.zbsnetwork.account.{Address, AddressScheme}
+import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.{Base58, Base64, EitherExt2}
+import com.zbsnetwork.database.{Keys, LevelDBWriter}
+import com.zbsnetwork.db.openDB
+import com.zbsnetwork.settings.{ZbsSettings, loadConfig}
+import com.zbsnetwork.state.{Height, TxNum}
+import com.zbsnetwork.transaction.{Transaction, TransactionParsers}
+import com.zbsnetwork.utils.ScorexLogging
+import monix.execution.UncaughtExceptionReporter
+import monix.reactive.Observer
 import org.slf4j.bridge.SLF4JBridgeHandler
 
 import scala.collection.JavaConverters._
+import scala.collection.mutable.ListBuffer
 import scala.util.Try
 
 object Explorer extends ScorexLogging {
@@ -23,7 +30,7 @@ object Explorer extends ScorexLogging {
     "version",
     "height",
     "score",
-    "block-at-height",
+    "block-at-height", // not used now
     "height-of",
     "zbs-balance-history",
     "zbs-balance",
@@ -38,11 +45,11 @@ object Explorer extends ScorexLogging {
     "lease-status",
     "filled-volume-and-fee-history",
     "filled-volume-and-fee",
-    "transaction-info",
+    "transaction-info", // not used now
     "address-transaction-history",
     "address-transaction-ids-at-height",
     "changed-addresses",
-    "transaction-ids-at-height",
+    "transaction-ids-at-height", // not used now
     "address-id-of-alias",
     "last-address-id",
     "address-to-id",
@@ -61,9 +68,20 @@ object Explorer extends ScorexLogging {
     "addresses-for-zbs",
     "addresses-for-asset-seq-nr",
     "addresses-for-asset",
-    "address-transaction-ids-seq-nr",
-    "address-transaction-ids",
-    "alias-is-disabled"
+    "address-transaction-ids-seq-nr", // not used now
+    "address-transaction-ids", // not used now
+    "alias-is-disabled",
+    "carry-fee-history",
+    "carry-fee",
+    "asset-script-history",
+    "asset-script",
+    "safe-rollback-height",
+    "changed-data-keys",
+    "block-header-at-height",
+    "nth-transaction-info-at-height",
+    "address-transaction-seq-nr",
+    "address-transaction-height-type-and-nums",
+    "transaction-height-and-nums-by-id",
   )
 
   def main(args: Array[String]): Unit = {
@@ -79,8 +97,16 @@ object Explorer extends ScorexLogging {
 
     log.info(s"Data directory: ${settings.dataDirectory}")
 
-    val db     = openDB(settings.dataDirectory)
-    val reader = new LevelDBWriter(db, settings.blockchainSettings.functionalitySettings)
+    val portfolioChanges = Observer.empty(UncaughtExceptionReporter.LogExceptionsToStandardErr)
+    val db               = openDB(settings.dataDirectory)
+    val reader = new LevelDBWriter(
+      db,
+      portfolioChanges,
+      settings.blockchainSettings.functionalitySettings,
+      maxCacheSize = settings.maxCacheSize,
+      maxRollbackDepth = settings.maxRollbackDepth,
+      rememberBlocksInterval = settings.rememberBlocks.toMillis
+    )
 
     val blockchainHeight = reader.height
     log.info(s"Blockchain height is $blockchainHeight")
@@ -96,7 +122,7 @@ object Explorer extends ScorexLogging {
             val blockHeightBytes = db.get(kBlockHeight.keyBytes)
             val maybeBlockHeight = kBlockHeight.parse(blockHeightBytes)
             maybeBlockHeight.foreach { h =>
-              val kBlock     = Keys.blockBytes(h)
+              val kBlock     = Keys.blockHeaderBytesAt(Height(h))
               val blockBytes = db.get(kBlock.keyBytes)
               log.info(s"BlockId=${maybeBlockId.get} at h=$h: ${Base64.encode(blockBytes)}")
             }
@@ -200,6 +226,39 @@ object Explorer extends ScorexLogging {
           for ((prefix, stats) <- result.asScala) {
             log.info(s"${keys(prefix)},${stats.entryCount},${stats.totalKeySize},${stats.totalValueSize}")
           }
+
+        case "TXBH" =>
+          val txs = new ListBuffer[(TxNum, Transaction)]
+
+          val h = Height(args(2).toInt)
+
+          val prefix = ByteBuffer
+            .allocate(6)
+            .putShort(Keys.TransactionInfoPrefix)
+            .putInt(h)
+            .array()
+
+          val iterator = db.iterator
+
+          try {
+            iterator.seek(prefix)
+            while (iterator.hasNext && iterator.peekNext().getKey.startsWith(prefix)) {
+              val entry = iterator.next()
+
+              val k = entry.getKey
+              println(k.toList.map(_.toInt & 0xff))
+              val v = entry.getValue
+
+              for {
+                idx <- Try(Shorts.fromByteArray(k.slice(6, 8)))
+                tx  <- TransactionParsers.parseBytes(v)
+              } txs.append((TxNum(idx), tx))
+            }
+          } finally iterator.close()
+
+          println(txs.length)
+          txs.foreach(println)
+
       }
     } finally db.close()
   }

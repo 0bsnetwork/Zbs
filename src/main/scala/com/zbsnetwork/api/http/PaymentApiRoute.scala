@@ -1,16 +1,16 @@
-package com.zbsplatform.api.http
+package com.zbsnetwork.api.http
 
 import javax.ws.rs.Path
 import akka.http.scaladsl.server.Route
-import com.zbsplatform.settings.RestAPISettings
-import com.zbsplatform.utx.UtxPool
+import com.zbsnetwork.settings.RestAPISettings
+import com.zbsnetwork.utx.UtxPool
 import io.netty.channel.group.ChannelGroup
 import io.swagger.annotations._
-import com.zbsplatform.api.http.assets.TransferV1Request
-import com.zbsplatform.http.BroadcastRoute
-import com.zbsplatform.utils.Time
-import com.zbsplatform.transaction.TransactionFactory
-import com.zbsplatform.wallet.Wallet
+import com.zbsnetwork.api.http.assets.TransferV1Request
+import com.zbsnetwork.http.BroadcastRoute
+import com.zbsnetwork.utils.Time
+import com.zbsnetwork.transaction.TransactionFactory
+import com.zbsnetwork.wallet.Wallet
 
 @Path("/payment")
 @Api(value = "/payment")
@@ -36,7 +36,7 @@ case class PaymentApiRoute(settings: RestAPISettings, wallet: Wallet, utx: UtxPo
         value = "Json with data",
         required = true,
         paramType = "body",
-        dataType = "com.zbsplatform.api.http.assets.TransferV1Request",
+        dataType = "com.zbsnetwork.api.http.assets.TransferV1Request",
         defaultValue = "{\n\t\"amount\":400,\n\t\"fee\":1,\n\t\"sender\":\"senderId\",\n\t\"recipient\":\"recipientId\"\n}"
       )
     ))

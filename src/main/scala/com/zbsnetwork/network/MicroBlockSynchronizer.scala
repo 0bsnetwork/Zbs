@@ -1,18 +1,18 @@
-package com.zbsplatform.network
+package com.zbsnetwork.network
 
 import java.util.concurrent.TimeUnit
 
 import com.google.common.cache.{Cache, CacheBuilder}
-import com.zbsplatform.metrics.BlockStats
-import com.zbsplatform.settings.SynchronizationSettings.MicroblockSynchronizerSettings
-import com.zbsplatform.state.ByteStr
+import com.zbsnetwork.metrics.BlockStats
+import com.zbsnetwork.settings.SynchronizationSettings.MicroblockSynchronizerSettings
 import io.netty.channel._
 import monix.eval.{Coeval, Task}
 import monix.execution.CancelableFuture
 import monix.execution.schedulers.SchedulerService
 import monix.reactive.Observable
-import com.zbsplatform.block.Block.BlockId
-import com.zbsplatform.block.MicroBlock
+import com.zbsnetwork.block.Block.BlockId
+import com.zbsnetwork.block.MicroBlock
+import com.zbsnetwork.common.state.ByteStr
 
 import scala.collection.mutable.{Set => MSet}
 import scala.concurrent.duration.FiniteDuration

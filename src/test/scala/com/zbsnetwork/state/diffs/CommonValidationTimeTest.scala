@@ -1,9 +1,10 @@
-package com.zbsplatform.state.diffs
+package com.zbsnetwork.state.diffs
 
-import com.zbsplatform.db.WithState
-import com.zbsplatform.settings.TestFunctionalitySettings
-import com.zbsplatform.state._
-import com.zbsplatform.{NoShrink, TransactionGen}
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.db.WithState
+import com.zbsnetwork.settings.TestFunctionalitySettings.Enabled
+import com.zbsnetwork.state._
+import com.zbsnetwork.{NoShrink, TransactionGen}
 import org.scalacheck.Gen
 import org.scalatest.prop.PropertyChecks
 import org.scalatest.{Matchers, PropSpec}
@@ -19,12 +20,13 @@ class CommonValidationTimeTest extends PropSpec with PropertyChecks with Matcher
       recipient   <- accountGen
       amount      <- positiveLongGen
       fee         <- smallFeeGen
-      transfer1 = createZbsTransfer(master, recipient, amount, fee, prevBlockTs - CommonValidation.MaxTimePrevBlockOverTransactionDiff.toMillis - 1)
+      transfer1 = createZbsTransfer(master, recipient, amount, fee, prevBlockTs - Enabled.maxTransactionTimeBackOffset.toMillis - 1)
         .explicitGet()
     } yield (prevBlockTs, blockTs, height, transfer1)) {
       case (prevBlockTs, blockTs, height, transfer1) =>
-        withStateAndHistory(TestFunctionalitySettings.Enabled) { blockchain: Blockchain =>
-          TransactionDiffer(TestFunctionalitySettings.Enabled, Some(prevBlockTs), blockTs, height)(blockchain, transfer1) should produce("too old")
+        withStateAndHistory(Enabled) { blockchain: Blockchain =>
+          TransactionDiffer(Enabled, Some(prevBlockTs), blockTs, height)(blockchain, transfer1) should
+            produce("in the past relative to previous block timestamp")
         }
     }
   }
@@ -38,13 +40,14 @@ class CommonValidationTimeTest extends PropSpec with PropertyChecks with Matcher
       recipient   <- accountGen
       amount      <- positiveLongGen
       fee         <- smallFeeGen
-      transfer1 = createZbsTransfer(master, recipient, amount, fee, blockTs + CommonValidation.MaxTimeTransactionOverBlockDiff.toMillis + 1)
+      transfer1 = createZbsTransfer(master, recipient, amount, fee, blockTs + Enabled.maxTransactionTimeForwardOffset.toMillis + 1)
         .explicitGet()
     } yield (prevBlockTs, blockTs, height, transfer1)) {
       case (prevBlockTs, blockTs, height, transfer1) =>
-        val functionalitySettings = TestFunctionalitySettings.Enabled.copy(allowTransactionsFromFutureUntil = blockTs - 1)
+        val functionalitySettings = Enabled.copy(allowTransactionsFromFutureUntil = blockTs - 1)
         withStateAndHistory(functionalitySettings) { blockchain: Blockchain =>
-          TransactionDiffer(functionalitySettings, Some(prevBlockTs), blockTs, height)(blockchain, transfer1) should produce("far future")
+          TransactionDiffer(functionalitySettings, Some(prevBlockTs), blockTs, height)(blockchain, transfer1) should
+            produce("in the future relative to block timestamp")
         }
     }
   }

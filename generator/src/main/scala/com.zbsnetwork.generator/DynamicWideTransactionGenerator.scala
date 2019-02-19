@@ -1,12 +1,12 @@
-package com.zbsplatform.generator
+package com.zbsnetwork.generator
 
 import java.util.concurrent.atomic.AtomicReference
 
 import cats.Show
-import com.zbsplatform.generator.DynamicWideTransactionGenerator.Settings
-import com.zbsplatform.generator.utils.Gen
-import com.zbsplatform.account.PrivateKeyAccount
-import com.zbsplatform.transaction.Transaction
+import com.zbsnetwork.generator.DynamicWideTransactionGenerator.Settings
+import com.zbsnetwork.generator.utils.Gen
+import com.zbsnetwork.account.PrivateKeyAccount
+import com.zbsnetwork.transaction.Transaction
 
 class DynamicWideTransactionGenerator(settings: Settings, accounts: Seq[PrivateKeyAccount]) extends TransactionGenerator {
   require(accounts.nonEmpty)

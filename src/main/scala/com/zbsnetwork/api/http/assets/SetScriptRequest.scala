@@ -1,9 +1,9 @@
-package com.zbsplatform.api.http.assets
+package com.zbsnetwork.api.http.assets
 
 import play.api.libs.json.{Format, JsNumber, JsObject, Json}
-import com.zbsplatform.transaction.smart.SetScriptTransaction
+import com.zbsnetwork.transaction.smart.SetScriptTransaction
 
-case class SetScriptRequest(version: Byte, sender: String, script: Option[String], fee: Long, timestamp: Option[Long] = None) {}
+case class SetScriptRequest(sender: String, script: Option[String], fee: Long, timestamp: Option[Long] = None) {}
 
 object SetScriptRequest {
   implicit val jsonFormat: Format[SetScriptRequest] = Json.format

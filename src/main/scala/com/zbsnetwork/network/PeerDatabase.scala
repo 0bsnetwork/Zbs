@@ -1,8 +1,8 @@
-package com.zbsplatform.network
+package com.zbsnetwork.network
 
 import java.net.{InetAddress, InetSocketAddress}
 
-import com.zbsplatform.utils.ScorexLogging
+import com.zbsnetwork.utils.ScorexLogging
 import io.netty.channel.Channel
 
 trait PeerDatabase extends AutoCloseable {

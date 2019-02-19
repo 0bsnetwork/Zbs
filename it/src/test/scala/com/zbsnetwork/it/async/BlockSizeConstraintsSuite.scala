@@ -1,9 +1,9 @@
-package com.zbsplatform.it.async
+package com.zbsnetwork.it.async
 
 import com.typesafe.config.{Config, ConfigFactory}
-import com.zbsplatform.it.api.AsyncHttpApi._
-import com.zbsplatform.it.transactions.NodesFromDocker
-import com.zbsplatform.it.{NodeConfigs, TransferSending}
+import com.zbsnetwork.it.api.AsyncHttpApi._
+import com.zbsnetwork.it.transactions.NodesFromDocker
+import com.zbsnetwork.it.{NodeConfigs, TransferSending}
 import org.scalatest._
 
 import scala.concurrent.Await.result

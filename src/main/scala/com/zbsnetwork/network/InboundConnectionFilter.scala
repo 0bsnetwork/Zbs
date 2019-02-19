@@ -1,10 +1,10 @@
-package com.zbsplatform.network
+package com.zbsnetwork.network
 
 import java.net.{InetAddress, InetSocketAddress}
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 
-import com.zbsplatform.utils.ScorexLogging
+import com.zbsnetwork.utils.ScorexLogging
 import io.netty.channel.ChannelHandler.Sharable
 import io.netty.channel.{ChannelFuture, ChannelHandlerContext}
 import io.netty.handler.ipfilter.AbstractRemoteAddressFilter

@@ -1,7 +1,7 @@
-package com.zbsplatform.settings
+package com.zbsnetwork.settings
 
 import com.typesafe.config.Config
-import com.zbsplatform.state.ByteStr
+import com.zbsnetwork.common.state.ByteStr
 import net.ceedubs.ficus.Ficus._
 import net.ceedubs.ficus.readers.ArbitraryTypeReader._
 import net.ceedubs.ficus.readers.EnumerationReader._
@@ -11,7 +11,6 @@ import scala.concurrent.duration._
 case class FunctionalitySettings(featureCheckBlocksPeriod: Int,
                                  blocksForFeatureActivation: Int,
                                  allowTemporaryNegativeUntil: Long,
-                                 requireSortedTransactionsAfter: Long,
                                  generationBalanceDepthFrom50To1000AfterHeight: Int,
                                  minimalGeneratingBalanceAfter: Long,
                                  allowTransactionsFromFutureUntil: Long,
@@ -21,8 +20,9 @@ case class FunctionalitySettings(featureCheckBlocksPeriod: Int,
                                  resetEffectiveBalancesAtHeight: Int,
                                  blockVersion3AfterHeight: Int,
                                  preActivatedFeatures: Map[Short, Int],
-                                 doubleFeaturesPeriodsAfterHeight: Int) {
-  val dontRequireSortedTransactionsAfter: Int    = blockVersion3AfterHeight
+                                 doubleFeaturesPeriodsAfterHeight: Int,
+                                 maxTransactionTimeBackOffset: FiniteDuration,
+                                 maxTransactionTimeForwardOffset: FiniteDuration) {
   val allowLeasedBalanceTransferUntilHeight: Int = blockVersion3AfterHeight
 
   require(featureCheckBlocksPeriod > 0, "featureCheckBlocksPeriod must be greater than 0")
@@ -53,7 +53,6 @@ object FunctionalitySettings {
     featureCheckBlocksPeriod = 5000,
     blocksForFeatureActivation = 4000,
     allowTemporaryNegativeUntil = 1479168000000L,
-    requireSortedTransactionsAfter = 1479168000000L,
     generationBalanceDepthFrom50To1000AfterHeight = 232000,
     minimalGeneratingBalanceAfter = 1479168000000L,
     allowTransactionsFromFutureUntil = 1479168000000L,
@@ -63,14 +62,15 @@ object FunctionalitySettings {
     resetEffectiveBalancesAtHeight = 462000,
     blockVersion3AfterHeight = 795000,
     preActivatedFeatures = Map.empty,
-    doubleFeaturesPeriodsAfterHeight = 810000
+    doubleFeaturesPeriodsAfterHeight = 810000,
+    maxTransactionTimeBackOffset = 120.minutes,
+    maxTransactionTimeForwardOffset = 90.minutes
   )
 
   val TESTNET = apply(
     featureCheckBlocksPeriod = 30,
     blocksForFeatureActivation = 25,
     allowTemporaryNegativeUntil = 0,
-    requireSortedTransactionsAfter = 0,
     generationBalanceDepthFrom50To1000AfterHeight = 0,
     minimalGeneratingBalanceAfter = 0,
     allowTransactionsFromFutureUntil = 0,
@@ -80,7 +80,9 @@ object FunctionalitySettings {
     resetEffectiveBalancesAtHeight = 1,
     blockVersion3AfterHeight = 0,
     preActivatedFeatures = Map[Short, Int]((1, 0), (2, 0), (3, 0), (4, 0), (5, 0), (6, 0), (7, 0), (8, 0)),
-    doubleFeaturesPeriodsAfterHeight = 0
+    doubleFeaturesPeriodsAfterHeight = 0,
+    maxTransactionTimeBackOffset = 120.minutes,
+    maxTransactionTimeForwardOffset = 90.minutes
   )
 
   val configPath = "zbs.blockchain.custom.functionality"
@@ -141,7 +143,7 @@ object BlockchainSettings {
       case BlockchainType.TESTNET =>
         ('T', FunctionalitySettings.TESTNET, GenesisSettings.TESTNET)
       case BlockchainType.MAINNET =>
-        ('W', FunctionalitySettings.MAINNET, GenesisSettings.MAINNET)
+        ('Z', FunctionalitySettings.MAINNET, GenesisSettings.MAINNET)
       case BlockchainType.CUSTOM =>
         val addressSchemeCharacter = config.as[String](s"$configPath.custom.address-scheme-character").charAt(0)
         val functionalitySettings  = config.as[FunctionalitySettings]("zbs.blockchain.custom.functionality")

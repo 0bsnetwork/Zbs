@@ -1,4 +1,4 @@
-package com.zbsplatform.lang.directives
+package com.zbsnetwork.lang.directives
 
 import fastparse.WhitespaceApi
 import fastparse.core.Parsed.Success

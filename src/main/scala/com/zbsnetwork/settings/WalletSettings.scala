@@ -1,7 +1,7 @@
-package com.zbsplatform.settings
+package com.zbsnetwork.settings
 
 import java.io.File
 
-import com.zbsplatform.state.ByteStr
+import com.zbsnetwork.common.state.ByteStr
 
-case class WalletSettings(file: Option[File], password: String, seed: Option[ByteStr])
+case class WalletSettings(file: Option[File], password: Option[String], seed: Option[ByteStr])

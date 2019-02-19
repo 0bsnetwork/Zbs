@@ -1,23 +1,29 @@
-package com.zbsplatform.api.http.assets
+package com.zbsnetwork.api.http.assets
 
 import cats.implicits._
+import com.zbsnetwork.account.PublicKeyAccount
+import com.zbsnetwork.api.http.BroadcastRequest
+import com.zbsnetwork.transaction.transfer.MassTransferTransaction.Transfer
+import com.zbsnetwork.transaction.transfer._
+import com.zbsnetwork.transaction.{AssetIdStringLength, Proofs, ValidationError}
 import io.swagger.annotations.{ApiModel, ApiModelProperty}
+import play.api.libs.functional.syntax._
 import play.api.libs.json._
-import com.zbsplatform.account.PublicKeyAccount
-import com.zbsplatform.api.http.BroadcastRequest
-import com.zbsplatform.transaction.transfer.MassTransferTransaction.Transfer
-import com.zbsplatform.transaction.transfer._
-import com.zbsplatform.transaction.{AssetIdStringLength, Proofs, ValidationError}
 
 object SignedMassTransferRequest {
-  implicit val reads                                                       = Json.reads[SignedMassTransferRequest]
-  implicit val MassTransferRequestReads: Format[SignedMassTransferRequest] = Json.format
+  implicit val MassTransferRequestReads: Reads[SignedMassTransferRequest] = (
+    (JsPath \ "senderPublicKey").read[String] and
+      (JsPath \ "assetId").readNullable[String] and
+      (JsPath \ "transfers").read[List[Transfer]] and
+      (JsPath \ "fee").read[Long] and
+      (JsPath \ "timestamp").read[Long] and
+      (JsPath \ "attachment").readNullable[String] and
+      (JsPath \ "proofs").read[List[ProofStr]]
+  )(SignedMassTransferRequest.apply _)
 }
 
 @ApiModel(value = "Signed Asset transfer transaction")
-case class SignedMassTransferRequest(@ApiModelProperty(required = true)
-                                     version: Byte,
-                                     @ApiModelProperty(value = "Base58 encoded sender public key", required = true)
+case class SignedMassTransferRequest(@ApiModelProperty(value = "Base58 encoded sender public key", required = true)
                                      senderPublicKey: String,
                                      @ApiModelProperty(value = "Base58 encoded Asset ID")
                                      assetId: Option[String],
@@ -40,6 +46,6 @@ case class SignedMassTransferRequest(@ApiModelProperty(required = true)
       _proofs     <- Proofs.create(_proofBytes)
       _attachment <- parseBase58(attachment.filter(_.length > 0), "invalid.attachment", TransferTransaction.MaxAttachmentStringSize)
       _transfers  <- MassTransferTransaction.parseTransfersList(transfers)
-      t           <- MassTransferTransaction.create(version, _assetId, _sender, _transfers, timestamp, fee, _attachment.arr, _proofs)
+      t           <- MassTransferTransaction.create(_assetId, _sender, _transfers, timestamp, fee, _attachment.arr, _proofs)
     } yield t
 }

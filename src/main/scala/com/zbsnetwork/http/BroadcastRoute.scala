@@ -1,9 +1,9 @@
-package com.zbsplatform.http
+package com.zbsnetwork.http
 
-import com.zbsplatform.api.http.ApiError
-import com.zbsplatform.network._
-import com.zbsplatform.transaction.{Transaction, ValidationError}
-import com.zbsplatform.utx.UtxPool
+import com.zbsnetwork.api.http.ApiError
+import com.zbsnetwork.network._
+import com.zbsnetwork.transaction.{Transaction, ValidationError}
+import com.zbsnetwork.utx.UtxPool
 import io.netty.channel.group.ChannelGroup
 
 import scala.concurrent.Future

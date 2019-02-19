@@ -1,11 +1,11 @@
-package com.zbsplatform.settings
+package com.zbsnetwork.settings
 
 import java.io.File
 import java.net.{InetSocketAddress, URI}
 
 import com.google.common.base.Charsets
 import com.typesafe.config.Config
-import com.zbsplatform.network.TrafficLogger
+import com.zbsnetwork.network.TrafficLogger
 import net.ceedubs.ficus.Ficus._
 import net.ceedubs.ficus.readers.ArbitraryTypeReader._
 import net.ceedubs.ficus.readers.ValueReader

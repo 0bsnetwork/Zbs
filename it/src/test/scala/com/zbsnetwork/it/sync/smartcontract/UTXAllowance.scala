@@ -1,20 +1,17 @@
-package com.zbsplatform.it.sync.smartcontract
+package com.zbsnetwork.it.sync.smartcontract
 
 import com.typesafe.config.{Config, ConfigFactory}
-import com.zbsplatform.account.PrivateKeyAccount
-import com.zbsplatform.it.api.SyncHttpApi._
-import com.zbsplatform.it.transactions.NodesFromDocker
-import com.zbsplatform.it.{ReportingTestName, WaitForHeight2}
-import com.zbsplatform.lang.v1.compiler.CompilerV1
-import com.zbsplatform.lang.v1.parser.Parser
-import com.zbsplatform.it.util._
-import com.zbsplatform.it.sync._
-import com.zbsplatform.transaction.smart.SetScriptTransaction
-import com.zbsplatform.transaction.smart.script.v1.ScriptV1
-import com.zbsplatform.transaction.transfer.{TransferTransactionV2}
-import com.zbsplatform.utils.dummyCompilerContext
+import com.zbsnetwork.account.PrivateKeyAccount
+import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.it.api.SyncHttpApi._
+import com.zbsnetwork.it.sync._
+import com.zbsnetwork.it.transactions.NodesFromDocker
+import com.zbsnetwork.it.util._
+import com.zbsnetwork.it.{ReportingTestName, WaitForHeight2}
+import com.zbsnetwork.transaction.smart.SetScriptTransaction
+import com.zbsnetwork.transaction.smart.script.ScriptCompiler
+import com.zbsnetwork.transaction.transfer.TransferTransactionV2
 import org.scalatest.{CancelAfterFailure, FreeSpec, Matchers}
-import play.api.libs.json.JsNumber
 
 class UTXAllowance extends FreeSpec with Matchers with WaitForHeight2 with CancelAfterFailure with ReportingTestName with NodesFromDocker {
   import UTXAllowance._
@@ -33,19 +30,16 @@ class UTXAllowance extends FreeSpec with Matchers with WaitForHeight2 with Cance
       val tx = i.transfer(i.address, nodeAddress, 10.zbs, 0.005.zbs).id
       nodes.waitForHeightAriseAndTxPresent(tx)
 
-      val scriptText = {
-        val sc = Parser(s"""true""".stripMargin).get.value
-        CompilerV1(dummyCompilerContext, sc).explicitGet()._1
-      }
+      val scriptText = s"""true""".stripMargin
 
-      val script = ScriptV1(scriptText).explicitGet()
+      val script = ScriptCompiler(scriptText, isAssetScript = false).explicitGet()._1
       val setScriptTransaction = SetScriptTransaction
-        .selfSigned(SetScriptTransaction.supportedVersions.head, acc, Some(script), minFee, System.currentTimeMillis())
+        .selfSigned(acc, Some(script), setScriptFee, System.currentTimeMillis())
         .right
         .get
 
       val setScriptId = i
-        .signedBroadcast(setScriptTransaction.json() + ("type" -> JsNumber(SetScriptTransaction.typeId.toInt)))
+        .signedBroadcast(setScriptTransaction.json())
         .id
 
       nodes.waitForHeightAriseAndTxPresent(setScriptId)
@@ -55,7 +49,6 @@ class UTXAllowance extends FreeSpec with Matchers with WaitForHeight2 with Cance
     val txA =
       TransferTransactionV2
         .selfSigned(
-          version = 2,
           assetId = None,
           sender = accounts(0),
           recipient = accounts(0),
@@ -68,14 +61,13 @@ class UTXAllowance extends FreeSpec with Matchers with WaitForHeight2 with Cance
         .right
         .get
     assertBadRequestAndMessage(
-      nodeA.signedBroadcast(txA.json() + ("type" -> JsNumber(TransferTransactionV2.typeId.toInt))).id,
+      nodeA.signedBroadcast(txA.json()),
       "transactions from scripted accounts are denied from UTX pool"
     )
 
     val txB =
       TransferTransactionV2
         .selfSigned(
-          version = 2,
           assetId = None,
           sender = accounts(1),
           recipient = accounts(1),
@@ -88,7 +80,7 @@ class UTXAllowance extends FreeSpec with Matchers with WaitForHeight2 with Cance
         .right
         .get
 
-    val txBId = nodeB.signedBroadcast(txB.json() + ("type" -> JsNumber(TransferTransactionV2.typeId.toInt))).id
+    val txBId = nodeB.signedBroadcast(txB.json()).id
     nodes.waitForHeightArise()
     nodeA.findTransactionInfo(txBId) shouldBe None
   }
@@ -96,7 +88,7 @@ class UTXAllowance extends FreeSpec with Matchers with WaitForHeight2 with Cance
 }
 
 object UTXAllowance {
-  import com.zbsplatform.it.NodeConfigs._
+  import com.zbsnetwork.it.NodeConfigs._
   private val FirstNode = ConfigFactory.parseString(s"""
                                                          |zbs {
                                                          |  utx.allow-transactions-from-smart-accounts = false

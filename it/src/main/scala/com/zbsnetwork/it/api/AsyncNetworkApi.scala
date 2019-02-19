@@ -1,8 +1,8 @@
-package com.zbsplatform.it.api
+package com.zbsnetwork.it.api
 
-import com.zbsplatform.it.Node
-import com.zbsplatform.network.RawBytes
-import com.zbsplatform.network.client.NetworkSender
+import com.zbsnetwork.it.Node
+import com.zbsnetwork.network.RawBytes
+import com.zbsnetwork.network.client.NetworkSender
 
 import scala.concurrent.Future
 

@@ -1,4 +1,4 @@
-package com.zbsplatform.metrics
+package com.zbsnetwork.metrics
 
 import org.influxdb.dto.Point
 
