@@ -1,10 +1,30 @@
 package com.zbsnetwork.it.sync.debug
 
+import com.typesafe.config.Config
+import com.zbsnetwork.it.{Node, NodeConfigs}
 import com.zbsnetwork.it.api.SyncHttpApi._
-import com.zbsnetwork.it.transactions.BaseTransactionSuite
+import com.zbsnetwork.it.transactions.NodesFromDocker
 import com.zbsnetwork.it.util._
+import com.zbsnetwork.it.sync._
+import org.scalatest.FunSuite
 
-class DebugPortfoliosSuite extends BaseTransactionSuite {
+class DebugPortfoliosSuite extends FunSuite with NodesFromDocker {
+  override protected def nodeConfigs: Seq[Config] =
+    NodeConfigs.newBuilder
+      .overrideBase(_.quorum(0))
+      .withDefault(entitiesNumber = 1)
+      .buildNonConflicting()
+
+  private def sender: Node = nodes.head
+
+  private val firstAddress  = sender.createAddress()
+  private val secondAddress = sender.createAddress()
+
+  override protected def beforeAll(): Unit = {
+    super.beforeAll()
+    sender.transfer(sender.address, firstAddress, 20.zbs, minFee, waitForTx = true)
+    sender.transfer(sender.address, secondAddress, 20.zbs, minFee, waitForTx = true)
+  }
 
   test("getting a balance considering pessimistic transactions from UTX pool - changed after UTX") {
     val portfolioBefore = sender.debugPortfoliosFor(firstAddress, considerUnspent = true)

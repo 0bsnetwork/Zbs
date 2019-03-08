@@ -7,6 +7,7 @@ import akka.http.scaladsl.marshalling.ToResponseMarshallable
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Route
 import cats.implicits._
+import cats.kernel.Monoid
 import com.typesafe.config.{ConfigObject, ConfigRenderOptions}
 import com.zbsnetwork.account.Address
 import com.zbsnetwork.api.http._
@@ -26,13 +27,13 @@ import com.zbsnetwork.transaction.smart.Verifier
 import com.zbsnetwork.utils.{ScorexLogging, Time}
 import com.zbsnetwork.utx.UtxPool
 import com.zbsnetwork.wallet.Wallet
+import com.zbsnetwork.utils.byteStrWrites
 import io.netty.channel.Channel
 import io.netty.channel.group.ChannelGroup
 import io.swagger.annotations._
 import javax.ws.rs.Path
 import monix.eval.{Coeval, Task}
 import play.api.libs.json._
-import com.zbsnetwork.utils.byteStrWrites
 
 import scala.concurrent.Future
 import scala.concurrent.duration._
@@ -140,7 +141,8 @@ case class DebugApiRoute(ws: ZbsSettings,
       Address.fromString(rawAddress) match {
         case Left(_) => complete(InvalidAddress)
         case Right(address) =>
-          val portfolio = if (considerUnspent.getOrElse(true)) utxStorage.portfolio(address) else ng.portfolio(address)
+          val base      = ng.portfolio(address)
+          val portfolio = if (considerUnspent.getOrElse(true)) Monoid.combine(base, utxStorage.pessimisticPortfolio(address)) else base
           complete(Json.toJson(portfolio))
       }
     }
@@ -150,7 +152,7 @@ case class DebugApiRoute(ws: ZbsSettings,
   @ApiOperation(value = "State", notes = "Get current state", httpMethod = "GET")
   @ApiResponses(Array(new ApiResponse(code = 200, message = "Json state")))
   def state: Route = (path("state") & get & withAuth) {
-    complete(ng.zbsDistribution(ng.height).map { case (a, b) => a.stringRepr -> b })
+    complete(ng.zbsDistribution(ng.height).map(_.map { case (a, b) => a.stringRepr -> b }))
   }
 
   @Path("/stateZbs/{height}")
@@ -160,7 +162,7 @@ case class DebugApiRoute(ws: ZbsSettings,
       new ApiImplicitParam(name = "height", value = "height", required = true, dataType = "integer", paramType = "path")
     ))
   def stateZbs: Route = (path("stateZbs" / IntNumber) & get & withAuth) { height =>
-    complete(ng.zbsDistribution(height).map { case (a, b) => a.stringRepr -> b })
+    complete(ng.zbsDistribution(height).map(_.map { case (a, b) => a.stringRepr -> b }))
   }
 
   private def rollbackToBlock(blockId: ByteStr, returnTransactionsToUtx: Boolean): Future[ToResponseMarshallable] = {

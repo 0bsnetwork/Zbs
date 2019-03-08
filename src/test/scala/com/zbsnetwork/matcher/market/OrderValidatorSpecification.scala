@@ -1,7 +1,6 @@
 package com.zbsnetwork.matcher.market
 
 import com.google.common.base.Charsets
-import com.zbsnetwork.OrderOps._
 import com.zbsnetwork.account.{Address, PrivateKeyAccount}
 import com.zbsnetwork.common.state.ByteStr
 import com.zbsnetwork.common.utils.EitherExt2
@@ -13,6 +12,7 @@ import com.zbsnetwork.matcher.model._
 import com.zbsnetwork.settings.Constants
 import com.zbsnetwork.state.diffs.produce
 import com.zbsnetwork.state.{AssetDescription, Blockchain, LeaseBalance, Portfolio}
+import com.zbsnetwork.transaction.assets.exchange.OrderOps._
 import com.zbsnetwork.transaction.assets.exchange._
 import com.zbsnetwork.transaction.smart.script.ScriptCompiler
 import com.zbsnetwork.transaction.smart.script.v1.ExprScript
@@ -36,7 +36,6 @@ class OrderValidatorSpecification
 
   private val wbtc       = mkAssetId("WBTC").get
   private val pairZbsBtc = AssetPair(None, Some(wbtc))
-  private val defaultTs  = 1000
 
   private val defaultPortfolio = Portfolio(0, LeaseBalance.empty, Map(wbtc -> 10 * Constants.UnitsInZbs))
 
@@ -116,28 +115,10 @@ class OrderValidatorSpecification
         ov(order) should produce("Script doesn't exist and proof doesn't validate as signature")
       }
 
-      "default ts - drift > its for new users" in {
+      "order exists" in {
         val pk = PrivateKeyAccount(randomBytes())
-        val ov = OrderValidator.accountStateAware(pk, defaultPortfolio.balanceOf, 0, 0L, _ => false)(_)
-        ov(newBuyOrder(pk, defaultTs - matcherSettings.orderTimestampDrift - 1)) should produce("Order should have a timestamp")
-      }
-
-      "default ts - drift = its ts for new users" in {
-        val pk = PrivateKeyAccount(randomBytes())
-        val ov = OrderValidator.accountStateAware(pk, defaultPortfolio.balanceOf, 0, 0L, _ => false)(_)
-        ov(newBuyOrder(pk, defaultTs - matcherSettings.orderTimestampDrift)) should produce("Order should have a timestamp")
-      }
-
-      "ts1 - drift > ts2" in {
-        val pk = PrivateKeyAccount(randomBytes())
-        val ov = OrderValidator.accountStateAware(pk, defaultPortfolio.balanceOf, 0, defaultTs + 1000, _ => false)(_)
-        ov(newBuyOrder(pk, defaultTs + 999 - matcherSettings.orderTimestampDrift)) should produce("Order should have a timestamp")
-      }
-
-      "ts1 - drift = ts2" in {
-        val pk = PrivateKeyAccount(randomBytes())
-        val ov = OrderValidator.accountStateAware(pk, defaultPortfolio.balanceOf, 0, defaultTs + 1000, _ => false)(_)
-        ov(newBuyOrder(pk, defaultTs + 1000 - matcherSettings.orderTimestampDrift)) should produce("Order should have a timestamp")
+        val ov = OrderValidator.accountStateAware(pk, defaultPortfolio.balanceOf, 1, _ => true)(_)
+        ov(newBuyOrder(pk, 1000)) should produce("Order has already been placed")
       }
 
       "order price has invalid non-zero trailing decimals" in forAll(assetIdGen(1), accountGen, Gen.choose(1, 7)) {
@@ -332,7 +313,7 @@ class OrderValidatorSpecification
       orderStatus: ByteStr => Boolean = _ => false,
       o: Order = newBuyOrder
   )(f: Either[String, Order] => A): A =
-    f(OrderValidator.accountStateAware(o.sender, tradableBalance(p), 0, 0, orderStatus)(o))
+    f(OrderValidator.accountStateAware(o.sender, tradableBalance(p), 0, orderStatus)(o))
 
   private def msa(ba: Set[Address], o: Order) = OrderValidator.matcherSettingsAware(o.matcherPublicKey, ba, Set.empty) _
 }

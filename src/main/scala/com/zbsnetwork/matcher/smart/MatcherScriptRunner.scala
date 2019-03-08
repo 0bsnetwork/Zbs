@@ -5,17 +5,17 @@ import com.zbsnetwork.account.AddressScheme
 import com.zbsnetwork.lang.contract.Contract
 import com.zbsnetwork.lang.v1.compiler.Terms.{EVALUATED, FALSE, TRUE}
 import com.zbsnetwork.lang.v1.evaluator.{ContractEvaluator, EvaluatorV1, Log}
-import com.zbsnetwork.transaction.{Authorized, Proven}
 import com.zbsnetwork.transaction.assets.exchange.Order
-import com.zbsnetwork.transaction.smart.{RealTransactionWrapper, Verifier}
+import com.zbsnetwork.transaction.smart.script.v1.ExprScript
 import com.zbsnetwork.transaction.smart.script.{ContractScript, Script}
-import com.zbsnetwork.transaction.smart.script.v1.ExprScript.ExprScriprImpl
+import com.zbsnetwork.transaction.smart.{RealTransactionWrapper, Verifier}
+import com.zbsnetwork.transaction.{Authorized, Proven}
 import monix.eval.Coeval
 
 object MatcherScriptRunner {
 
   def apply(script: Script, order: Order, isTokenScript: Boolean): (Log, Either[String, EVALUATED]) = script match {
-    case s: ExprScriprImpl =>
+    case s: ExprScript =>
       val ctx = MatcherContext.build(script.stdLibVersion, AddressScheme.current.chainId, Coeval.evalOnce(order), !isTokenScript)
       EvaluatorV1.applywithLogging(ctx, s.expr)
 

@@ -1,5 +1,4 @@
-# Zbs [![Build Status](https://travis-ci.org/0bsnetwork/Zbs.svg?branch=master)](https://travis-ci.org/0bsnetwork/Zbs)
-
+# 0bsNetwork Full Node
 
 In the master branch there is a code with functions that is under development. The latest release for each network can be found in the [Releases section](https://github.com/0bsnetwork/Zbs/releases), you can switch to the corresponding tag and build the application.
 
@@ -48,10 +47,13 @@ Mutiple features can be seperated by commas;
 features = [9,10,11]
 ```
 
-Note: Features < 9 have been pre-activated on this current node version.
+Note: Features <= 11 have been pre-activated on the chain.
 
 # Tests & Coverage
 
 ```
- sbt -J-XX:MaxMetaspaceSize=512M -J-XX:MetaspaceSize=512M -J-Xms2048M -J-Xmx2048M -J-Xss6M -J-XX:MaxPermSize=512M ";coverage;checkPR;coverageReport"
+unset _JAVA_OPTIONS
+unset SBT_OPTS
+export JAVA_TOOL_OPTIONS="-Xmx1548m"
+sbt -J-Xms128m -J-Xmx1248m -J-XX:+UseConcMarkSweepGC -J-XX:+CMSClassUnloadingEnabled ";coverage;checkPR;coverageReport"
 ```

@@ -4,25 +4,25 @@ import com.zbsnetwork.account.Address
 import com.zbsnetwork.database.{DBExt, Keys, LevelDBWriter}
 import com.zbsnetwork.settings.ZbsSettings
 import com.zbsnetwork.state.{BlockchainUpdaterImpl, NG}
-import com.zbsnetwork.transaction.BlockchainUpdater
+import com.zbsnetwork.transaction.{AssetId, BlockchainUpdater}
 import com.zbsnetwork.utils.{ScorexLogging, Time, UnsupportedFeature, forceStopApplication}
 import monix.reactive.Observer
 import org.iq80.leveldb.DB
 
 object StorageFactory extends ScorexLogging {
-  private val StorageVersion = 3
+  private val StorageVersion = 4
 
-  def apply(settings: ZbsSettings, db: DB, time: Time, portfolioChanged: Observer[Address]): BlockchainUpdater with NG = {
+  def apply(settings: ZbsSettings, db: DB, time: Time, spendableBalanceChanged: Observer[(Address, Option[AssetId])]): BlockchainUpdater with NG = {
     checkVersion(db)
     val levelDBWriter = new LevelDBWriter(
       db,
-      portfolioChanged,
+      spendableBalanceChanged,
       settings.blockchainSettings.functionalitySettings,
       settings.maxCacheSize,
       settings.maxRollbackDepth,
       settings.rememberBlocks.toMillis
     )
-    new BlockchainUpdaterImpl(levelDBWriter, portfolioChanged, settings, time)
+    new BlockchainUpdaterImpl(levelDBWriter, spendableBalanceChanged, settings, time)
   }
 
   private def checkVersion(db: DB): Unit = db.readWrite { rw =>

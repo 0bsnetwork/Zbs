@@ -7,7 +7,6 @@ import com.google.common.base.Throwables
 import com.zbsnetwork.account.AddressScheme
 import com.zbsnetwork.common.state.ByteStr
 import com.zbsnetwork.common.state.ByteStr._
-import com.zbsnetwork.common.utils.EitherExt2
 import com.zbsnetwork.db.{Storage, VersionedStorage}
 import com.zbsnetwork.lang.Global
 import com.zbsnetwork.lang.StdLibVersion._
@@ -15,7 +14,7 @@ import com.zbsnetwork.lang.v1.compiler.{CompilerContext, DecompilerContext}
 import com.zbsnetwork.lang.v1.evaluator.ctx._
 import com.zbsnetwork.lang.v1.evaluator.ctx.impl.zbs.ZbsContext
 import com.zbsnetwork.lang.v1.evaluator.ctx.impl.{CryptoContext, PureContext}
-import com.zbsnetwork.lang.v1.{CTX, FunctionHeader, ScriptEstimator}
+import com.zbsnetwork.lang.v1.{CTX, FunctionHeader}
 import com.zbsnetwork.transaction.smart.ZbsEnvironment
 import monix.eval.Coeval
 import monix.execution.UncaughtExceptionReporter
@@ -123,11 +122,11 @@ package object utils extends ScorexLogging {
   def dummyEvalContext(version: StdLibVersion): EvaluationContext = lazyContexts(version)().evaluationContext
 
   private val lazyFunctionCosts: Map[StdLibVersion, Coeval[Map[FunctionHeader, Coeval[Long]]]] =
-    lazyContexts.mapValues(_.map(ctx => estimate(ctx.evaluationContext)))
+    lazyContexts.map(el => (el._1, el._2.map(ctx => estimate(el._1, ctx.evaluationContext))))
 
   def functionCosts(version: StdLibVersion): Map[FunctionHeader, Coeval[Long]] = lazyFunctionCosts(version)()
 
-  def estimate(ctx: EvaluationContext): Map[FunctionHeader, Coeval[Long]] = {
+  def estimate(version: StdLibVersion, ctx: EvaluationContext): Map[FunctionHeader, Coeval[Long]] = {
     val costs: mutable.Map[FunctionHeader, Coeval[Long]] = ctx.typeDefs.collect {
       case (typeName, CaseType(_, fields)) => FunctionHeader.User(typeName) -> Coeval.now(fields.size.toLong)
     }(collection.breakOut)
@@ -135,11 +134,10 @@ package object utils extends ScorexLogging {
     ctx.functions.values.foreach { func =>
       val cost = func match {
         case f: UserFunction =>
-          import f.signature.args
-          Coeval.evalOnce(ScriptEstimator(ctx.letDefs.keySet ++ args.map(_._1), costs, f.ev).explicitGet() + args.size * 5)
-        case f: NativeFunction => Coeval.now(f.cost)
+          f.costByLibVersion(version)
+        case f: NativeFunction => f.cost
       }
-      costs += func.header -> cost
+      costs += func.header -> Coeval.now(cost)
     }
 
     costs.toMap

@@ -1,14 +1,17 @@
 package com.zbsnetwork.transaction.lease
 
+import cats.implicits._
 import com.google.common.primitives.Bytes
 import com.zbsnetwork.account.{AddressOrAlias, PrivateKeyAccount, PublicKeyAccount}
 import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.EitherExt2
 import com.zbsnetwork.crypto
 import com.zbsnetwork.serialization.Deser
 import com.zbsnetwork.transaction._
+import com.zbsnetwork.transaction.description._
 import monix.eval.Coeval
 
-import scala.util.{Either, Failure, Success, Try}
+import scala.util.{Either, Try}
 
 case class LeaseTransactionV2 private (sender: PublicKeyAccount, amount: Long, fee: Long, timestamp: Long, recipient: AddressOrAlias, proofs: Proofs)
     extends LeaseTransaction
@@ -33,16 +36,14 @@ object LeaseTransactionV2 extends TransactionParserFor[LeaseTransactionV2] with 
   override val typeId: Byte = LeaseTransaction.typeId
 
   override protected def parseTail(bytes: Array[Byte]): Try[TransactionT] = {
-    Try {
-      val (assetIdOpt, s0) = Deser.parseByteArrayOption(bytes, 0, AssetIdLength)
-      (for {
-        _      <- Either.cond(assetIdOpt.isEmpty, (), ValidationError.GenericError("Leasing assets is not supported yet"))
-        parsed <- LeaseTransaction.parseBase(bytes, s0)
-        (sender, recipient, quantity, fee, timestamp, end) = parsed
-        proofs <- Proofs.fromBytes(bytes.drop(end))
-        lt     <- LeaseTransactionV2.create(sender, quantity, fee, timestamp, recipient, proofs)
-      } yield lt).fold(left => Failure(new Exception(left.toString)), right => Success(right))
-    }.flatten
+    byteTailDescription.deserializeFromByteArray(bytes).flatMap { tx =>
+      val (assetIdOpt, _) = Deser.parseByteArrayOption(bytes, 0, AssetIdLength)
+      Either
+        .cond(assetIdOpt.isEmpty, (), ValidationError.GenericError("Leasing assets is not supported yet"))
+        .flatMap(_ => LeaseTransaction.validateLeaseParams(tx))
+        .map(_ => tx)
+        .foldToTry
+    }
   }
 
   def create(sender: PublicKeyAccount,
@@ -74,5 +75,27 @@ object LeaseTransactionV2 extends TransactionParserFor[LeaseTransactionV2] with 
                  timestamp: Long,
                  recipient: AddressOrAlias): Either[ValidationError, TransactionT] = {
     signed(sender, amount, fee, timestamp, recipient, sender)
+  }
+
+  val byteTailDescription: ByteEntity[LeaseTransactionV2] = {
+    (
+      OptionBytes(tailIndex(1), "Leasing asset", AssetIdBytes(tailIndex(1), "Leasing asset"), "flag (1 - asset, 0 - Zbs)"),
+      PublicKeyAccountBytes(tailIndex(2), "Sender's public key"),
+      AddressOrAliasBytes(tailIndex(3), "Recipient"),
+      LongBytes(tailIndex(4), "Amount"),
+      LongBytes(tailIndex(5), "Fee"),
+      LongBytes(tailIndex(6), "Timestamp"),
+      ProofsBytes(tailIndex(7))
+    ) mapN {
+      case (_, senderPublicKey, recipient, amount, fee, timestamp, proofs) =>
+        LeaseTransactionV2(
+          sender = senderPublicKey,
+          amount = amount,
+          fee = fee,
+          timestamp = timestamp,
+          recipient = recipient,
+          proofs = proofs
+        )
+    }
   }
 }

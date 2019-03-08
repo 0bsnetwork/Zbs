@@ -21,11 +21,11 @@ abstract class MatcherSuiteBase
   val defaultAssetQuantity = 999999999999L
 
   val smartFee         = 0.004.zbs
-  val minFee           = 0.001.zbs + smartFee
-  val issueFee         = 1.zbs
+  val minFee           = 0.02.zbs + smartFee
+  val issueFee         = 500.zbs
   val smartIssueFee    = 1.zbs + smartFee
-  val leasingFee       = 0.002.zbs + smartFee
-  val tradeFee         = 0.003.zbs
+  val leasingFee       = 5.zbs + smartFee
+  val tradeFee         = 0.02.zbs
   val smartTradeFee    = tradeFee + smartFee
   val twoSmartTradeFee = tradeFee + 2 * smartFee
 
