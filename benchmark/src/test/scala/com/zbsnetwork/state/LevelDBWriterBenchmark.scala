@@ -11,6 +11,7 @@ import com.zbsnetwork.database.LevelDBWriter
 import com.zbsnetwork.db.LevelDBFactory
 import com.zbsnetwork.settings.{ZbsSettings, loadConfig}
 import com.zbsnetwork.state.LevelDBWriterBenchmark._
+import com.zbsnetwork.transaction.AssetId
 import com.zbsnetwork.utils.Implicits.SubjectOps
 import monix.reactive.subjects.Subject
 import org.iq80.leveldb.{DB, Options}
@@ -91,8 +92,10 @@ object LevelDBWriterBenchmark {
       LevelDBFactory.factory.open(dir, new Options)
     }
 
-    private val ignorePortfolioChanged: Subject[Address, Address] = Subject.empty[Address]
-    val db                                                        = new LevelDBWriter(rawDB, ignorePortfolioChanged, zbsSettings.blockchainSettings.functionalitySettings, 100000, 2000, 120 * 60 * 1000)
+    private val ignoreSpendableBalanceChanged = Subject.empty[(Address, Option[AssetId])]
+
+    val db =
+      new LevelDBWriter(rawDB, ignoreSpendableBalanceChanged, zbsSettings.blockchainSettings.functionalitySettings, 100000, 2000, 120 * 60 * 1000)
 
     @TearDown
     def close(): Unit = {

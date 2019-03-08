@@ -2,16 +2,14 @@ package com.zbsnetwork.transaction.smart.script
 
 import cats.implicits._
 import com.zbsnetwork.account.AddressScheme
-import com.zbsnetwork.lang.v1.compiler.Terms.EVALUATED
-import com.zbsnetwork.lang.v1.evaluator.EvaluatorV1
 import com.zbsnetwork.lang._
 import com.zbsnetwork.lang.contract.Contract
-import com.zbsnetwork.lang.v1.evaluator._
-import com.zbsnetwork.lang.v1.compiler.Terms.{FALSE, TRUE}
+import com.zbsnetwork.lang.v1.compiler.Terms.{EVALUATED, FALSE, TRUE}
+import com.zbsnetwork.lang.v1.evaluator.{EvaluatorV1, _}
 import com.zbsnetwork.state._
-import com.zbsnetwork.transaction.{Authorized, Proven}
+import com.zbsnetwork.transaction.smart.script.v1.ExprScript
 import com.zbsnetwork.transaction.smart.{BlockchainContext, RealTransactionWrapper, Verifier}
-import com.zbsnetwork.transaction.smart.script.v1.ExprScript.ExprScriprImpl
+import com.zbsnetwork.transaction.{Authorized, Proven}
 import monix.eval.Coeval
 
 object ScriptRunner {
@@ -19,7 +17,7 @@ object ScriptRunner {
 
   def apply(height: Int, in: TxOrd, blockchain: Blockchain, script: Script, isTokenScript: Boolean): (Log, Either[ExecutionError, EVALUATED]) = {
     script match {
-      case s: ExprScriprImpl =>
+      case s: ExprScript =>
         val ctx = BlockchainContext.build(
           script.stdLibVersion,
           AddressScheme.current.chainId,

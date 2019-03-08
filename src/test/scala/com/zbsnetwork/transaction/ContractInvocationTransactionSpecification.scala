@@ -1,13 +1,12 @@
 package com.zbsnetwork.transaction
 
 import com.zbsnetwork.TransactionGen
-import com.zbsnetwork.account.{AddressScheme, DefaultAddressScheme, PrivateKeyAccount}
+import com.zbsnetwork.account.{AddressScheme, DefaultAddressScheme, PrivateKeyAccount, PublicKeyAccount}
 import com.zbsnetwork.api.http.{ContractInvocationRequest, SignedContractInvocationRequest}
 import com.zbsnetwork.common.state.ByteStr
-import com.zbsnetwork.common.utils.Base64
-import com.zbsnetwork.lang.v1.FunctionHeader
+import com.zbsnetwork.common.utils.{Base64, _}
+import com.zbsnetwork.lang.v1.{ContractLimits, FunctionHeader}
 import com.zbsnetwork.lang.v1.compiler.Terms
-import com.zbsnetwork.state._
 import com.zbsnetwork.transaction.smart.ContractInvocationTransaction.Payment
 import com.zbsnetwork.transaction.smart.{ContractInvocationTransaction, Verifier}
 import org.scalatest._
@@ -17,7 +16,7 @@ import play.api.libs.json.{JsObject, Json}
 class ContractInvocationTransactionSpecification extends PropSpec with PropertyChecks with Matchers with TransactionGen {
 
   property("ContractInvocationTransaction serialization roundtrip") {
-    forAll(contractInvokationGen) { transaction: ContractInvocationTransaction =>
+    forAll(contractInvocationGen) { transaction: ContractInvocationTransaction =>
       val bytes = transaction.bytes()
       val deser = ContractInvocationTransaction.parseBytes(bytes).get
       deser.sender shouldEqual transaction.sender
@@ -48,8 +47,7 @@ class ContractInvocationTransactionSpecification extends PropSpec with PropertyC
                          "call": {
                             "function" : "foo",
                              "args" : [
-                             { "key" : "",
-                               "type" : "binary",
+                             { "type" : "binary",
                                "value" : "base64:YWxpY2U="
                              }
                             ]
@@ -84,7 +82,7 @@ class ContractInvocationTransactionSpecification extends PropSpec with PropertyC
     val req = SignedContractInvocationRequest(
       senderPublicKey = "73pu8pHFNpj9tmWuYjqnZ962tXzJvLGX86dxjZxGYhoK",
       fee = 1,
-      call = ContractInvocationRequest.FunctionCallPart("bar", List(BinaryDataEntry("", ByteStr.decodeBase64("YWxpY2U=").get))),
+      call = ContractInvocationRequest.FunctionCallPart("bar", List(Terms.CONST_BYTESTR(ByteStr.decodeBase64("YWxpY2U=").get))),
       payment = Some(Payment(1, None)),
       contractAddress = "3Fb641A9hWy63K18KsBJwns64McmdEATgJd",
       timestamp = 11,
@@ -94,4 +92,32 @@ class ContractInvocationTransactionSpecification extends PropSpec with PropertyC
     AddressScheme.current = DefaultAddressScheme
   }
 
+  property(s"can't have more than ${ContractLimits.MaxContractInvocationArgs} args") {
+    import com.zbsnetwork.common.state.diffs.ProduceError._
+    val pk = PublicKeyAccount.fromBase58String("73pu8pHFNpj9tmWuYjqnZ962tXzJvLGX86dxjZxGYhoK").explicitGet()
+    ContractInvocationTransaction.create(
+      pk,
+      pk.toAddress,
+      Terms.FUNCTION_CALL(FunctionHeader.User("foo"), Range(0, 23).map(_ => Terms.CONST_LONG(0)).toList),
+      None,
+      1,
+      1,
+      Proofs.empty
+    ) should produce("more than 22 arguments")
+  }
+
+  property("can't be more 5kb") {
+    val largeString = "abcde" * 1024
+    import com.zbsnetwork.common.state.diffs.ProduceError._
+    val pk = PublicKeyAccount.fromBase58String("73pu8pHFNpj9tmWuYjqnZ962tXzJvLGX86dxjZxGYhoK").explicitGet()
+    ContractInvocationTransaction.create(
+      pk,
+      pk.toAddress,
+      Terms.FUNCTION_CALL(FunctionHeader.User("foo"), List(Terms.CONST_STRING(largeString))),
+      None,
+      1,
+      1,
+      Proofs.empty
+    ) should produce("TooBigArray")
+  }
 }

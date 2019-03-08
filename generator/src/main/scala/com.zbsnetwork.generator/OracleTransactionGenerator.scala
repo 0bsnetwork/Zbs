@@ -32,13 +32,12 @@ class OracleTransactionGenerator(settings: Settings, val accounts: Seq[PrivateKe
       .selfSigned(oracle, settings.requiredData.toList, enoughFee, System.currentTimeMillis())
       .explicitGet()
 
-    val transactions: List[Transaction] =
-      List
-        .fill(settings.transactions) {
-          TransferTransactionV2
-            .selfSigned(None, scriptedAccount, oracle, 1.zbs, System.currentTimeMillis(), None, enoughFee, Array.emptyByteArray)
-            .explicitGet()
-        }
+    val now = System.currentTimeMillis()
+    val transactions: List[Transaction] = (1 to settings.transactions).map { i =>
+      TransferTransactionV2
+        .selfSigned(None, scriptedAccount, oracle, 1.zbs, now + i, None, enoughFee, Array.emptyByteArray)
+        .explicitGet()
+    }.toList
 
     setScript +: setDataTx +: transactions
   }

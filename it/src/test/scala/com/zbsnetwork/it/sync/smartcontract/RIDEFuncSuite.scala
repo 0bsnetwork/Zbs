@@ -1,7 +1,9 @@
 package com.zbsnetwork.it.sync.smartcontract
 
+import com.typesafe.config.Config
 import com.zbsnetwork.common.state.ByteStr
 import com.zbsnetwork.common.utils.EitherExt2
+import com.zbsnetwork.it.NodeConfigs
 import com.zbsnetwork.it.api.SyncHttpApi._
 import com.zbsnetwork.it.sync._
 import com.zbsnetwork.it.transactions.BaseTransactionSuite
@@ -12,6 +14,12 @@ import com.zbsnetwork.transaction.transfer.TransferTransactionV2
 import org.scalatest.CancelAfterFailure
 
 class RIDEFuncSuite extends BaseTransactionSuite with CancelAfterFailure {
+  override protected def nodeConfigs: Seq[Config] =
+    NodeConfigs.newBuilder
+      .overrideBase(_.quorum(0))
+      .withDefault(entitiesNumber = 1)
+      .buildNonConflicting()
+
   private val acc0 = pkByAddress(firstAddress)
 
   test("assetBalance() verification") {

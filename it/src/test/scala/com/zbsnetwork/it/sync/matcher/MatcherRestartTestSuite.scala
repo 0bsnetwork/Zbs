@@ -2,6 +2,7 @@ package com.zbsnetwork.it.sync.matcher
 
 import com.typesafe.config.Config
 import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.it.api.OrderBookResponse
 import com.zbsnetwork.it.api.SyncHttpApi._
 import com.zbsnetwork.it.api.SyncMatcherHttpApi._
 import com.zbsnetwork.it.matcher.MatcherSuiteBase
@@ -65,8 +66,8 @@ class MatcherRestartTestSuite extends MatcherSuiteBase {
         matcherNode.placeOrder(aliceAcc, aliceZbsPair, OrderType.SELL, 500, 2.zbs * Order.PriceConstant, matcherFee, orderVersion, 5.minutes)
       aliceSecondOrder.status shouldBe "OrderAccepted"
 
-      val orders2 = matcherNode.orderBook(aliceZbsPair)
-      orders2.asks.head.amount shouldBe 1000
+      val orders2 =
+        matcherNode.waitFor[OrderBookResponse]("Top ask has 1000 amount")(_.orderBook(aliceZbsPair), _.asks.head.amount == 1000, 1.second)
       orders2.asks.head.price shouldBe 2.zbs * Order.PriceConstant
 
       val cancel = matcherNode.cancelOrder(aliceAcc, aliceZbsPair, firstOrder)

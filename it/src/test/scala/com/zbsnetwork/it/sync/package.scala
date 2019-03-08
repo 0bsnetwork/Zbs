@@ -9,7 +9,7 @@ import com.zbsnetwork.transaction.smart.script.{Script, ScriptCompiler}
 
 package object sync {
   val smartFee: Long                   = 0.004.zbs
-  val minFee: Long                     = 0.001.zbs
+  val minFee: Long                     = 0.005.zbs
   val leasingFee: Long                 = 0.002.zbs
   val issueFee: Long                   = 1.zbs
   val burnFee: Long                    = 1.zbs

@@ -12,8 +12,9 @@ import com.zbsnetwork.db.openDB
 import com.zbsnetwork.history.StorageFactory
 import com.zbsnetwork.mining.MultiDimensionalMiningConstraint
 import com.zbsnetwork.settings.{ZbsSettings, loadConfig}
+import com.zbsnetwork.state.Portfolio
 import com.zbsnetwork.state.appender.BlockAppender
-import com.zbsnetwork.transaction.Transaction
+import com.zbsnetwork.transaction.{AssetId, Transaction}
 import com.zbsnetwork.utils._
 import com.zbsnetwork.utx.UtxPool
 import monix.execution.{Scheduler, UncaughtExceptionReporter}
@@ -49,15 +50,15 @@ object Importer extends ScorexLogging {
 
     implicit val scheduler: Scheduler = Scheduler.singleThread("appender")
     val utxPoolStub = new UtxPool {
-      override def putIfNew(tx: Transaction)                               = ???
-      override def removeAll(txs: Traversable[Transaction]): Unit          = {}
-      override def accountPortfolio(addr: Address)                         = ???
-      override def portfolio(addr: Address)                                = ???
-      override def all                                                     = ???
-      override def size                                                    = ???
-      override def transactionById(transactionId: ByteStr)                 = ???
-      override def packUnconfirmed(rest: MultiDimensionalMiningConstraint) = ???
-      override def close(): Unit                                           = {}
+      override def putIfNew(tx: Transaction)                                       = ???
+      override def removeAll(txs: Traversable[Transaction]): Unit                  = {}
+      override def spendableBalance(addr: Address, assetId: Option[AssetId]): Long = ???
+      override def pessimisticPortfolio(addr: Address): Portfolio                  = ???
+      override def all                                                             = ???
+      override def size                                                            = ???
+      override def transactionById(transactionId: ByteStr)                         = ???
+      override def packUnconfirmed(rest: MultiDimensionalMiningConstraint)         = ???
+      override def close(): Unit                                                   = {}
     }
 
     val time = new NTP(settings.ntpServer)

@@ -29,6 +29,7 @@ import com.zbsnetwork.network.RxExtensionLoader.RxExtensionLoaderShutdownHook
 import com.zbsnetwork.network._
 import com.zbsnetwork.settings._
 import com.zbsnetwork.state.appender.{BlockAppender, ExtensionAppender, MicroblockAppender}
+import com.zbsnetwork.transaction.AssetId
 import com.zbsnetwork.utils.{NTP, ScorexLogging, SystemInformationReporter, forceStopApplication}
 import com.zbsnetwork.utx.{UtxPool, UtxPoolImpl}
 import com.zbsnetwork.wallet.Wallet
@@ -58,9 +59,9 @@ class Application(val actorSystem: ActorSystem, val settings: ZbsSettings, confi
 
   private val LocalScoreBroadcastDebounce = 1.second
 
-  private val portfolioChanged = ConcurrentSubject.publish[Address]
+  private val spendableBalanceChanged = ConcurrentSubject.publish[(Address, Option[AssetId])]
 
-  private val blockchainUpdater = StorageFactory(settings, db, time, portfolioChanged)
+  private val blockchainUpdater = StorageFactory(settings, db, time, spendableBalanceChanged)
 
   private lazy val upnp = new UPnP(settings.networkSettings.uPnPSettings) // don't initialize unless enabled
 
@@ -101,11 +102,11 @@ class Application(val actorSystem: ActorSystem, val settings: ZbsSettings, confi
     val establishedConnections = new ConcurrentHashMap[Channel, PeerInfo]
     val allChannels            = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE)
     val utxStorage =
-      new UtxPoolImpl(time, blockchainUpdater, portfolioChanged, settings.blockchainSettings.functionalitySettings, settings.utxSettings)
+      new UtxPoolImpl(time, blockchainUpdater, spendableBalanceChanged, settings.blockchainSettings.functionalitySettings, settings.utxSettings)
     maybeUtx = Some(utxStorage)
 
     matcher = if (settings.matcherSettings.enable) {
-      Matcher(actorSystem, time, wallet, utxStorage, allChannels, blockchainUpdater, portfolioChanged, settings)
+      Matcher(actorSystem, time, wallet, utxStorage, allChannels, blockchainUpdater, spendableBalanceChanged, settings)
     } else None
 
     val knownInvalidBlocks = new InvalidBlockStorageImpl(settings.synchronizationSettings.invalidBlocksStorage)
@@ -179,11 +180,16 @@ class Application(val actorSystem: ActorSystem, val settings: ZbsSettings, confi
     rxExtensionLoaderShutdown = Some(sh)
 
     UtxPoolSynchronizer.start(utxStorage, settings.synchronizationSettings.utxSynchronizerSettings, allChannels, transactions)
-    val microBlockSink = microblockDatas.mapTask(scala.Function.tupled(processMicroBlock))
-    val blockSink      = newBlocks.mapTask(scala.Function.tupled(processBlock))
+
+    val microBlockSink = microblockDatas
+      .mapTask(scala.Function.tupled(processMicroBlock))
+
+    val blockSink = newBlocks
+      .mapTask(scala.Function.tupled(processBlock))
 
     Observable.merge(microBlockSink, blockSink).subscribe()
     miner.scheduleMining()
+    utxStorage.cleanup.runCleanupOn(blockSink)
 
     for (addr <- settings.networkSettings.declaredAddress if settings.networkSettings.uPnPSettings.enable) {
       upnp.addPort(addr.getPort)
@@ -279,7 +285,7 @@ class Application(val actorSystem: ActorSystem, val settings: ZbsSettings, confi
     if (!shutdownInProgress) {
       shutdownInProgress = true
 
-      portfolioChanged.onComplete()
+      spendableBalanceChanged.onComplete()
       utx.close()
 
       shutdownAndWait(historyRepliesScheduler, "HistoryReplier", 5.minutes)

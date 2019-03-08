@@ -5,8 +5,8 @@ import com.zbsnetwork.common.utils.Base64
 import com.zbsnetwork.lang.StdLibVersion._
 import com.zbsnetwork.lang.v1.compiler.Decompiler
 import com.zbsnetwork.transaction.ValidationError.ScriptParseError
-import com.zbsnetwork.transaction.smart.script.v1.ExprScript.ExprScriprImpl
 import monix.eval.Coeval
+import com.zbsnetwork.transaction.smart.script.v1.ExprScript
 
 trait Script {
   type Expr
@@ -39,7 +39,7 @@ object Script {
     } yield script
 
   def decompile(s: Script): String = s match {
-    case ExprScriprImpl(_, expr, _) => Decompiler(expr, com.zbsnetwork.utils.defaultDecompilerContext)
+    case e: ExprScript => Decompiler(e.expr, com.zbsnetwork.utils.defaultDecompilerContext)
     case com.zbsnetwork.transaction.smart.script.ContractScript.ContractScriptImpl(_, contract, _) =>
       Decompiler(contract, com.zbsnetwork.utils.defaultDecompilerContext)
   }

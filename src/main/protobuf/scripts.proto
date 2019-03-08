@@ -1,0 +1,7 @@
+// Transactions
+syntax = "proto3";
+option java_package = "com.zbsnetwork.protobuf.transaction.smart.script";
+
+message Script {
+    bytes bytes = 1;
+};

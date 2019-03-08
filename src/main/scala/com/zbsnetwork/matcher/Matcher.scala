@@ -21,7 +21,8 @@ import com.zbsnetwork.matcher.model.{ExchangeTransactionCreator, OrderBook, Orde
 import com.zbsnetwork.matcher.queue._
 import com.zbsnetwork.network._
 import com.zbsnetwork.settings.ZbsSettings
-import com.zbsnetwork.state.Blockchain
+import com.zbsnetwork.state.{Blockchain, VolumeAndFee}
+import com.zbsnetwork.transaction.AssetId
 import com.zbsnetwork.transaction.assets.exchange.{AssetPair, Order}
 import com.zbsnetwork.utils.{ErrorStartingMatcher, ScorexLogging, Time, forceStopApplication}
 import com.zbsnetwork.utx.UtxPool
@@ -39,7 +40,7 @@ class Matcher(actorSystem: ActorSystem,
               utx: UtxPool,
               allChannels: ChannelGroup,
               blockchain: Blockchain,
-              portfoliosChanged: Observable[Address],
+              spendableBalanceChanged: Observable[(Address, Option[AssetId])],
               settings: ZbsSettings,
               matcherPrivateKey: PrivateKeyAccount)
     extends ScorexLogging {
@@ -163,10 +164,28 @@ class Matcher(actorSystem: ActorSystem,
     MatcherActor.name
   )
 
+  private lazy val orderDb = OrderDB(matcherSettings, db)
+
   private lazy val addressActors =
     actorSystem.actorOf(
-      Props(new AddressDirectory(portfoliosChanged, utx.portfolio, matcherQueue.storeEvent, matcherSettings, time, OrderDB(matcherSettings, db))),
-      "addresses")
+      Props(
+        new AddressDirectory(
+          spendableBalanceChanged,
+          matcherSettings,
+          address =>
+            Props(
+              new AddressActor(
+                address,
+                utx.spendableBalance(address, _),
+                5.seconds,
+                time,
+                orderDb,
+                id => blockchain.filledVolumeAndFee(id) != VolumeAndFee.empty,
+                matcherQueue.storeEvent
+              ))
+        )),
+      "addresses"
+    )
 
   private lazy val blacklistedAddresses = settings.matcherSettings.blacklistedAddresses.map(Address.fromString(_).explicitGet())
   private lazy val matcherPublicKey     = PublicKeyAccount(matcherPrivateKey.publicKey)
@@ -275,7 +294,7 @@ object Matcher extends ScorexLogging {
             utx: UtxPool,
             allChannels: ChannelGroup,
             blockchain: Blockchain,
-            portfoliosChanged: Observable[Address],
+            spendableBalanceChanged: Observable[(Address, Option[AssetId])],
             settings: ZbsSettings): Option[Matcher] =
     try {
       val privateKey = (for {
@@ -283,7 +302,7 @@ object Matcher extends ScorexLogging {
         pk      <- wallet.privateKeyAccount(address)
       } yield pk).explicitGet()
 
-      val matcher = new Matcher(actorSystem, time, utx, allChannels, blockchain, portfoliosChanged, settings, privateKey)
+      val matcher = new Matcher(actorSystem, time, utx, allChannels, blockchain, spendableBalanceChanged, settings, privateKey)
       matcher.runMatcher()
       Some(matcher)
     } catch {

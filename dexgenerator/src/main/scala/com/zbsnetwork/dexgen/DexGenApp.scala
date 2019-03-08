@@ -3,11 +3,11 @@ package com.zbsnetwork.dexgen
 import java.util.concurrent.Executors
 
 import cats.implicits.showInterpolator
-import cats.instances.byte
 import com.typesafe.config.ConfigFactory
 import com.zbsnetwork.account.{AddressOrAlias, AddressScheme, PrivateKeyAccount}
 import com.zbsnetwork.api.http.assets.{SignedIssueV2Request, SignedMassTransferRequest}
 import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.EitherExt2
 import com.zbsnetwork.dexgen.cli.ScoptImplicits
 import com.zbsnetwork.dexgen.config.FicusImplicits
 import com.zbsnetwork.dexgen.utils.{ApiRequests, GenOrderType}
@@ -19,7 +19,6 @@ import com.zbsnetwork.transaction.assets.IssueTransactionV2
 import com.zbsnetwork.transaction.transfer.MassTransferTransaction
 import com.zbsnetwork.transaction.transfer.MassTransferTransaction.ParsedTransfer
 import com.zbsnetwork.utils.LoggerFacade
-import com.zbsnetwork.common.utils.EitherExt2
 import net.ceedubs.ficus.Ficus._
 import net.ceedubs.ficus.readers.ArbitraryTypeReader._
 import net.ceedubs.ficus.readers.{EnumerationReader, NameMapper}
@@ -79,6 +78,7 @@ object DexGenApp extends App with ScoptImplicits with FicusImplicits with Enumer
   def issueAssets(endpoint: String, richAddressSeed: String, n: Int)(implicit tag: String): Seq[AssetId] = {
     val node = api.to(endpoint)
 
+    val now = System.currentTimeMillis()
     val assetsTx: Seq[IssueTransactionV2] = (1 to n).map { i =>
       IssueTransactionV2
         .selfSigned(
@@ -89,7 +89,7 @@ object DexGenApp extends App with ScoptImplicits with FicusImplicits with Enumer
           decimals = 2,
           reissuable = false,
           fee = 100000000,
-          timestamp = System.currentTimeMillis(),
+          timestamp = now + i,
           sender = PrivateKeyAccount.fromSeed(richAddressSeed).explicitGet(),
           script = None
         )
