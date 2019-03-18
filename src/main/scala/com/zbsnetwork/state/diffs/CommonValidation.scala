@@ -22,7 +22,7 @@ import scala.util.{Left, Right, Try}
 
 object CommonValidation {
 
-  val ScriptExtraFee = 400000L
+  val ScriptExtraFee = 1000000L
   val FeeUnit        = 100000
 
   val FeeConstants: Map[Byte, Long] = Map(
@@ -40,7 +40,7 @@ object CommonValidation {
     DataTransaction.typeId                     -> 30,
     SetScriptTransaction.typeId                -> 10000,
     SponsorFeeTransaction.typeId               -> 50000,
-    SetAssetScriptTransaction.typeId           -> (10000 - 4),
+    SetAssetScriptTransaction.typeId           -> (10000 - 10),
     smart.ContractInvocationTransaction.typeId -> 100
   )
 

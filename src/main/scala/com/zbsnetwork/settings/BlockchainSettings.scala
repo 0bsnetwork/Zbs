@@ -118,11 +118,11 @@ object GenesisSettings {
   val TESTNET = GenesisSettings(
     1538694637902L,
     1538694637902L,
-    Constants.UnitsInZbs * Constants.TotalZbs,
+    Constants.UnitsInZbs * Constants.TotalZbsTestNet,
     ByteStr.decodeBase58("24scqU9MhmHHwwjKgAaNd1wiH39yWjtokFjeTxH8suHjw4Z37UPahu9BFYV9aqwsgsgpqBrBYYRD4RwF738XGnPR").toOption,
     List(
-      GenesisTransactionSettings("3NBky6zeZav78TKabgmhKW3e4KFcx16LDVB", (Constants.UnitsInZbs * Constants.TotalZbs * 0.5).toLong),
-      GenesisTransactionSettings("3MoyfqFEEs7enk572o9iqpjLSQT5UvxJMDw", (Constants.UnitsInZbs * Constants.TotalZbs * 0.5).toLong),
+      GenesisTransactionSettings("3NBky6zeZav78TKabgmhKW3e4KFcx16LDVB", (Constants.UnitsInZbs * Constants.TotalZbsTestNet * 0.5).toLong),
+      GenesisTransactionSettings("3MoyfqFEEs7enk572o9iqpjLSQT5UvxJMDw", (Constants.UnitsInZbs * Constants.TotalZbsTestNet * 0.5).toLong),
     ),
     153722867L,
     60.seconds
