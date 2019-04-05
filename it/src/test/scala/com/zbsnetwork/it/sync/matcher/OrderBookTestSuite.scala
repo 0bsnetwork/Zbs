@@ -3,6 +3,7 @@ package com.zbsnetwork.it.sync.matcher
 import com.typesafe.config.Config
 import com.zbsnetwork.account.PrivateKeyAccount
 import com.zbsnetwork.it.api.SyncHttpApi._
+import com.zbsnetwork.it.api.SyncMatcherHttpApi
 import com.zbsnetwork.it.api.SyncMatcherHttpApi._
 import com.zbsnetwork.it.matcher.MatcherSuiteBase
 import com.zbsnetwork.it.sync._
@@ -88,6 +89,23 @@ class OrderBookTestSuite extends MatcherSuiteBase {
       val orderBook = matcherNode.orderBook(wctZbsPair)
       orderBook.bids shouldNot be(empty)
       orderBook.asks shouldNot be(empty)
+    }
+
+    "matcher can start after multiple delete events" in {
+      // The hack will be fixed in the master branch
+      import com.zbsnetwork.it.api.AsyncMatcherHttpApi.{MatcherAsyncHttpApi => async}
+
+      def deleteWctZbs = async(matcherNode).deleteOrderBook(wctZbsPair)
+      val deleteMultipleTimes = deleteWctZbs
+        .zip(deleteWctZbs)
+        .map(_ => ())
+        .recover { case _ => () } // It's ok: either this should fail, or restartNode should work
+
+      SyncMatcherHttpApi.sync(deleteMultipleTimes)
+      val dockerMatcherNode = dockerNodes().head
+      dockerMatcherNode shouldBe matcherNode
+
+      docker.restartNode(dockerMatcherNode)
     }
   }
 }

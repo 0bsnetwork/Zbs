@@ -3,6 +3,7 @@ package com.zbsnetwork.consensus
 import cats.implicits._
 import com.zbsnetwork.block.Block
 import com.zbsnetwork.common.state.ByteStr
+import com.zbsnetwork.common.utils.Base58
 import com.zbsnetwork.consensus.nxt.NxtLikeConsensusBlockData
 import com.zbsnetwork.features.BlockchainFeatures
 import com.zbsnetwork.features.FeatureProvider._
@@ -59,7 +60,8 @@ class PoSSelector(blockchain: Blockchain, blockchainSettings: BlockchainSettings
     blockchain.lastBlock
       .toRight(GenericError("No blocks in blockchain"))
       .map(b => generatorSignature(b.consensusData.generationSignature.arr, block.signerData.generator.publicKey))
-      .ensureOr(vgs => GenericError(s"Generation signatures does not match: Expected = $vgs; Found = $blockGS"))(_ sameElements blockGS)
+      .ensureOr(vgs => GenericError(s"Generation signatures does not match: Expected = ${Base58.encode(vgs)}; Found = ${Base58.encode(blockGS)}"))(
+        _ sameElements blockGS)
       .map(_ => ())
   }
 

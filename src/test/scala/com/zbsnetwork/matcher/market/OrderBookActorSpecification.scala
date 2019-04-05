@@ -5,6 +5,7 @@ import java.util.concurrent.ConcurrentHashMap
 import akka.actor.{ActorRef, Props}
 import akka.testkit.{ImplicitSender, TestProbe}
 import com.zbsnetwork.NTPTime
+import com.zbsnetwork.OrderOps._
 import com.zbsnetwork.common.state.ByteStr
 import com.zbsnetwork.matcher.MatcherTestData
 import com.zbsnetwork.matcher.api.AlreadyProcessed
@@ -14,7 +15,6 @@ import com.zbsnetwork.matcher.market.MatcherActor.SaveSnapshot
 import com.zbsnetwork.matcher.market.OrderBookActor._
 import com.zbsnetwork.matcher.model.Events.OrderAdded
 import com.zbsnetwork.matcher.model._
-import com.zbsnetwork.transaction.assets.exchange.OrderOps._
 import com.zbsnetwork.transaction.assets.exchange.{AssetPair, Order}
 import com.zbsnetwork.utils.EmptyBlockchain
 import org.scalamock.scalatest.PathMockFactory

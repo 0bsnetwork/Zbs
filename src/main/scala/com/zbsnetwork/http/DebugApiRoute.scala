@@ -33,9 +33,10 @@ import io.netty.channel.group.ChannelGroup
 import io.swagger.annotations._
 import javax.ws.rs.Path
 import monix.eval.{Coeval, Task}
+import monix.execution.Scheduler
 import play.api.libs.json._
 
-import scala.concurrent.Future
+import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration._
 import scala.util.control.NonFatal
 import scala.util.{Failure, Success}
@@ -152,7 +153,7 @@ case class DebugApiRoute(ws: ZbsSettings,
   @ApiOperation(value = "State", notes = "Get current state", httpMethod = "GET")
   @ApiResponses(Array(new ApiResponse(code = 200, message = "Json state")))
   def state: Route = (path("state") & get & withAuth) {
-    complete(ng.zbsDistribution(ng.height).map(_.map { case (a, b) => a.stringRepr -> b }))
+    complete(ng.zbsDistribution(ng.height).map { case (a, b) => a.stringRepr -> b })
   }
 
   @Path("/stateZbs/{height}")
@@ -162,22 +163,22 @@ case class DebugApiRoute(ws: ZbsSettings,
       new ApiImplicitParam(name = "height", value = "height", required = true, dataType = "integer", paramType = "path")
     ))
   def stateZbs: Route = (path("stateZbs" / IntNumber) & get & withAuth) { height =>
-    complete(ng.zbsDistribution(height).map(_.map { case (a, b) => a.stringRepr -> b }))
+    complete(ng.zbsDistribution(height).map { case (a, b) => a.stringRepr -> b })
   }
 
-  private def rollbackToBlock(blockId: ByteStr, returnTransactionsToUtx: Boolean): Future[ToResponseMarshallable] = {
-    import monix.execution.Scheduler.Implicits.global
-
-    rollbackTask(blockId).asyncBoundary.map {
-      case Right(blocks) =>
-        allChannels.broadcast(LocalScoreChanged(ng.score))
-        if (returnTransactionsToUtx) {
-          blocks.view.flatMap(_.transactionData).foreach(utxStorage.putIfNew)
-        }
-        miner.scheduleMining()
-        Json.obj("BlockId" -> blockId.toString): ToResponseMarshallable
-      case Left(error) => ApiError.fromValidationError(error): ToResponseMarshallable
-    }.runAsyncLogErr
+  private def rollbackToBlock(blockId: ByteStr, returnTransactionsToUtx: Boolean)(implicit ec: ExecutionContext): Future[ToResponseMarshallable] = {
+    rollbackTask(blockId).asyncBoundary
+      .map {
+        case Right(blocks) =>
+          allChannels.broadcast(LocalScoreChanged(ng.score))
+          if (returnTransactionsToUtx) {
+            blocks.view.flatMap(_.transactionData).foreach(utxStorage.putIfNew)
+          }
+          miner.scheduleMining()
+          Json.obj("BlockId" -> blockId.toString): ToResponseMarshallable
+        case Left(error) => ApiError.fromValidationError(error): ToResponseMarshallable
+      }
+      .runAsyncLogErr(Scheduler(ec))
   }
 
   @Path("/rollback")
@@ -197,7 +198,7 @@ case class DebugApiRoute(ws: ZbsSettings,
     Array(
       new ApiResponse(code = 200, message = "200 if success, 404 if there are no block at this height")
     ))
-  def rollback: Route = (path("rollback") & post & withAuth & withRequestTimeout(15.minutes)) {
+  def rollback: Route = (path("rollback") & post & withAuth & withRequestTimeout(15.minutes) & extractExecutionContext) { implicit ec =>
     json[RollbackParams] { params =>
       ng.blockAt(params.rollbackTo) match {
         case Some(block) =>
@@ -292,7 +293,7 @@ case class DebugApiRoute(ws: ZbsSettings,
       new ApiImplicitParam(name = "signature", value = "Base58-encoded block signature", required = true, dataType = "string", paramType = "path")
     ))
   def rollbackTo: Route = path("rollback-to" / Segment) { signature =>
-    (delete & withAuth) {
+    (delete & withAuth & extractExecutionContext) { implicit ec =>
       val signatureEi: Either[ValidationError, ByteStr] =
         ByteStr
           .decodeBase58(signature)
@@ -301,7 +302,7 @@ case class DebugApiRoute(ws: ZbsSettings,
       signatureEi
         .fold(
           err => complete(ApiError.fromValidationError(err)),
-          sig => complete(rollbackToBlock(sig, false))
+          sig => complete(rollbackToBlock(sig, returnTransactionsToUtx = false))
         )
     }
   }

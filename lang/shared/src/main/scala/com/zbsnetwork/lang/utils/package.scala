@@ -2,7 +2,6 @@ package com.zbsnetwork.lang
 
 import cats.implicits._
 import com.zbsnetwork.lang.ScriptType.ScriptType
-import com.zbsnetwork.lang.ContentType.ContentType
 import com.zbsnetwork.lang.StdLibVersion.StdLibVersion
 import com.zbsnetwork.lang.directives.{Directive, DirectiveKey}
 
@@ -29,41 +28,23 @@ package object utils {
       .getOrElse(StdLibVersion.V2.asRight)
   }
 
-  def extractContentType(directives: List[Directive]): Either[String, ContentType] = {
-    directives
-      .find(_.key == DirectiveKey.CONTENT_TYPE)
-      .map(d =>
-        Try(d.value) match {
-          case Success(v) =>
-            val cType = ContentType.parseString(v)
-            Either
-              .cond(
-                ContentType.SupportedTypes(cType),
-                cType,
-                "Unsupported content type"
-              )
-          case Failure(ex) =>
-            Left("Can't parse content type")
-      })
-      .getOrElse(ContentType.Expression.asRight)
-  }
-
   def extractScriptType(directives: List[Directive]): Either[String, ScriptType] = {
     directives
       .find(_.key == DirectiveKey.SCRIPT_TYPE)
       .map(d =>
         Try(d.value) match {
           case Success(v) =>
-            val sType = ScriptType.parseString(v)
+            val ver = ScriptType.parseString(v)
             Either
               .cond(
-                ScriptType.SupportedTypes(sType),
-                sType,
+                ScriptType.SupportedVersions(ver),
+                ver,
                 "Unsupported script type"
               )
           case Failure(ex) =>
             Left("Can't parse script type")
-        })
-      .getOrElse(ScriptType.Account.asRight)
+      })
+      .getOrElse(ScriptType.Expression.asRight)
   }
+
 }

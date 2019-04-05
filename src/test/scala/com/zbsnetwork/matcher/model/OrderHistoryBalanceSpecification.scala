@@ -27,7 +27,7 @@ class OrderHistoryBalanceSpecification
 
   import OrderHistoryBalanceSpecification._
 
-  private val WctBtc = AssetPair(mkAssetId("WCT"), mkAssetId("BTC"))
+  private val WctBtc   = AssetPair(mkAssetId("WCT"), mkAssetId("BTC"))
   private val ZbsBtc = AssetPair(None, mkAssetId("BTC"))
 
   private var oh = new OrderHistoryStub(system, ntpTime)

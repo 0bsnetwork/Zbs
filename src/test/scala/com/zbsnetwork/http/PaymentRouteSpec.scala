@@ -9,7 +9,7 @@ import com.zbsnetwork.transaction.transfer._
 import com.zbsnetwork.utils.Time
 import com.zbsnetwork.utx.UtxPool
 import com.zbsnetwork.{NoShrink, TestWallet, TransactionGen}
-import io.netty.channel.group.{ChannelGroup, ChannelGroupFuture, ChannelMatcher}
+import io.netty.channel.group.ChannelGroup
 import org.scalamock.scalatest.MockFactory
 import org.scalatest.prop.PropertyChecks
 import play.api.libs.json.{JsObject, Json}
@@ -23,11 +23,9 @@ class PaymentRouteSpec
     with TransactionGen
     with NoShrink {
 
-  private val utx         = stub[UtxPool]
-  private val allChannels = stub[ChannelGroup]
-
+  private val utx = stub[UtxPool]
   (utx.putIfNew _).when(*).onCall((t: Transaction) => Right((true, Diff.empty))).anyNumberOfTimes()
-  (allChannels.writeAndFlush(_: Any, _: ChannelMatcher)).when(*, *).onCall((_: Any, _: ChannelMatcher) => stub[ChannelGroupFuture]).anyNumberOfTimes()
+  private val allChannels = stub[ChannelGroup]
 
   "accepts payments" in {
     forAll(accountOrAliasGen.label("recipient"), positiveLongGen.label("amount"), smallFeeGen.label("fee")) {

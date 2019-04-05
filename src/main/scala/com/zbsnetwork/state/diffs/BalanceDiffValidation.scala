@@ -3,7 +3,6 @@ package com.zbsnetwork.state.diffs
 import cats.implicits._
 import com.zbsnetwork.account.Address
 import com.zbsnetwork.common.state.ByteStr
-import com.zbsnetwork.metrics.Instrumented
 import com.zbsnetwork.settings.FunctionalitySettings
 import com.zbsnetwork.state.{Blockchain, Diff, Portfolio}
 import com.zbsnetwork.transaction.ValidationError.AccountBalanceError
@@ -11,7 +10,7 @@ import com.zbsnetwork.utils.ScorexLogging
 
 import scala.util.{Left, Right}
 
-object BalanceDiffValidation extends ScorexLogging with Instrumented {
+object BalanceDiffValidation extends ScorexLogging {
 
   def apply(b: Blockchain, currentHeight: Int, fs: FunctionalitySettings)(d: Diff): Either[AccountBalanceError, Diff] = {
     val changedAccounts = d.portfolios.keySet

@@ -68,7 +68,7 @@ trait MatcherTestData extends NTPTime { _: Suite =>
       |  }
       |}""".stripMargin))
 
-  val matcherSettings = MatcherSettings.fromConfig(config)
+  val matcherSettings = MatcherSettings.fromRootConfig(config)
 
   def valueFromGen[T](gen: Gen[T]): T = {
     var value = gen.sample
@@ -148,7 +148,7 @@ trait MatcherTestData extends NTPTime { _: Suite =>
     for {
       orderType          <- orderTypeGenerator
       amount: Long       <- maxZbsAmountGen
-      price: Long        <- maxZbsAmountGen
+      price: Long        <- Gen.choose(1, (Long.MaxValue / amount) - 100)
       timestamp: Long    <- createdTimeGen
       expiration: Long   <- maxTimeGen
       matcherFee: Long   <- maxZbsAmountGen

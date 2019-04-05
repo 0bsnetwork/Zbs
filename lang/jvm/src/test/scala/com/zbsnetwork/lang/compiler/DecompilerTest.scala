@@ -225,21 +225,17 @@ class DecompilerTest extends PropSpec with PropertyChecks with Matchers {
                 FUNCTION_CALL(
                   User("WriteSet"),
                   List(FUNCTION_CALL(
-                    Native(1100),
-                    List(
-                      FUNCTION_CALL(User("DataEntry"), List(CONST_STRING("b"), CONST_LONG(1))),
-                      FUNCTION_CALL(Native(1100), List(FUNCTION_CALL(User("DataEntry"), List(CONST_STRING("sender"), REF("x"))), REF("nil")))
-                    )
+                    Native(1102),
+                    List(FUNCTION_CALL(User("DataEntry"), List(CONST_STRING("b"), CONST_LONG(1))),
+                         FUNCTION_CALL(User("DataEntry"), List(CONST_STRING("sender"), REF("x"))))
                   ))
                 ),
                 FUNCTION_CALL(
                   User("WriteSet"),
                   List(FUNCTION_CALL(
-                    Native(1100),
-                    List(
-                      FUNCTION_CALL(User("DataEntry"), List(CONST_STRING("a"), REF("a"))),
-                      FUNCTION_CALL(Native(1100), List(FUNCTION_CALL(User("DataEntry"), List(CONST_STRING("sender"), REF("x"))), REF("nil")))
-                    )
+                    Native(1102),
+                    List(FUNCTION_CALL(User("DataEntry"), List(CONST_STRING("a"), REF("a"))),
+                         FUNCTION_CALL(User("DataEntry"), List(CONST_STRING("sender"), REF("x"))))
                   ))
                 )
               )
@@ -261,8 +257,8 @@ class DecompilerTest extends PropSpec with PropertyChecks with Matchers {
          |func baz (a) = {
          |    let x = invocation.caller.bytes
          |    if (foo())
-         |        then WriteSet(cons(DataEntry("b", 1), cons(DataEntry("sender", x), nil)))
-         |        else WriteSet(cons(DataEntry("a", a), cons(DataEntry("sender", x), nil)))
+         |        then WriteSet(List(DataEntry("b", 1), DataEntry("sender", x)))
+         |        else WriteSet(List(DataEntry("a", a), DataEntry("sender", x)))
          |    }
          |
          |
@@ -288,8 +284,8 @@ class DecompilerTest extends PropSpec with PropertyChecks with Matchers {
         )),
       None
     )
-    Decompiler(contract, decompilerContext) shouldEq
-      """func foo (bar,buz) = true
+    val str    = Decompiler(contract, decompilerContext)
+    val margin = """func foo (bar,buz) = true
         |
         |
         |@Callable(i)
@@ -299,7 +295,7 @@ class DecompilerTest extends PropSpec with PropertyChecks with Matchers {
         |    }
         |
         |""".stripMargin
-
+    str shouldEq margin
   }
 
   property("bytestring") {

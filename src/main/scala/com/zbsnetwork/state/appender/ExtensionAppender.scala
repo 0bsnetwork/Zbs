@@ -3,7 +3,7 @@ package com.zbsnetwork.state.appender
 import com.zbsnetwork.block.Block
 import com.zbsnetwork.common.utils.EitherExt2
 import com.zbsnetwork.consensus.PoSSelector
-import com.zbsnetwork.metrics.{BlockStats, Instrumented, Metrics}
+import com.zbsnetwork.metrics.{BlockStats, Metrics}
 import com.zbsnetwork.mining.Miner
 import com.zbsnetwork.network.{InvalidBlockStorage, PeerDatabase, formatBlocks, id}
 import com.zbsnetwork.settings.ZbsSettings
@@ -20,7 +20,7 @@ import org.influxdb.dto.Point
 
 import scala.util.{Left, Right}
 
-object ExtensionAppender extends ScorexLogging with Instrumented {
+object ExtensionAppender extends ScorexLogging {
 
   def apply(blockchainUpdater: BlockchainUpdater with Blockchain,
             utxStorage: UtxPool,

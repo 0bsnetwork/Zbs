@@ -17,7 +17,7 @@ class AssetPairBuilderSpec extends FreeSpec with Matchers with MockFactory {
 
   private def b(v: String) = ByteStr.decodeBase58(v).get
 
-  private val ZBS    = "ZBS"
+  private val ZBS  = "ZBS"
   private val WUSD   = ByteStr.decodeBase58("HyFJ3rrq5m7FxdkWtQXkZrDat1F7LjVVGfpSkUuEXQHj").get
   private val WBTC   = ByteStr.decodeBase58("Fmg13HEHJHuZYbtJq8Da8wifJENq8uBxDuWoP9pVe2Qe").get
   private val WEUR   = ByteStr.decodeBase58("2xnE3EdpqXtFgCP156qt1AbyjpqdZ5jGjWo3CwTawcux").get
@@ -40,7 +40,7 @@ class AssetPairBuilderSpec extends FreeSpec with Matchers with MockFactory {
        |  blacklisted-names = ["name$$"]
        |  price-assets = [${predefinedPriceAssets.mkString(",")}]
        |}""".stripMargin)
-  private val settings    = MatcherSettings.fromConfig(loadConfig(priceAssets))
+  private val settings    = MatcherSettings.fromRootConfig(loadConfig(priceAssets))
   private val blockchain  = stub[Blockchain]
 
   private val builder = new AssetPairBuilder(settings, blockchain)

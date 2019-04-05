@@ -1,7 +1,6 @@
 package com.zbsnetwork.state.diffs
 
 import cats._
-import cats.implicits._
 import com.zbsnetwork.account.Address
 import com.zbsnetwork.features.FeatureProvider._
 import com.zbsnetwork.features.{BlockchainFeature, BlockchainFeatures}
@@ -10,38 +9,39 @@ import com.zbsnetwork.settings.FunctionalitySettings
 import com.zbsnetwork.state._
 import com.zbsnetwork.transaction.ValidationError._
 import com.zbsnetwork.transaction.assets._
-import com.zbsnetwork.transaction.assets.exchange.{Order, _}
+import com.zbsnetwork.transaction.assets.exchange._
 import com.zbsnetwork.transaction.lease._
-import com.zbsnetwork.transaction.smart.script.v1.ExprScript
-import com.zbsnetwork.transaction.smart.script.{ContractScript, Script}
+import com.zbsnetwork.transaction.smart.script.ContractScript
+import com.zbsnetwork.transaction.smart.script.Script
+import com.zbsnetwork.transaction.smart.script.v1.ExprScript.ExprScriprImpl
 import com.zbsnetwork.transaction.smart.{ContractInvocationTransaction, SetScriptTransaction}
 import com.zbsnetwork.transaction.transfer._
 import com.zbsnetwork.transaction.{smart, _}
 
-import scala.util.{Left, Right, Try}
+import scala.util.{Left, Right}
 
 object CommonValidation {
 
-  val ScriptExtraFee = 1000000L
+  val ScriptExtraFee = 400000L
   val FeeUnit        = 100000
 
   val FeeConstants: Map[Byte, Long] = Map(
     GenesisTransaction.typeId                  -> 0,
     PaymentTransaction.typeId                  -> 1,
-    IssueTransaction.typeId                    -> 500000,
-    ReissueTransaction.typeId                  -> 200000,
-    BurnTransaction.typeId                     -> 5000,
-    TransferTransaction.typeId                 -> 50,
-    MassTransferTransaction.typeId             -> 50,
-    LeaseTransaction.typeId                    -> 5000,
-    LeaseCancelTransaction.typeId              -> 1000,
-    ExchangeTransaction.typeId                 -> 200,
-    CreateAliasTransaction.typeId              -> 10000,
-    DataTransaction.typeId                     -> 30,
-    SetScriptTransaction.typeId                -> 10000,
-    SponsorFeeTransaction.typeId               -> 50000,
-    SetAssetScriptTransaction.typeId           -> (10000 - 10),
-    smart.ContractInvocationTransaction.typeId -> 100
+    IssueTransaction.typeId                    -> 1000,
+    ReissueTransaction.typeId                  -> 1000,
+    BurnTransaction.typeId                     -> 1,
+    TransferTransaction.typeId                 -> 1,
+    MassTransferTransaction.typeId             -> 1,
+    LeaseTransaction.typeId                    -> 1,
+    LeaseCancelTransaction.typeId              -> 1,
+    ExchangeTransaction.typeId                 -> 3,
+    CreateAliasTransaction.typeId              -> 1,
+    DataTransaction.typeId                     -> 1,
+    SetScriptTransaction.typeId                -> 10,
+    SponsorFeeTransaction.typeId               -> 1000,
+    SetAssetScriptTransaction.typeId           -> (1000 - 4),
+    smart.ContractInvocationTransaction.typeId -> 5
   )
 
   def disallowSendingGreaterThanBalance[T <: Transaction](blockchain: Blockchain,
@@ -90,9 +90,7 @@ object CommonValidation {
                 s"${blockchain.balance(ptx.sender, None)} is less than ${ptx.amount + ptx.fee}"))
         case ttx: TransferTransaction     => checkTransfer(ttx.sender, ttx.assetId, ttx.amount, ttx.feeAssetId, ttx.fee)
         case mtx: MassTransferTransaction => checkTransfer(mtx.sender, mtx.assetId, mtx.transfers.map(_.amount).sum, None, mtx.fee)
-        case citx: ContractInvocationTransaction =>
-          checkTransfer(citx.sender, citx.payment.flatMap(_.assetId), citx.payment.map(_.amount).getOrElse(0), None, citx.fee)
-        case _ => Right(tx)
+        case _                            => Right(tx)
       }
     } else Right(tx)
 
@@ -108,67 +106,51 @@ object CommonValidation {
 
   def disallowBeforeActivationTime[T <: Transaction](blockchain: Blockchain, height: Int, tx: T): Either[ValidationError, T] = {
 
-    def activationBarrier(b: BlockchainFeature, msg: Option[String] = None): Either[ActivationError, T] =
+    def activationBarrier(b: BlockchainFeature, msg: Option[String] = None) =
       Either.cond(
         blockchain.isFeatureActivated(b, height),
         tx,
         ValidationError.ActivationError(msg.getOrElse(tx.getClass.getSimpleName) + " has not been activated yet")
       )
 
-    def scriptActivation(sc: Script): Either[ActivationError, T] = {
-
-      val ab = activationBarrier(BlockchainFeatures.Ride4DApps, Some("Ride4DApps has not been activated yet"))
-
-      def scriptVersionActivation(sc: Script): Either[ActivationError, T] = sc.stdLibVersion match {
+    def scriptActivation(sc: Script) = {
+      val ab = activationBarrier(BlockchainFeatures.Ride4DApps, Some("Ride4DApps"))
+      def scriptVersionActivation(sc: Script) = sc.stdLibVersion match {
         case V1 | V2 if sc.containsBlockV2.value => ab
         case V1 | V2                             => Right(tx)
         case V3                                  => ab
       }
-
-      def scriptTypeActivation(sc: Script): Either[ActivationError, T] = sc match {
-        case e: ExprScript                        => Right(tx)
+      def scriptTypeActivation(sc: Script) = sc match {
+        case e: ExprScriprImpl                    => Right(tx)
         case c: ContractScript.ContractScriptImpl => ab
       }
-
       for {
         _ <- scriptVersionActivation(sc)
         _ <- scriptTypeActivation(sc)
       } yield tx
 
     }
-
     tx match {
-      case _: BurnTransactionV1     => Right(tx)
-      case _: PaymentTransaction    => Right(tx)
-      case _: GenesisTransaction    => Right(tx)
-      case _: TransferTransactionV1 => Right(tx)
-      case _: IssueTransactionV1    => Right(tx)
-      case _: ReissueTransactionV1  => Right(tx)
-      case _: ExchangeTransactionV1 => Right(tx)
-
-      case exv2: ExchangeTransactionV2 =>
-        activationBarrier(BlockchainFeatures.SmartAccountTrading).flatMap { tx =>
-          (exv2.buyOrder, exv2.sellOrder) match {
-            case (_: OrderV3, _: Order) | (_: Order, _: OrderV3) => activationBarrier(BlockchainFeatures.OrderV3, Some("Order Version 3"))
-            case _                                               => Right(tx)
-          }
-        }
-
+      case _: BurnTransactionV1        => Right(tx)
+      case _: PaymentTransaction       => Right(tx)
+      case _: GenesisTransaction       => Right(tx)
+      case _: TransferTransactionV1    => Right(tx)
+      case _: IssueTransactionV1       => Right(tx)
+      case _: ReissueTransactionV1     => Right(tx)
+      case _: ExchangeTransactionV1    => Right(tx)
+      case _: ExchangeTransactionV2    => activationBarrier(BlockchainFeatures.SmartAccountTrading)
       case _: LeaseTransactionV1       => Right(tx)
       case _: LeaseCancelTransactionV1 => Right(tx)
       case _: CreateAliasTransactionV1 => Right(tx)
       case _: MassTransferTransaction  => activationBarrier(BlockchainFeatures.MassTransfer)
       case _: DataTransaction          => activationBarrier(BlockchainFeatures.DataTransaction)
-
       case sst: SetScriptTransaction =>
         sst.script match {
           case None     => Right(tx)
           case Some(sc) => scriptActivation(sc)
         }
-
       case _: TransferTransactionV2 => activationBarrier(BlockchainFeatures.SmartAccounts)
       case it: IssueTransactionV2   => activationBarrier(if (it.script.isEmpty) BlockchainFeatures.SmartAccounts else BlockchainFeatures.SmartAssets)
-
       case it: SetAssetScriptTransaction =>
         it.script match {
           case None     => Left(GenericError("Cannot set empty script"))
@@ -304,12 +286,4 @@ object CommonValidation {
   }
 
   def cond[A](c: Boolean)(a: A, b: A): A = if (c) a else b
-
-  def validateOverflow(dataList: Traversable[Long], errMsg: String): Either[ValidationError, Unit] = {
-    Try(dataList.foldLeft(0L)(Math.addExact))
-      .fold(
-        _ => GenericError(errMsg).asLeft[Unit],
-        _ => ().asRight[ValidationError]
-      )
-  }
 }

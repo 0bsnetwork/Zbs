@@ -4,7 +4,6 @@ import com.typesafe.config.Config
 import com.zbsnetwork.matcher.MatcherSettings
 import com.zbsnetwork.metrics.Metrics
 import net.ceedubs.ficus.Ficus._
-import net.ceedubs.ficus.readers.ArbitraryTypeReader._
 
 import scala.concurrent.duration._
 
@@ -40,11 +39,11 @@ object ZbsSettings {
     val ntpServer               = config.as[String](s"$configPath.ntp-server")
     val networkSettings         = config.as[NetworkSettings]("zbs.network")
     val walletSettings          = config.as[WalletSettings]("zbs.wallet")
-    val blockchainSettings      = BlockchainSettings.fromConfig(config)
-    val matcherSettings         = MatcherSettings.fromConfig(config)
-    val minerSettings           = MinerSettings.fromConfig(config)
-    val restAPISettings         = RestAPISettings.fromConfig(config)
-    val synchronizationSettings = SynchronizationSettings.fromConfig(config)
+    val blockchainSettings      = config.as[BlockchainSettings]("zbs.blockchain")
+    val matcherSettings         = config.as[MatcherSettings]("zbs.matcher")
+    val minerSettings           = config.as[MinerSettings]("zbs.miner")
+    val restAPISettings         = config.as[RestAPISettings]("zbs.rest-api")
+    val synchronizationSettings = config.as[SynchronizationSettings]("zbs.synchronization")
     val utxSettings             = config.as[UtxSettings]("zbs.utx")
     val featuresSettings        = config.as[FeaturesSettings]("zbs.features")
     val metrics                 = config.as[Metrics.Settings]("metrics")

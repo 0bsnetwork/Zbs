@@ -107,22 +107,6 @@ object ZbsContext {
     val getBinaryByIndexF: BaseFunction  = getDataByIndexF("getBinary", DataType.ByteArray)
     val getStringByIndexF: BaseFunction  = getDataByIndexF("getString", DataType.String)
 
-    def withExtract(f: BaseFunction) = {
-      val args = f.signature.args.zip(f.argsDoc).map {
-          case ((name, ty), (_name, doc)) => ("@" ++ name, ty, doc)
-      }
-      UserFunction(
-        f.name ++ "Value",
-        "@extr" ++ f.header.toString,
-        f.cost,
-        f.signature.result.asInstanceOf[UNION].l.find(_ != UNIT).get,
-        f.docString ++ " (fail on error)",
-        args : _*
-        ) {
-          FUNCTION_CALL(PureContext.extract, List(FUNCTION_CALL(f.header, args.map(a => REF(a._1)).toList)))
-        }
-    }
-
     def secureHashExpr(xs: EXPR): EXPR = FUNCTION_CALL(
       FunctionHeader.Native(KECCAK256),
       List(
@@ -348,7 +332,7 @@ object ZbsContext {
 
     val scriptInputType =
       if (isTokenContext)
-        UNION(buildAssetSupportedTransactions(proofsEnabled, version).map(_.typeRef))
+        UNION(buildAssetSupportedTransactions(proofsEnabled).map(_.typeRef))
       else
         UNION((buildOrderType(proofsEnabled) :: buildActiveTransactionTypes(proofsEnabled, version)).map(_.typeRef))
 
@@ -364,8 +348,8 @@ object ZbsContext {
         ("tx", ((scriptInputType, "Processing transaction"), LazyVal(EitherT(inputEntityCoeval))))
       ),
       3 -> Map(
-        ("Sell", ((sellType.typeRef, "Sell OrderType"), LazyVal(EitherT(sellOrdTypeCoeval)))),
-        ("Buy", ((buyType.typeRef, "Buy OrderType"), LazyVal(EitherT(buyOrdTypeCoeval))))
+        ("Sell", ((ordTypeType, "Sell OrderType"), LazyVal(EitherT(sellOrdTypeCoeval)))),
+        ("Buy", ((ordTypeType, "Buy OrderType"), LazyVal(EitherT(buyOrdTypeCoeval))))
       )
     )
 
@@ -394,24 +378,11 @@ object ZbsContext {
     val types = buildZbsTypes(proofsEnabled, version)
 
     CTX(
-      types ++ (if (version == V3) {
+      types ++ (if (version == V3)
                   List(writeSetType, paymentType, contractTransfer, contractTransferSetType, contractResultType, invocationType)
-               } else List.empty),
+                else List.empty),
       commonVars ++ vars(version),
-      functions ++ List(getIntegerFromStateF,
-                        getBooleanFromStateF,
-                        getBinaryFromStateF,
-                        getStringFromStateF,
-                        getIntegerFromArrayF,
-                        getBooleanFromArrayF,
-                        getBinaryFromArrayF,
-                        getStringFromArrayF,
-                        getIntegerByIndexF,
-                        getBooleanByIndexF,
-                        getBinaryByIndexF,
-                        getStringByIndexF,
-                        addressFromStringF
-                       ).map(withExtract)
+      functions
     )
   }
 

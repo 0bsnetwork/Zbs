@@ -1,6 +1,5 @@
 package com.zbsnetwork.transaction.lease
 
-import cats.implicits._
 import com.google.common.primitives.Bytes
 import com.zbsnetwork.account.{AddressScheme, PrivateKeyAccount, PublicKeyAccount}
 import com.zbsnetwork.common.state.ByteStr
@@ -8,10 +7,9 @@ import com.zbsnetwork.common.utils.EitherExt2
 import com.zbsnetwork.crypto
 import com.zbsnetwork.transaction.ValidationError.GenericError
 import com.zbsnetwork.transaction._
-import com.zbsnetwork.transaction.description._
 import monix.eval.Coeval
 
-import scala.util.Try
+import scala.util.{Failure, Success, Try}
 
 case class LeaseCancelTransactionV2 private (chainId: Byte, sender: PublicKeyAccount, leaseId: ByteStr, fee: Long, timestamp: Long, proofs: Proofs)
     extends LeaseCancelTransaction
@@ -37,13 +35,14 @@ object LeaseCancelTransactionV2 extends TransactionParserFor[LeaseCancelTransact
   private def currentChainId: Byte          = AddressScheme.current.chainId
 
   override protected def parseTail(bytes: Array[Byte]): Try[TransactionT] = {
-    byteTailDescription.deserializeFromByteArray(bytes).flatMap { tx =>
-      Either
-        .cond(tx.chainId == currentChainId, (), GenericError(s"Wrong chainId actual: ${tx.chainId.toInt}, expected: $currentChainId"))
-        .flatMap(_ => LeaseCancelTransaction.validateLeaseCancelParams(tx))
-        .map(_ => tx)
-        .foldToTry
-    }
+    Try {
+      val chainId                                = bytes(0)
+      val (sender, fee, timestamp, leaseId, end) = LeaseCancelTransaction.parseBase(bytes, 1)
+      (for {
+        proofs <- Proofs.fromBytes(bytes.drop(end))
+        tx     <- LeaseCancelTransactionV2.create(chainId, sender, leaseId, fee, timestamp, proofs)
+      } yield tx).fold(left => Failure(new Exception(left.toString)), right => Success(right))
+    }.flatten
   }
 
   def create(chainId: Byte,
@@ -71,26 +70,5 @@ object LeaseCancelTransactionV2 extends TransactionParserFor[LeaseCancelTransact
 
   def selfSigned(chainId: Byte, sender: PrivateKeyAccount, leaseId: ByteStr, fee: Long, timestamp: Long): Either[ValidationError, TransactionT] = {
     signed(chainId, sender, leaseId, fee, timestamp, sender)
-  }
-
-  val byteTailDescription: ByteEntity[LeaseCancelTransactionV2] = {
-    (
-      OneByte(tailIndex(1), "Chain ID"),
-      PublicKeyAccountBytes(tailIndex(2), "Sender's public key"),
-      LongBytes(tailIndex(3), "Fee"),
-      LongBytes(tailIndex(4), "Timestamp"),
-      ByteStrDefinedLength(tailIndex(5), "Lease ID", crypto.DigestSize),
-      ProofsBytes(tailIndex(6))
-    ) mapN {
-      case (chainId, senderPublicKey, fee, timestamp, leaseId, proofs) =>
-        LeaseCancelTransactionV2(
-          chainId = chainId,
-          sender = senderPublicKey,
-          leaseId = leaseId,
-          fee = fee,
-          timestamp = timestamp,
-          proofs = proofs
-        )
-    }
   }
 }

@@ -2,12 +2,12 @@ package com.zbsnetwork.network
 
 import java.net.InetSocketAddress
 
+import com.zbsnetwork.crypto
+import monix.eval.Coeval
 import com.zbsnetwork.account.{PrivateKeyAccount, PublicKeyAccount}
 import com.zbsnetwork.block.{Block, MicroBlock}
 import com.zbsnetwork.common.state.ByteStr
-import com.zbsnetwork.crypto
 import com.zbsnetwork.transaction.{Signed, Transaction}
-import monix.eval.Coeval
 
 sealed trait Message
 
@@ -41,7 +41,7 @@ case class MicroBlockRequest(totalBlockSig: ByteStr) extends Message
 case class MicroBlockResponse(microblock: MicroBlock) extends Message
 
 case class MicroBlockInv(sender: PublicKeyAccount, totalBlockSig: ByteStr, prevBlockSig: ByteStr, signature: ByteStr) extends Message with Signed {
-  override val signatureValid: Coeval[Boolean] =
+  override protected val signatureValid: Coeval[Boolean] =
     Coeval.evalOnce(crypto.verify(signature.arr, sender.toAddress.bytes.arr ++ totalBlockSig.arr ++ prevBlockSig.arr, sender.publicKey))
 
   override def toString: String = s"MicroBlockInv(${totalBlockSig.trim} ~> ${prevBlockSig.trim})"

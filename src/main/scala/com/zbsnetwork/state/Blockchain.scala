@@ -71,14 +71,14 @@ trait Blockchain {
 
   def leaseBalance(address: Address): LeaseBalance
 
-  def balance(address: Address, mayBeAssetId: Option[AssetId] = None): Long
+  def balance(address: Address, mayBeAssetId: Option[AssetId]): Long
 
   def assetDistribution(assetId: ByteStr): AssetDistribution
   def assetDistributionAtHeight(assetId: AssetId,
                                 height: Int,
                                 count: Int,
                                 fromAddress: Option[Address]): Either[ValidationError, AssetDistributionPage]
-  def zbsDistribution(height: Int): Either[ValidationError, Map[Address, Long]]
+  def zbsDistribution(height: Int): Map[Address, Long]
 
   // the following methods are used exclusively by patches
   def allActiveLeases: Set[LeaseTransaction]

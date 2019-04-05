@@ -1,6 +1,7 @@
 package com.zbsnetwork.matcher.market
 
 import com.google.common.base.Charsets
+import com.zbsnetwork.OrderOps._
 import com.zbsnetwork.account.{Address, PrivateKeyAccount}
 import com.zbsnetwork.common.state.ByteStr
 import com.zbsnetwork.common.utils.EitherExt2
@@ -8,14 +9,14 @@ import com.zbsnetwork.features.{BlockchainFeature, BlockchainFeatures}
 import com.zbsnetwork.lang.StdLibVersion._
 import com.zbsnetwork.lang.v1.compiler.Terms
 import com.zbsnetwork.matcher.MatcherTestData
+import com.zbsnetwork.matcher.model.OrderValidator.ValidationResult
 import com.zbsnetwork.matcher.model._
 import com.zbsnetwork.settings.Constants
-import com.zbsnetwork.state.diffs.produce
+import com.zbsnetwork.state.diffs.{CommonValidation, produce}
 import com.zbsnetwork.state.{AssetDescription, Blockchain, LeaseBalance, Portfolio}
-import com.zbsnetwork.transaction.assets.exchange.OrderOps._
 import com.zbsnetwork.transaction.assets.exchange._
-import com.zbsnetwork.transaction.smart.script.ScriptCompiler
 import com.zbsnetwork.transaction.smart.script.v1.ExprScript
+import com.zbsnetwork.transaction.smart.script.{Script, ScriptCompiler}
 import com.zbsnetwork.transaction.{AssetId, Proofs}
 import com.zbsnetwork.utils.randomBytes
 import com.zbsnetwork.{NoShrink, TestTime, WithDB}
@@ -34,7 +35,7 @@ class OrderValidatorSpecification
     with PropertyChecks
     with NoShrink {
 
-  private val wbtc       = mkAssetId("WBTC").get
+  private val wbtc         = mkAssetId("WBTC").get
   private val pairZbsBtc = AssetPair(None, Some(wbtc))
 
   private val defaultPortfolio = Portfolio(0, LeaseBalance.empty, Map(wbtc -> 10 * Constants.UnitsInZbs))
@@ -136,6 +137,74 @@ class OrderValidatorSpecification
                 matcherFee = Some((0.003 * Constants.UnitsInZbs).toLong)
               )) should produce("Invalid price")
           }
+      }
+
+      "asset pair is not in whitelist" in {
+
+        def validateByAssetPairWhitelist(allowedAssetPairs: Set[AssetPair]): Order => OrderValidator.ValidationResult =
+          OrderValidator.matcherSettingsAware(MatcherAccount, Set.empty, Set.empty, allowedAssetPairs)
+
+        forAll(orderGenerator) {
+          case (order, _) =>
+            validateByAssetPairWhitelist(Set.empty[AssetPair])(order) shouldBe 'right
+            validateByAssetPairWhitelist(Set(order.assetPair))(order) shouldBe 'right
+
+            validateByAssetPairWhitelist(Set(AssetPair.createAssetPair("A1", "A2").get))(order) should produce(
+              s"Trading is not allowed for the pair: ${order.assetPair}"
+            )
+        }
+      }
+
+      "matcherFee is not enough" in {
+        def setScriptsAndValidate(amountAssetScript: Option[Script], priceAssetScript: Option[Script], matcherAccountScript: Option[Script])(
+            disableExtraFeeForScript: Boolean)(order: Order): OrderValidator.ValidationResult = {
+
+          val blockchain = stub[Blockchain]
+
+          activate(blockchain, BlockchainFeatures.SmartAccountTrading -> 0, BlockchainFeatures.SmartAssets -> 0)
+
+          def prepareAssets(assetsAndScripts: (Option[AssetId], Option[Script])*): Unit = assetsAndScripts foreach {
+            case (asset: Some[AssetId], scriptOption) =>
+              (blockchain.assetDescription _).when(asset.get).returns(mkAssetDescription(8))
+              (blockchain.assetScript _).when(asset.get).returns(scriptOption)
+              (blockchain.hasAssetScript _).when(asset.get).returns(scriptOption.isDefined)
+            case _ =>
+          }
+
+          prepareAssets(order.assetPair.amountAsset -> amountAssetScript, order.assetPair.priceAsset -> priceAssetScript)
+
+          (blockchain.accountScript _).when(MatcherAccount.toAddress).returns(matcherAccountScript)
+          (blockchain.hasScript _).when(MatcherAccount.toAddress).returns(matcherAccountScript.isDefined)
+
+          (blockchain.accountScript _).when(order.sender.toAddress).returns(None)
+          (blockchain.hasScript _).when(order.sender.toAddress).returns(false)
+
+          val transactionCreator = exchangeTransactionCreator(blockchain).createTransaction _
+
+          OrderValidator.blockchainAware(blockchain,
+                                         transactionCreator,
+                                         matcherSettings.minOrderFee,
+                                         MatcherAccount.toAddress,
+                                         ntpTime,
+                                         disableExtraFeeForScript)(order)
+        }
+
+        val trueScript             = Some(ExprScript(Terms.TRUE).explicitGet())
+        val minOrderWithScriptsFee = matcherSettings.minOrderFee + CommonValidation.ScriptExtraFee * 3
+
+        val preconditions = for {
+          assetPair <- distinctPairGen
+          sender    <- accountGen
+          order     <- orderGenerator(sender, assetPair)
+        } yield Order.sign(order.updateFee(matcherSettings.minOrderFee), sender)
+
+        forAll(preconditions) { order =>
+          def validateOrderWithAllScripts(disableExtraFeeForScript: Boolean): ValidationResult =
+            setScriptsAndValidate(trueScript, trueScript, trueScript)(disableExtraFeeForScript)(order)
+
+          validateOrderWithAllScripts(disableExtraFeeForScript = true) shouldBe 'right
+          validateOrderWithAllScripts(disableExtraFeeForScript = false) should produce(s"Order matcherFee should be >= $minOrderWithScriptsFee")
+        }
       }
     }
 
@@ -301,7 +370,12 @@ class OrderValidatorSpecification
   }
 
   private def mkOrderValidator(bc: Blockchain, tc: ExchangeTransactionCreator) =
-    OrderValidator.blockchainAware(bc, tc.createTransaction, (0.003 * Constants.UnitsInZbs).toLong, MatcherAccount, ntpTime)(_)
+    OrderValidator.blockchainAware(bc,
+                                   tc.createTransaction,
+                                   (0.003 * Constants.UnitsInZbs).toLong,
+                                   MatcherAccount,
+                                   ntpTime,
+                                   matcherSettings.disableExtraFeeForScript)(_)
 
   private def tradableBalance(p: Portfolio)(assetId: Option[AssetId]): Long = assetId.fold(p.spendableBalance)(p.assets.getOrElse(_, 0L))
 
@@ -315,5 +389,6 @@ class OrderValidatorSpecification
   )(f: Either[String, Order] => A): A =
     f(OrderValidator.accountStateAware(o.sender, tradableBalance(p), 0, orderStatus)(o))
 
-  private def msa(ba: Set[Address], o: Order) = OrderValidator.matcherSettingsAware(o.matcherPublicKey, ba, Set.empty) _
+  private def msa(ba: Set[Address], o: Order) =
+    OrderValidator.matcherSettingsAware(o.matcherPublicKey, ba, Set.empty, matcherSettings.allowedAssetPairs) _
 }

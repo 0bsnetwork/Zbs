@@ -6,12 +6,12 @@ import cats.kernel.Monoid
 import com.zbsnetwork.lang.Global
 import com.zbsnetwork.lang.StdLibVersion._
 import com.zbsnetwork.lang.v1.compiler.Terms.{CONST_LONG, CaseObj}
-import com.zbsnetwork.lang.v1.compiler.Types.{FINAL, UNIT}
+import com.zbsnetwork.lang.v1.compiler.Types.FINAL
 import com.zbsnetwork.lang.v1.evaluator.FunctionIds._
 import com.zbsnetwork.lang.v1.evaluator.ctx._
 import com.zbsnetwork.lang.v1.evaluator.ctx.impl.zbs.Bindings.{ordType, orderObject}
 import com.zbsnetwork.lang.v1.evaluator.ctx.impl.zbs.Types._
-import com.zbsnetwork.lang.v1.evaluator.ctx.impl.{CryptoContext, PureContext}
+import com.zbsnetwork.lang.v1.evaluator.ctx.impl.{CryptoContext, PureContext, _}
 import com.zbsnetwork.lang.v1.traits.domain.OrdType
 import com.zbsnetwork.lang.v1.{CTX, FunctionHeader}
 import com.zbsnetwork.transaction.assets.exchange.Order

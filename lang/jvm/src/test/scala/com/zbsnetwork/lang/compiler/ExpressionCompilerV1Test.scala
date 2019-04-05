@@ -7,7 +7,7 @@ import com.zbsnetwork.lang.v1.compiler.Terms._
 import com.zbsnetwork.lang.v1.compiler.Types._
 import com.zbsnetwork.lang.v1.compiler.{CompilerContext, ExpressionCompiler}
 import com.zbsnetwork.lang.v1.evaluator.ctx.impl.PureContext._
-import com.zbsnetwork.lang.v1.evaluator.ctx.impl.PureContext
+import com.zbsnetwork.lang.v1.evaluator.ctx.impl.{PureContext, _}
 import com.zbsnetwork.lang.v1.parser.BinaryOperation.SUM_OP
 import com.zbsnetwork.lang.v1.parser.Expressions.Pos
 import com.zbsnetwork.lang.v1.parser.Expressions.Pos.AnyPos
@@ -404,33 +404,6 @@ class ExpressionCompilerV1Test extends PropSpec with PropertyChecks with Matcher
          FUNCTION_CALL(FunctionHeader.User("id"), List(CONST_LONG(1L)))
        ),
        LONG))
-  )
-
-  treeTypeTest("union type inferrer with list")(
-    ctx = compilerContext,
-    expr = {
-      val script = """[1,""]"""
-      Parser.parseExpr(script).get.value
-    },
-    expectedResult = {
-      Right(
-        (FUNCTION_CALL(
-           FunctionHeader.Native(1100),
-           List(
-             CONST_LONG(1),
-             FUNCTION_CALL(
-               FunctionHeader.Native(1100),
-               List(
-                 CONST_STRING(""),
-                 REF("nil")
-               )
-             )
-           )
-         ),
-         LIST(UNION(List(LONG, STRING))))
-      )
-
-    }
   )
 
   private def treeTypeTest(propertyName: String)(expr: Expressions.EXPR, expectedResult: Either[String, (EXPR, TYPE)], ctx: CompilerContext): Unit =

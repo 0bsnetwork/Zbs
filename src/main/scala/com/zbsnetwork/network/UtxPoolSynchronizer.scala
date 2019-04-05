@@ -1,7 +1,5 @@
 package com.zbsnetwork.network
 
-import java.util.concurrent.TimeUnit
-
 import com.google.common.cache.CacheBuilder
 import com.zbsnetwork.common.state.ByteStr
 import com.zbsnetwork.settings.SynchronizationSettings.UtxSynchronizerSettings
@@ -9,11 +7,11 @@ import com.zbsnetwork.transaction.Transaction
 import com.zbsnetwork.utils.ScorexLogging
 import com.zbsnetwork.utx.UtxPool
 import io.netty.channel.Channel
-import io.netty.channel.group.ChannelGroup
-import monix.eval.Task
+import io.netty.channel.group.{ChannelGroup, ChannelMatcher}
 import monix.execution.{CancelableFuture, Scheduler}
-import monix.reactive.OverflowStrategy
+import monix.reactive.Observable
 
+import scala.util.control.NonFatal
 import scala.util.{Failure, Success}
 
 object UtxPoolSynchronizer extends ScorexLogging {
@@ -21,56 +19,56 @@ object UtxPoolSynchronizer extends ScorexLogging {
   def start(utx: UtxPool,
             settings: UtxSynchronizerSettings,
             allChannels: ChannelGroup,
-            txSource: ChannelObservable[Transaction]): CancelableFuture[Unit] = {
-    implicit val scheduler: Scheduler = Scheduler.forkJoin(settings.parallelism, settings.maxThreads, "utx-pool-sync")
+            txSource: ChannelObservable[Transaction],
+            blockSource: Observable[_]): CancelableFuture[Unit] = {
+    implicit val scheduler: Scheduler = Scheduler.singleThread("utx-pool-sync")
 
     val dummy = new Object()
     val knownTransactions = CacheBuilder
       .newBuilder()
       .maximumSize(settings.networkTxCacheSize)
-      .expireAfterWrite(settings.networkTxCacheTime.toMillis, TimeUnit.MILLISECONDS)
       .build[ByteStr, Object]
 
-    val newTxSource = txSource
+    val blockCacheCleaning = blockSource
       .observeOn(scheduler)
-      .filter {
-        case (_, tx) =>
-          var isNew = false
-          knownTransactions.get(tx.id(), { () =>
-            isNew = true; dummy
-          })
-          isNew
-      }
-
-    val synchronizerFuture = newTxSource
-      .whileBusyBuffer(OverflowStrategy.DropOldAndSignal(settings.maxQueueSize, { dropped =>
-        log.warn(s"UTX queue overflow: $dropped transactions dropped")
-        None
-      }))
-      .mapParallelUnordered(settings.parallelism) {
-        case (sender, transaction) =>
-          Task {
-            concurrent.blocking(utx.putIfNew(transaction)) match {
-              case Right((isNew, _)) =>
-                if (isNew) Some(allChannels.write(RawBytes.from(transaction), (_: Channel) != sender))
-                else None
-
-              case Left(error) =>
-                log.debug(s"Error adding transaction to UTX pool: $error")
-                None
-            }
-          }
-      }
-      .bufferTimedAndCounted(settings.maxBufferTime, settings.maxBufferSize)
-      .filter(_.flatten.nonEmpty)
-      .foreachL(_ => allChannels.flush())
+      .foreachL(_ => knownTransactions.invalidateAll())
       .runAsyncLogErr
 
+    val synchronizerFuture = txSource
+      .observeOn(scheduler)
+      .bufferTimedAndCounted(settings.maxBufferTime, settings.maxBufferSize)
+      .foreach { txBuffer =>
+        val toAdd = txBuffer.filter {
+          case (_, tx) =>
+            val isNew = Option(knownTransactions.getIfPresent(tx.id())).isEmpty
+            if (isNew) knownTransactions.put(tx.id(), dummy)
+            isNew
+        }
+
+        if (toAdd.nonEmpty) {
+          toAdd
+            .groupBy { case (channel, _) => channel }
+            .foreach {
+              case (sender, xs) =>
+                val channelMatcher: ChannelMatcher = { (_: Channel) != sender }
+                xs.foreach {
+                  case (_, tx) =>
+                    utx.putIfNew(tx) match {
+                      case Right((true, _)) => allChannels.write(RawBytes.from(tx), channelMatcher)
+                      case _                =>
+                    }
+                }
+            }
+          allChannels.flush()
+        }
+      }
+
     synchronizerFuture.onComplete {
-      case Success(_)     => log.info("UtxPoolSynschronizer stops")
-      case Failure(error) => log.error("Error in utx pool synchronizer", error)
+      case Success(_)            => log.error("UtxPoolSynschronizer stops")
+      case Failure(NonFatal(th)) => log.error("Error in utx pool synchronizer", th)
     }
 
+    synchronizerFuture.onComplete(_ => blockCacheCleaning.cancel())
     synchronizerFuture
   }
 }

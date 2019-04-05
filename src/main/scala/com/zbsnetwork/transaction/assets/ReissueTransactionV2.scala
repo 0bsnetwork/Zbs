@@ -1,14 +1,11 @@
 package com.zbsnetwork.transaction.assets
 
-import cats.implicits._
 import com.google.common.primitives.Bytes
 import com.zbsnetwork.account.{AddressScheme, PrivateKeyAccount, PublicKeyAccount}
 import com.zbsnetwork.common.state.ByteStr
-import com.zbsnetwork.common.utils.EitherExt2
 import com.zbsnetwork.crypto
 import com.zbsnetwork.transaction.ValidationError.GenericError
 import com.zbsnetwork.transaction._
-import com.zbsnetwork.transaction.description._
 import monix.eval.Coeval
 
 import scala.util._
@@ -48,13 +45,16 @@ object ReissueTransactionV2 extends TransactionParserFor[ReissueTransactionV2] w
   private def currentChainId: Byte          = AddressScheme.current.chainId
 
   override protected def parseTail(bytes: Array[Byte]): Try[TransactionT] = {
-    byteTailDescription.deserializeFromByteArray(bytes).flatMap { tx =>
-      Either
-        .cond(tx.chainId == currentChainId, (), GenericError(s"Wrong chainId actual: ${tx.chainId.toInt}, expected: $currentChainId"))
-        .flatMap(_ => ReissueTransaction.validateReissueParams(tx))
-        .map(_ => tx)
-        .foldToTry
-    }
+    Try {
+      val chainId                                                      = bytes(0)
+      val (sender, assetId, quantity, reissuable, fee, timestamp, end) = ReissueTransaction.parseBase(bytes, 1)
+      (for {
+        proofs <- Proofs.fromBytes(bytes.drop(end))
+        tx <- ReissueTransactionV2
+          .create(chainId, sender, assetId, quantity, reissuable, fee, timestamp, proofs)
+      } yield tx)
+        .fold(left => Failure(new Exception(left.toString)), right => Success(right))
+    }.flatten
   }
 
   def create(chainId: Byte,
@@ -93,18 +93,5 @@ object ReissueTransactionV2 extends TransactionParserFor[ReissueTransactionV2] w
                  fee: Long,
                  timestamp: Long): Either[ValidationError, TransactionT] = {
     signed(chainId, sender, assetId, quantity, reissuable, fee, timestamp, sender)
-  }
-
-  val byteTailDescription: ByteEntity[ReissueTransactionV2] = {
-    (
-      OneByte(tailIndex(1), "Chain ID"),
-      PublicKeyAccountBytes(tailIndex(2), "Sender's public key"),
-      ByteStrDefinedLength(tailIndex(3), "Asset ID", AssetIdLength),
-      LongBytes(tailIndex(4), "Quantity"),
-      BooleanByte(tailIndex(5), "Reissuable flag (1 - True, 0 - False)"),
-      LongBytes(tailIndex(6), "Fee"),
-      LongBytes(tailIndex(7), "Timestamp"),
-      ProofsBytes(tailIndex(8))
-    ) mapN ReissueTransactionV2.apply
   }
 }

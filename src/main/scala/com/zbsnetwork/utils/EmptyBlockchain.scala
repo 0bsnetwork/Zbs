@@ -88,7 +88,7 @@ object EmptyBlockchain extends Blockchain {
 
   override def assetDistribution(assetId: ByteStr): AssetDistribution = Monoid.empty[AssetDistribution]
 
-  override def zbsDistribution(height: Int): Either[ValidationError, Map[Address, Long]] = Right(Map.empty)
+  override def zbsDistribution(height: Int): Map[Address, Long] = Map.empty
 
   override def allActiveLeases: Set[LeaseTransaction] = Set.empty
 

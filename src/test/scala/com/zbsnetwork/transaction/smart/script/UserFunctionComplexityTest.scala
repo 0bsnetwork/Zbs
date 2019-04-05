@@ -1,12 +1,10 @@
 package com.zbsnetwork.transaction.smart.script
 
 import cats.kernel.Monoid
-import com.zbsnetwork.common.state.ByteStr
 import com.zbsnetwork.common.utils.EitherExt2
-import com.zbsnetwork.lang.v1.FunctionHeader.User
-import com.zbsnetwork.lang.v1.{CTX, FunctionHeader, ScriptEstimator}
-import com.zbsnetwork.lang.v1.compiler.Terms._
-import com.zbsnetwork.lang.v1.evaluator.ctx.impl.zbs._
+import com.zbsnetwork.lang.v1.ScriptEstimator
+import com.zbsnetwork.lang.v1.evaluator.ctx.UserFunction
+import com.zbsnetwork.lang.v1.evaluator.ctx.impl.zbs.ZbsContext
 import com.zbsnetwork.lang.v1.evaluator.ctx.impl.{CryptoContext, PureContext}
 import com.zbsnetwork.lang.v1.testing.TypedScriptGen
 import com.zbsnetwork.lang.{Global, StdLibVersion}
@@ -19,214 +17,37 @@ import org.scalatest.{Matchers, PropSpec}
 
 class UserFunctionComplexityTest extends PropSpec with PropertyChecks with Matchers with TypedScriptGen {
 
-  private def estimate(expr: EXPR, ctx: CTX, funcCosts: Map[FunctionHeader, Coeval[Long]]): Either[String, Long] = {
-    ScriptEstimator(ctx.evaluationContext.letDefs.keySet, funcCosts, expr)
-  }
+  private val version = StdLibVersion.V3
 
-  private val ctxV1 = {
-    utils.functionCosts(StdLibVersion.V1)
-    Monoid
-      .combineAll(
-        Seq(
-          PureContext.build(StdLibVersion.V1),
-          CryptoContext.build(Global),
-          ZbsContext.build(
-            StdLibVersion.V1,
-            new ZbsEnvironment('T'.toByte, Coeval(???), Coeval(???), EmptyBlockchain),
-            isTokenContext = false
-          )
-        ))
-  }
-  private val funcCostsV1 = utils.functionCosts(StdLibVersion.V1)
-
-  property("estimate script for stdLib V1 with UserFunctions") {
-
-    def est: EXPR => Either[String, Long] = estimate(_, ctxV1, funcCostsV1)
-
-    val exprNe = FUNCTION_CALL(PureContext.ne, List(CONST_LONG(1), CONST_LONG(2)))
-    est(exprNe).explicitGet() shouldBe 28
-
-    val exprThrow = FUNCTION_CALL(PureContext.throwNoMessage, List())
-    est(exprThrow).explicitGet() shouldBe 2
-
-    val exprExtract = LET_BLOCK(
-      LET("x", CONST_LONG(2)),
-      FUNCTION_CALL(PureContext.extract, List(REF("x")))
-    )
-    est(exprExtract).explicitGet() shouldBe 21
-
-    val exprIsDefined = LET_BLOCK(
-      LET("x", CONST_LONG(2)),
-      FUNCTION_CALL(PureContext.isDefined, List(REF("x")))
-    )
-    est(exprIsDefined).explicitGet() shouldBe 43
-
-    val exprDropRightBytes = FUNCTION_CALL(PureContext.dropRightBytes, List(CONST_BYTESTR(ByteStr.fromLong(2)), CONST_LONG(1)))
-    est(exprDropRightBytes).explicitGet() shouldBe 21
-
-    val exprTakeRightBytes = FUNCTION_CALL(PureContext.takeRightBytes, List(CONST_BYTESTR(ByteStr.fromLong(2)), CONST_LONG(1)))
-    est(exprTakeRightBytes).explicitGet() shouldBe 21
-
-    val exprDropRightString = FUNCTION_CALL(PureContext.dropRightString, List(CONST_STRING("str"), CONST_LONG(1)))
-    est(exprDropRightString).explicitGet() shouldBe 21
-
-    val exprTakeRightString = FUNCTION_CALL(PureContext.takeRightString, List(CONST_STRING("str"), CONST_LONG(1)))
-    est(exprTakeRightString).explicitGet() shouldBe 21
-
-    val exprUMinus = FUNCTION_CALL(PureContext.uMinus, List(CONST_LONG(1)))
-    est(exprUMinus).explicitGet() shouldBe 10
-
-    val exprUNot = FUNCTION_CALL(PureContext.uNot, List(TRUE))
-    est(exprUNot).explicitGet() shouldBe 12
-
-    val exprAddressFromPublicKey = FUNCTION_CALL(User("addressFromPublicKey"), List(CONST_BYTESTR(ByteStr.fromLong(2))))
-    est(exprAddressFromPublicKey).explicitGet() shouldBe 83
-
-    val exprAddressFromString = FUNCTION_CALL(User("addressFromString"), List(CONST_STRING("address")))
-    est(exprAddressFromString).explicitGet() shouldBe 125
-
-    val exprZbsBalance = FUNCTION_CALL(User("zbsBalance"), List(CONST_STRING("alias")))
-    est(exprZbsBalance).explicitGet() shouldBe 110
-  }
-
-  private val ctxV2 = {
-    utils.functionCosts(StdLibVersion.V2)
-    Monoid
-      .combineAll(
-        Seq(
-          PureContext.build(StdLibVersion.V2),
-          CryptoContext.build(Global),
-          ZbsContext.build(
-            StdLibVersion.V2,
-            new ZbsEnvironment('T'.toByte, Coeval(???), Coeval(???), EmptyBlockchain),
-            isTokenContext = false
-          )
-        ))
-  }
-  private val funcCostsV2 = utils.functionCosts(StdLibVersion.V2)
-
-  property("estimate script for stdLib V2 with UserFunctions") {
-
-    def est: EXPR => Either[String, Long] = estimate(_, ctxV2, funcCostsV2)
-
-    val exprNe = FUNCTION_CALL(PureContext.ne, List(CONST_LONG(1), CONST_LONG(2)))
-    est(exprNe).explicitGet() shouldBe 28
-
-    val exprThrow = FUNCTION_CALL(PureContext.throwNoMessage, List())
-    est(exprThrow).explicitGet() shouldBe 2
-
-    val exprExtract = LET_BLOCK(
-      LET("x", CONST_LONG(2)),
-      FUNCTION_CALL(PureContext.extract, List(REF("x")))
-    )
-    est(exprExtract).explicitGet() shouldBe 21
-
-    val exprIsDefined = LET_BLOCK(
-      LET("x", CONST_LONG(2)),
-      FUNCTION_CALL(PureContext.isDefined, List(REF("x")))
-    )
-    est(exprIsDefined).explicitGet() shouldBe 43
-
-    val exprDropRightBytes = FUNCTION_CALL(PureContext.dropRightBytes, List(CONST_BYTESTR(ByteStr.fromLong(2)), CONST_LONG(1)))
-    est(exprDropRightBytes).explicitGet() shouldBe 21
-
-    val exprTakeRightBytes = FUNCTION_CALL(PureContext.takeRightBytes, List(CONST_BYTESTR(ByteStr.fromLong(2)), CONST_LONG(1)))
-    est(exprTakeRightBytes).explicitGet() shouldBe 21
-
-    val exprDropRightString = FUNCTION_CALL(PureContext.dropRightString, List(CONST_STRING("str"), CONST_LONG(1)))
-    est(exprDropRightString).explicitGet() shouldBe 21
-
-    val exprTakeRightString = FUNCTION_CALL(PureContext.takeRightString, List(CONST_STRING("str"), CONST_LONG(1)))
-    est(exprTakeRightString).explicitGet() shouldBe 21
-
-    val exprUMinus = FUNCTION_CALL(PureContext.uMinus, List(CONST_LONG(1)))
-    est(exprUMinus).explicitGet() shouldBe 10
-
-    val exprUNot = FUNCTION_CALL(PureContext.uNot, List(TRUE))
-    est(exprUNot).explicitGet() shouldBe 12
-
-    val exprAddressFromPublicKey = FUNCTION_CALL(User("addressFromPublicKey"), List(CONST_BYTESTR(ByteStr.fromLong(2))))
-    est(exprAddressFromPublicKey).explicitGet() shouldBe 83
-
-    val exprAddressFromString = FUNCTION_CALL(User("addressFromString"), List(CONST_STRING("address")))
-    est(exprAddressFromString).explicitGet() shouldBe 125
-
-    val exprZbsBalance = FUNCTION_CALL(User("zbsBalance"), List(CONST_STRING("alias")))
-    est(exprZbsBalance).explicitGet() shouldBe 110
-  }
-
-  private val ctxV3 = {
+  private val ctx = {
     utils.functionCosts(StdLibVersion.V3)
     Monoid
       .combineAll(
         Seq(
-          PureContext.build(StdLibVersion.V3),
+          PureContext.build(version),
           CryptoContext.build(Global),
           ZbsContext.build(
-            StdLibVersion.V3,
+            version,
             new ZbsEnvironment('T'.toByte, Coeval(???), Coeval(???), EmptyBlockchain),
             isTokenContext = false
           )
         ))
   }
-  private val funcCostsV3 = utils.functionCosts(StdLibVersion.V3)
 
-  property("estimate script for stdLib V3 with UserFunctions") {
+  // If test fails than complexity of user function was changed and it could lead to fork.
+  property("WARNING - NODE FORK - check if user functions complexity changed") {
+    val funcCosts = utils.functionCosts(version)
 
-    def est: EXPR => Either[String, Long] = estimate(_, ctxV3, funcCostsV3)
-
-    val exprNe = FUNCTION_CALL(PureContext.ne, List(CONST_LONG(1), CONST_LONG(2)))
-    est(exprNe).explicitGet() shouldBe 3
-
-    val exprThrow = FUNCTION_CALL(PureContext.throwNoMessage, List())
-    est(exprThrow).explicitGet() shouldBe 1
-
-    val exprExtract = LET_BLOCK(
-      LET("x", CONST_LONG(2)),
-      FUNCTION_CALL(PureContext.extract, List(REF("x")))
-    )
-    est(exprExtract).explicitGet() shouldBe 21
-
-    val exprIsDefined = LET_BLOCK(
-      LET("x", CONST_LONG(2)),
-      FUNCTION_CALL(PureContext.isDefined, List(REF("x")))
-    )
-    est(exprIsDefined).explicitGet() shouldBe 9
-
-    val exprDropRightBytes = FUNCTION_CALL(PureContext.dropRightBytes, List(CONST_BYTESTR(ByteStr.fromLong(2)), CONST_LONG(1)))
-    est(exprDropRightBytes).explicitGet() shouldBe 21
-
-    val exprTakeRightBytes = FUNCTION_CALL(PureContext.takeRightBytes, List(CONST_BYTESTR(ByteStr.fromLong(2)), CONST_LONG(1)))
-    est(exprTakeRightBytes).explicitGet() shouldBe 21
-
-    val exprDropRightString = FUNCTION_CALL(PureContext.dropRightString, List(CONST_STRING("str"), CONST_LONG(1)))
-    est(exprDropRightString).explicitGet() shouldBe 21
-
-    val exprTakeRightString = FUNCTION_CALL(PureContext.takeRightString, List(CONST_STRING("str"), CONST_LONG(1)))
-    est(exprTakeRightString).explicitGet() shouldBe 21
-
-    val exprUMinus = FUNCTION_CALL(PureContext.uMinus, List(CONST_LONG(1)))
-    est(exprUMinus).explicitGet() shouldBe 2
-
-    val exprUNot = FUNCTION_CALL(PureContext.uNot, List(TRUE))
-    est(exprUNot).explicitGet() shouldBe 2
-
-    val exprEnsure = FUNCTION_CALL(PureContext.ensure, List(TRUE))
-    est(exprEnsure).explicitGet() shouldBe 17
-
-    val exprDataByIndex = LET_BLOCK(
-      LET("arr", FUNCTION_CALL(PureContext.listConstructor, List(CONST_STRING("str_1"), REF("nil")))),
-      FUNCTION_CALL(User("getString"), List(REF("arr"), CONST_LONG(0)))
-    )
-    est(exprDataByIndex).explicitGet() shouldBe 43
-
-    val exprAddressFromPublicKey = FUNCTION_CALL(User("addressFromPublicKey"), List(CONST_BYTESTR(ByteStr.fromLong(2))))
-    est(exprAddressFromPublicKey).explicitGet() shouldBe 83
-
-    val exprAddressFromString = FUNCTION_CALL(User("addressFromString"), List(CONST_STRING("address")))
-    est(exprAddressFromString).explicitGet() shouldBe 125
-
-    val exprZbsBalance = FUNCTION_CALL(User("zbsBalance"), List(CONST_STRING("alias")))
-    est(exprZbsBalance).explicitGet() shouldBe 110
+    val userFuncs = ctx.functions.filter(_.isInstanceOf[UserFunction])
+    userFuncs.foreach {
+      case func: UserFunction =>
+        import func.signature.args
+        val complexity =
+          Coeval.now(ScriptEstimator(ctx.evaluationContext.letDefs.keySet ++ args.map(_._1), funcCosts, func.ev).explicitGet() + args.size * 5).value
+        if (complexity != func.cost) {
+          fail(s"Complexity of ${func.name} should be ${func.cost}, actual: $complexity.")
+        }
+      case _ =>
+    }
   }
 }

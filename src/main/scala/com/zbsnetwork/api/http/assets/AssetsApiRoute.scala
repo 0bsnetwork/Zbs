@@ -42,7 +42,7 @@ case class AssetsApiRoute(settings: RestAPISettings, wallet: Wallet, utx: UtxPoo
     extends ApiRoute
     with BroadcastRoute {
 
-  private val distributionTaskScheduler = {
+  private[this] val distributionTaskScheduler = {
     val executor = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue[Runnable](AssetsApiRoute.MAX_DISTRIBUTION_TASKS))
     Scheduler(executor)
   }
@@ -206,8 +206,9 @@ case class AssetsApiRoute(settings: RestAPISettings, wallet: Wallet, utx: UtxPoo
         (for {
           acc <- Address.fromString(address)
         } yield
-          Json.obj("address" -> acc.address, "assetId" -> assetIdStr, "balance" -> JsNumber(BigDecimal(blockchain.balance(acc, Some(assetId)))))).left
-          .map(ApiError.fromValidationError)
+          Json.obj("address" -> acc.address,
+                   "assetId" -> assetIdStr,
+                   "balance" -> JsNumber(BigDecimal(blockchain.portfolio(acc).assets.getOrElse(assetId, 0L))))).left.map(ApiError.fromValidationError)
       case _ => Left(InvalidAddress)
     }
   }
@@ -225,7 +226,7 @@ case class AssetsApiRoute(settings: RestAPISettings, wallet: Wallet, utx: UtxPoo
             assetInfo                                 <- blockchain.assetDescription(assetId)
             (_, (issueTransaction: IssueTransaction)) <- blockchain.transactionInfo(assetId)
             sponsorBalance = if (assetInfo.sponsorship != 0) {
-              Some(blockchain.zbsPortfolio(issueTransaction.sender).spendableBalance)
+              Some(blockchain.portfolio(issueTransaction.sender).spendableBalance)
             } else {
               None
             }
