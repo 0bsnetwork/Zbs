@@ -1,13 +1,9 @@
-{-# STDLIB_VERSION 3 #-}
-{-# CONTENT_TYPE CONTRACT -#}
-
-let lpKey = "lastPayment"
-let liKey = "bestFomoer"
-let lhKey = "height"
-let day = 1440
-
 @Callable(i)
 func fearmissing() = {
+	let lpKey = "lastPayment"
+	let liKey = "bestFomoer"
+	let lhKey = "height"
+
    let payment = match i.payment {
 	   case p:AttachedPayment =>
 	   		match p.asset {
@@ -25,20 +21,25 @@ func fearmissing() = {
 	if(payment <= lastPayment)
 		then throw("min payment is " +toString(payment))
 		else # storing best payment, caller and height
-			WriteSet([
+			WriteSet(List(
 				DataEntry(lpKey, payment),
 				DataEntry(liKey, i.caller.bytes),
 				DataEntry(lhKey, height)
-			])
+			))
 }
 
 @Callable(i)
-func withdraw() = {
+func withdraw(amount: Int) = {
+
+	let day = 1440
+	let liKey = "bestFomoer"
+	let lhKey = "height"
+
 	let callerCorrect = i.caller.bytes == extract(getBinary(i.contractAddress, liKey))
 	let heightCorrect = extract(getInteger(i.contractAddress, lhKey)) - height >= day
 	let canWithdraw = heightCorrect && callerCorrect
 
 	if (canWithdraw)
-		then TransferSet([ContractTransfer(i.caller, zbsBalance(i.contractAddress), unit)])
+		then TransferSet(List(ContractTransfer(i.caller, zbsBalance(i.contractAddress), unit)))
 		else throw("behold")
 }

@@ -113,13 +113,13 @@ object BlockHeader extends ScorexLogging {
 
 }
 
-case class Block private[block] (override val timestamp: Long,
-                                 override val version: Byte,
-                                 override val reference: ByteStr,
-                                 override val signerData: SignerData,
-                                 override val consensusData: NxtLikeConsensusBlockData,
-                                 transactionData: Seq[Transaction],
-                                 override val featureVotes: Set[Short])
+case class Block private (override val timestamp: Long,
+                          override val version: Byte,
+                          override val reference: ByteStr,
+                          override val signerData: SignerData,
+                          override val consensusData: NxtLikeConsensusBlockData,
+                          transactionData: Seq[Transaction],
+                          override val featureVotes: Set[Short])
     extends BlockHeader(timestamp, version, reference, signerData, consensusData, transactionData.length, featureVotes)
     with Signed {
 
@@ -154,7 +154,7 @@ case class Block private[block] (override val timestamp: Long,
 
   val bytesWithoutSignature: Coeval[Array[Byte]] = Coeval.evalOnce(bytes().dropRight(SignatureLength))
 
-  val blockScore: Coeval[BigInt] = Coeval.evalOnce((BigInt("18446744073709551616") / consensusData.baseTarget).ensuring(_ > 0))
+  val blockScore: Coeval[BigInt] = Coeval.evalOnce((BigInt("18446686373709551616") / consensusData.baseTarget).ensuring(_ > 0))
 
   val feesPortfolio: Coeval[Portfolio] = Coeval.evalOnce(Monoid[Portfolio].combineAll({
     val assetFees: Seq[(Option[AssetId], Long)] = transactionData.map(_.assetFee)
@@ -173,7 +173,7 @@ case class Block private[block] (override val timestamp: Long,
   val prevBlockFeePart: Coeval[Portfolio] =
     Coeval.evalOnce(Monoid[Portfolio].combineAll(transactionData.map(tx => tx.feeDiff().minus(tx.feeDiff().multiply(CurrentBlockFeePart)))))
 
-  override val signatureValid: Coeval[Boolean] = Coeval.evalOnce {
+  protected val signatureValid: Coeval[Boolean] = Coeval.evalOnce {
     import signerData.generator.publicKey
     !crypto.isWeakPublicKey(publicKey) && crypto.verify(signerData.signature.arr, bytesWithoutSignature(), publicKey)
   }

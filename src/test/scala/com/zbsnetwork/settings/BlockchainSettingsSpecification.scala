@@ -50,7 +50,7 @@ class BlockchainSettingsSpecification extends FlatSpec with Matchers {
         |    }
         |  }
         |}""".stripMargin))
-    val settings = BlockchainSettings.fromConfig(config)
+    val settings = BlockchainSettings.fromRootConfig(config)
 
     settings.addressSchemeCharacter should be('C')
     settings.functionalitySettings.featureCheckBlocksPeriod should be(10000)
@@ -86,65 +86,70 @@ class BlockchainSettingsSpecification extends FlatSpec with Matchers {
         |    type = TESTNET
         |  }
         |}""".stripMargin))
-    val settings = BlockchainSettings.fromConfig(config)
+    val settings = BlockchainSettings.fromRootConfig(config)
 
     settings.addressSchemeCharacter should be('T')
-    settings.functionalitySettings.allowTemporaryNegativeUntil should be(0)
+    settings.functionalitySettings.allowTemporaryNegativeUntil should be(1477958400000L)
     settings.functionalitySettings.generationBalanceDepthFrom50To1000AfterHeight should be(0)
     settings.functionalitySettings.minimalGeneratingBalanceAfter should be(0)
-    settings.functionalitySettings.allowTransactionsFromFutureUntil should be(0)
-    settings.functionalitySettings.allowUnissuedAssetsUntil should be(0)
-    settings.functionalitySettings.allowInvalidReissueInSameBlockUntilTimestamp should be(0)
-    settings.functionalitySettings.allowMultipleLeaseCancelTransactionUntilTimestamp should be(0)
-    settings.functionalitySettings.resetEffectiveBalancesAtHeight should be(1)
-    settings.functionalitySettings.blockVersion3AfterHeight should be(0)
-    settings.genesisSettings.blockTimestamp should be(1538694637902L)
-    settings.genesisSettings.timestamp should be(1538694637902L)
+    settings.functionalitySettings.allowTransactionsFromFutureUntil should be(1478100000000L)
+    settings.functionalitySettings.allowUnissuedAssetsUntil should be(1479416400000L)
+    settings.functionalitySettings.allowInvalidReissueInSameBlockUntilTimestamp should be(1492560000000L)
+    settings.functionalitySettings.allowMultipleLeaseCancelTransactionUntilTimestamp should be(1492560000000L)
+    settings.functionalitySettings.resetEffectiveBalancesAtHeight should be(51500)
+    settings.functionalitySettings.blockVersion3AfterHeight should be(161700)
+    settings.functionalitySettings.maxTransactionTimeBackOffset should be(120.minutes)
+    settings.functionalitySettings.maxTransactionTimeForwardOffset should be(90.minutes)
+    settings.genesisSettings.blockTimestamp should be(1460678400000L)
+    settings.genesisSettings.timestamp should be(1478000000000L)
     settings.genesisSettings.signature should be(
-      ByteStr.decodeBase58("24scqU9MhmHHwwjKgAaNd1wiH39yWjtokFjeTxH8suHjw4Z37UPahu9BFYV9aqwsgsgpqBrBYYRD4RwF738XGnPR").toOption)
+      ByteStr.decodeBase58("5uqnLK3Z9eiot6FyYBfwUnbyid3abicQbAZjz38GQ1Q8XigQMxTK4C1zNkqS1SVw7FqSidbZKxWAKLVoEsp4nNqa").toOption)
     settings.genesisSettings.initialBalance should be(10000000000000000L)
 
     settings.genesisSettings.transactions should be(
       Seq(
-        GenesisTransactionSettings("3NBky6zeZav78TKabgmhKW3e4KFcx16LDVB", 5000000000000000L),
-        GenesisTransactionSettings("3MoyfqFEEs7enk572o9iqpjLSQT5UvxJMDw", 5000000000000000L),
+        GenesisTransactionSettings("3My3KZgFQ3CrVHgz6vGRt8687sH4oAA1qp8", 400000000000000L),
+        GenesisTransactionSettings("3NBVqYXrapgJP9atQccdBPAgJPwHDKkh6A8", 200000000000000L),
+        GenesisTransactionSettings("3N5GRqzDBhjVXnCn44baHcz2GoZy5qLxtTh", 200000000000000L),
+        GenesisTransactionSettings("3NCBMxgdghg4tUhEEffSXy11L6hUi6fcBpd", 200000000000000L),
+        GenesisTransactionSettings("3N18z4B8kyyQ96PhN5eyhCAbg4j49CgwZJx", 9000000000000000L)
       ))
   }
 
-  // it should "read mainnet settings" in {
-  //   val config   = loadConfig(ConfigFactory.parseString("""zbs {
-  //       |  directory = "/zbs"
-  //       |  data-directory = "/zbs/data"
-  //       |  blockchain {
-  //       |    type = MAINNET
-  //       |  }
-  //       |}""".stripMargin))
-  //   val settings = BlockchainSettings.fromConfig(config)
+  it should "read mainnet settings" in {
+    val config   = loadConfig(ConfigFactory.parseString("""zbs {
+        |  directory = "/zbs"
+        |  data-directory = "/zbs/data"
+        |  blockchain {
+        |    type = MAINNET
+        |  }
+        |}""".stripMargin))
+    val settings = BlockchainSettings.fromRootConfig(config)
 
-  //   settings.addressSchemeCharacter should be('Z')
-  //   settings.functionalitySettings.allowTemporaryNegativeUntil should be(0L)
-  //   settings.functionalitySettings.generationBalanceDepthFrom50To1000AfterHeight should be(232000L)
-  //   settings.functionalitySettings.minimalGeneratingBalanceAfter should be(1479168000000L)
-  //   settings.functionalitySettings.allowTransactionsFromFutureUntil should be(1479168000000L)
-  //   settings.functionalitySettings.allowUnissuedAssetsUntil should be(1479416400000L)
-  //   settings.functionalitySettings.allowInvalidReissueInSameBlockUntilTimestamp should be(1492768800000L)
-  //   settings.functionalitySettings.allowMultipleLeaseCancelTransactionUntilTimestamp should be(1492768800000L)
-  //   settings.functionalitySettings.resetEffectiveBalancesAtHeight should be(462000)
-  //   settings.functionalitySettings.maxTransactionTimeBackOffset should be(120.minutes)
-  //   settings.functionalitySettings.maxTransactionTimeForwardOffset should be(90.minutes)
-  //   settings.genesisSettings.blockTimestamp should be(1538689931932L)
-  //   settings.genesisSettings.timestamp should be(1465742577614L)
-  //   settings.genesisSettings.signature should be(
-  //     ByteStr.decodeBase58("FSH8eAAzZNqnG8xgTZtz5xuLqXySsXgAjmFEC25hXMbEufiGjqWPnGCZFt6gLiVLJny16ipxRNAkkzjjhqTjBE2").toOption)
-  //   settings.genesisSettings.initialBalance should be(10000000000000000L)
-  //   settings.genesisSettings.transactions should be(
-  //     Seq(
-  //       GenesisTransactionSettings("3PAWwWa6GbwcJaFzwqXQN5KQm7H96Y7SHTQ", 9999999500000000L),
-  //       GenesisTransactionSettings("3P8JdJGYc7vaLu4UXUZc1iRLdzrkGtdCyJM", 100000000L),
-  //       GenesisTransactionSettings("3PAGPDPqnGkyhcihyjMHe9v36Y4hkAh9yDy", 100000000L),
-  //       GenesisTransactionSettings("3P9o3ZYwtHkaU1KxsKkFjJqJKS3dLHLC9oF", 100000000L),
-  //       GenesisTransactionSettings("3PJaDyprvekvPXPuAtxrapacuDJopgJRaU3", 100000000L),
-  //       GenesisTransactionSettings("3PBWXDFUc86N2EQxKJmW8eFco65xTyMZx6J", 100000000L)
-  //     ))
-  // }
+    settings.addressSchemeCharacter should be('Z')
+    settings.functionalitySettings.allowTemporaryNegativeUntil should be(1479168000000L)
+    settings.functionalitySettings.generationBalanceDepthFrom50To1000AfterHeight should be(232000L)
+    settings.functionalitySettings.minimalGeneratingBalanceAfter should be(1479168000000L)
+    settings.functionalitySettings.allowTransactionsFromFutureUntil should be(1479168000000L)
+    settings.functionalitySettings.allowUnissuedAssetsUntil should be(1479416400000L)
+    settings.functionalitySettings.allowInvalidReissueInSameBlockUntilTimestamp should be(1492768800000L)
+    settings.functionalitySettings.allowMultipleLeaseCancelTransactionUntilTimestamp should be(1492768800000L)
+    settings.functionalitySettings.resetEffectiveBalancesAtHeight should be(462000)
+    settings.functionalitySettings.maxTransactionTimeBackOffset should be(120.minutes)
+    settings.functionalitySettings.maxTransactionTimeForwardOffset should be(90.minutes)
+    settings.genesisSettings.blockTimestamp should be(1460678400000L)
+    settings.genesisSettings.timestamp should be(1465742577614L)
+    settings.genesisSettings.signature should be(
+      ByteStr.decodeBase58("FSH8eAAzZNqnG8xgTZtz5xuLqXySsXgAjmFEC25hXMbEufiGjqWPnGCZFt6gLiVLJny16ipxRNAkkzjjhqTjBE2").toOption)
+    settings.genesisSettings.initialBalance should be(10000000000000000L)
+    settings.genesisSettings.transactions should be(
+      Seq(
+        GenesisTransactionSettings("3PAWwWa6GbwcJaFzwqXQN5KQm7H96Y7SHTQ", 9999999500000000L),
+        GenesisTransactionSettings("3P8JdJGYc7vaLu4UXUZc1iRLdzrkGtdCyJM", 100000000L),
+        GenesisTransactionSettings("3PAGPDPqnGkyhcihyjMHe9v36Y4hkAh9yDy", 100000000L),
+        GenesisTransactionSettings("3P9o3ZYwtHkaU1KxsKkFjJqJKS3dLHLC9oF", 100000000L),
+        GenesisTransactionSettings("3PJaDyprvekvPXPuAtxrapacuDJopgJRaU3", 100000000L),
+        GenesisTransactionSettings("3PBWXDFUc86N2EQxKJmW8eFco65xTyMZx6J", 100000000L)
+      ))
+  }
 }

@@ -3,7 +3,7 @@ import cats.Show
 import cats.implicits._
 import com.zbsnetwork.lang.contract.Contract
 import com.zbsnetwork.lang.contract.Contract._
-import com.zbsnetwork.lang.v1.compiler.CompilationError.{AlreadyDefined, Generic}
+import com.zbsnetwork.lang.v1.compiler.CompilationError.Generic
 import com.zbsnetwork.lang.v1.compiler.CompilerContext.vars
 import com.zbsnetwork.lang.v1.compiler.ExpressionCompiler._
 import com.zbsnetwork.lang.v1.compiler.Terms.DECLARATION
@@ -13,7 +13,7 @@ import com.zbsnetwork.lang.v1.evaluator.ctx.impl.zbs.{FieldNames, ZbsContext}
 import com.zbsnetwork.lang.v1.parser.Expressions.FUNC
 import com.zbsnetwork.lang.v1.parser.{Expressions, Parser}
 import com.zbsnetwork.lang.v1.task.imports._
-import com.zbsnetwork.lang.v1.{ContractLimits, FunctionHeader, compiler}
+import com.zbsnetwork.lang.v1.{FunctionHeader, compiler}
 object ContractCompiler {
 
   def compileAnnotatedFunc(af: Expressions.ANNOTATEDFUNC): CompileM[AnnotatedFunction] = {
@@ -30,7 +30,7 @@ object ContractCompiler {
       compiledBody <- local {
         for {
           _ <- modify[CompilerContext, CompilationError](vars.modify(_)(_ ++ annotationBindings))
-          r <- compiler.ExpressionCompiler.compileFunc(af.f.position, af.f, annotationBindings.map(_._1))
+          r <- compiler.ExpressionCompiler.compileFunc(af.f.position, af.f)
         } yield r
       }
     } yield (annotations, compiledBody)
@@ -88,22 +88,11 @@ object ContractCompiler {
       ds <- contract.decs.traverse[CompileM, DECLARATION](compileDeclaration)
       _  <- validateDuplicateVarsInContract(contract)
       l  <- contract.fs.traverse[CompileM, AnnotatedFunction](af => local(compileAnnotatedFunc(af)))
-      duplicatedFuncNames = l.map(_.u.name).groupBy(identity).collect { case (x, List(_, _, _*)) => x }.toList
       _ <- Either
         .cond(
-          duplicatedFuncNames.isEmpty,
+          l.map(_.u.name).toSet.size == l.size,
           (),
-          AlreadyDefined(contract.position.start, contract.position.start, duplicatedFuncNames.mkString(", "), isFunction = true)
-        )
-        .toCompileM
-
-      _ <- Either
-        .cond(
-          l.forall(_.u.args.size <= ContractLimits.MaxContractInvocationArgs),
-          (),
-          Generic(contract.position.start,
-                  contract.position.end,
-                  s"Contract functions can have no more than ${ContractLimits.MaxContractInvocationArgs} arguments")
+          Generic(contract.position.start, contract.position.start, "Contract functions must have unique names")
         )
         .toCompileM
       verifierFunctions = l.filter(_.isInstanceOf[VerifierFunction]).map(_.asInstanceOf[VerifierFunction])

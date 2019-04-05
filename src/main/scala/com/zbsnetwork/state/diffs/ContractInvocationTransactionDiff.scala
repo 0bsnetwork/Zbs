@@ -7,7 +7,7 @@ import com.zbsnetwork.account.{Address, AddressScheme}
 import com.zbsnetwork.common.state.ByteStr
 import com.zbsnetwork.common.utils.EitherExt2
 import com.zbsnetwork.lang.contract.Contract
-import com.zbsnetwork.lang.v1.{ContractLimits, FunctionHeader}
+import com.zbsnetwork.lang.v1.FunctionHeader
 import com.zbsnetwork.lang.v1.compiler.Terms._
 import com.zbsnetwork.lang.v1.evaluator.ctx.impl.zbs.ZbsContext
 import com.zbsnetwork.lang.v1.evaluator.ctx.impl.{CryptoContext, PureContext}
@@ -88,10 +88,9 @@ object ContractInvocationTransactionDiff {
                            ))
                         }
                     })
-                    zbsFee = feeInfo._1
-                    dataAndPaymentDiff <- payableAndDataPart(height, tx, ds, feeInfo._2)
-                    _                  <- Either.cond(pmts.flatMap(_.values).flatMap(_.values).forall(_ >= 0), (), ValidationError.NegativeAmount(-42, ""))
-                    _                  <- validateOverflow(pmts.flatMap(_.values).flatMap(_.values), "Attempt to transfer unavailable funds in contract payment")
+                    zbsFee             = feeInfo._1
+                    dataAndPaymentDiff = payableAndDataPart(height, tx, ds, feeInfo._2)
+                    _ <- Either.cond(pmts.flatMap(_.values).flatMap(_.values).forall(_ >= 0), (), ValidationError.NegativeAmount(-42, ""))
                     _ <- Either.cond(
                       pmts
                         .flatMap(_.values)
@@ -101,6 +100,8 @@ object ContractInvocationTransactionDiff {
                       (),
                       GenericError(s"Unissued assets are not allowed")
                     )
+                    _ <- Either.cond(true, (), ValidationError.NegativeAmount(-42, "")) //  - sum doesn't overflow
+                    _ <- Either.cond(true, (), ValidationError.NegativeAmount(-42, "")) //  - whatever else tranfser/massTransfer ensures
                     _ <- {
                       val totalScriptsInvoked = tx.checkedAssets().count(blockchain.hasAssetScript) +
                         ps.count(_._3.fold(false)(blockchain.hasAssetScript))
@@ -136,8 +137,6 @@ object ContractInvocationTransactionDiff {
       case DataItem.Lng(k, b)  => IntegerDataEntry(k, b)
       case DataItem.Bin(k, b)  => BinaryDataEntry(k, b)
     }
-    val totalDataBytes = r.map(_.toBytes.size).sum
-
     val payablePart: Map[Address, Portfolio] = tx.payment match {
       case None => Map.empty
       case Some(ContractInvocationTransaction.Payment(amt, assetOpt)) =>
@@ -151,48 +150,44 @@ object ContractInvocationTransactionDiff {
               .combine(Map(tx.contractAddress -> Portfolio(amt, LeaseBalance.empty, Map.empty)))
         }
     }
-    if (totalDataBytes <= ContractLimits.MaxWriteSetSizeInBytes)
-      Right(
-        Diff(
-          height = height,
-          tx = tx,
-          portfolios = feePart combine payablePart,
-          accountData = Map(tx.contractAddress -> AccountDataInfo(r.map(d => d.key -> d).toMap))
-        ))
-    else Left(GenericError(s"WriteSet size can't exceed ${ContractLimits.MaxWriteSetSizeInBytes} bytes, actual: $totalDataBytes bytes"))
+    Diff(
+      height = height,
+      tx = tx,
+      portfolios = feePart combine payablePart,
+      accountData = Map(tx.contractAddress -> AccountDataInfo(r.map(d => d.key -> d).toMap))
+    )
   }
 
   private def foldContractTransfers(blockchain: Blockchain, tx: ContractInvocationTransaction)(ps: List[(Recipient.Address, Long, Option[ByteStr])],
                                                                                                dataDiff: Diff): Either[ValidationError, Diff] = {
-    if (ps.length <= ContractLimits.MaxPaymentAmount)
-      ps.foldLeft(Either.right[ValidationError, Diff](dataDiff)) { (diffEi, payment) =>
-        val (addressRepr, amount, asset) = payment
-        val address                      = Address.fromBytes(addressRepr.bytes.arr).explicitGet()
-        asset match {
-          case None =>
-            diffEi combine Right(
-              Diff.stateOps(
-                portfolios = Map(
-                  address            -> Portfolio(amount, LeaseBalance.empty, Map.empty),
-                  tx.contractAddress -> Portfolio(-amount, LeaseBalance.empty, Map.empty)
-                )))
-          case Some(assetId) =>
-            diffEi combine {
-              val nextDiff = Diff.stateOps(
-                portfolios = Map(
-                  address            -> Portfolio(0, LeaseBalance.empty, Map(assetId -> amount)),
-                  tx.contractAddress -> Portfolio(0, LeaseBalance.empty, Map(assetId -> -amount))
-                ))
-              blockchain.assetScript(assetId) match {
-                case None =>
-                  Right(nextDiff)
-                case Some(script) =>
-                  diffEi flatMap (d => validateContractTransferWithSmartAssetScript(blockchain, tx)(d, addressRepr, amount, asset, nextDiff, script))
-              }
+
+    ps.foldLeft(Either.right[ValidationError, Diff](dataDiff)) { (diffEi, payment) =>
+      val (addressRepr, amount, asset) = payment
+      val address                      = Address.fromBytes(addressRepr.bytes.arr).explicitGet()
+      asset match {
+        case None =>
+          diffEi combine Right(
+            Diff.stateOps(
+              portfolios = Map(
+                address            -> Portfolio(amount, LeaseBalance.empty, Map.empty),
+                tx.contractAddress -> Portfolio(-amount, LeaseBalance.empty, Map.empty)
+              )))
+        case Some(assetId) =>
+          diffEi combine {
+            val nextDiff = Diff.stateOps(
+              portfolios = Map(
+                address            -> Portfolio(0, LeaseBalance.empty, Map(assetId -> amount)),
+                tx.contractAddress -> Portfolio(0, LeaseBalance.empty, Map(assetId -> -amount))
+              ))
+            blockchain.assetScript(assetId) match {
+              case None =>
+                Right(nextDiff)
+              case Some(script) =>
+                diffEi flatMap (d => validateContractTransferWithSmartAssetScript(blockchain, tx)(d, addressRepr, amount, asset, nextDiff, script))
             }
-        }
-      } else
-      Left(GenericError(s"Too many ContractTransfers: max: ${ContractLimits.MaxPaymentAmount}, actual: ${ps.length}"))
+          }
+      }
+    }
   }
 
   private def validateContractTransferWithSmartAssetScript(blockchain: Blockchain, tx: ContractInvocationTransaction)(

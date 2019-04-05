@@ -2,9 +2,8 @@ import cats.kernel.Monoid
 import com.zbsnetwork.lang.StdLibVersion.{StdLibVersion, _}
 import com.zbsnetwork.lang.contract.Contract
 import com.zbsnetwork.lang.directives.DirectiveParser
-import com.zbsnetwork.lang.utils.{extractContentType, extractScriptType, extractStdLibVersion}
+import com.zbsnetwork.lang.utils.{extractScriptType, extractStdLibVersion}
 import com.zbsnetwork.lang.v1.CTX
-import com.zbsnetwork.lang.v1.ContractLimits
 import com.zbsnetwork.lang.v1.FunctionHeader.{Native, User}
 import com.zbsnetwork.lang.v1.compiler.Terms._
 import com.zbsnetwork.lang.v1.compiler.Types._
@@ -12,7 +11,7 @@ import com.zbsnetwork.lang.v1.evaluator.ctx.impl.zbs.ZbsContext
 import com.zbsnetwork.lang.v1.evaluator.ctx.impl.{CryptoContext, PureContext}
 import com.zbsnetwork.lang.v1.traits.domain.{Recipient, Tx}
 import com.zbsnetwork.lang.v1.traits.{DataType, Environment}
-import com.zbsnetwork.lang.{ContentType, Global, ScriptType, StdLibVersion}
+import com.zbsnetwork.lang.{Global, ScriptType}
 
 import scala.scalajs.js
 import scala.scalajs.js.Dynamic.{literal => jObj}
@@ -85,72 +84,52 @@ object JsAPI {
     Monoid.combineAll(Seq(PureContext.build(v), cryptoContext, zbsContext(V3)))
   }
 
+  @JSExportTopLevel("fullContext")
+  val fullContext: CTX =
+    buildScriptContext(V3, isTokenContext = false)
+
   @JSExportTopLevel("getTypes")
-  def getTypes(ver: Int = 2, isTokenContext: Boolean = false): js.Array[js.Object with js.Dynamic] =
-    buildScriptContext(StdLibVersion.parseVersion(ver), isTokenContext).types
-      .map(v => js.Dynamic.literal("name" -> v.name, "type" -> typeRepr(v.typeRef)))
-      .toJSArray
+  def getTypes() = fullContext.types.map(v => js.Dynamic.literal("name" -> v.name, "type" -> typeRepr(v.typeRef))).toJSArray
 
   @JSExportTopLevel("getVarsDoc")
-  def getVarsDoc(ver: Int = 2, isTokenContext: Boolean = false): js.Array[js.Object with js.Dynamic] =
-    buildScriptContext(StdLibVersion.parseVersion(ver), isTokenContext).vars
-      .map(v => js.Dynamic.literal("name" -> v._1, "type" -> typeRepr(v._2._1._1), "doc" -> v._2._1._2))
-      .toJSArray
+  def getVarsDoc() = fullContext.vars.map(v => js.Dynamic.literal("name" -> v._1, "type" -> typeRepr(v._2._1._1), "doc" -> v._2._1._2)).toJSArray
 
   @JSExportTopLevel("getFunctionsDoc")
-  def getFunctionsDoc(ver: Int = 2, isTokenContext: Boolean = false): js.Array[js.Object with js.Dynamic] =
-    buildScriptContext(StdLibVersion.parseVersion(ver), isTokenContext).functions
-      .map(f =>
-        js.Dynamic.literal(
-          "name"       -> f.name,
-          "doc"        -> f.docString,
-          "resultType" -> typeRepr(f.signature.result),
-          "args" -> ((f.argsDoc zip f.signature.args) map { arg =>
-            js.Dynamic.literal("name" -> arg._1._1, "type" -> typeRepr(arg._2._2), "doc" -> arg._1._2)
-          }).toJSArray
-      ))
+  def getFunctionnsDoc() =
+    fullContext.functions
+      .map(
+        f =>
+          js.Dynamic.literal(
+            "name"       -> f.name,
+            "doc"        -> f.docString,
+            "resultType" -> typeRepr(f.signature.result),
+            "args" -> ((f.argsDoc zip f.signature.args) map { arg =>
+              js.Dynamic.literal("name" -> arg._1._1, "type" -> typeRepr(arg._2._2), "doc" -> arg._1._2)
+            }).toJSArray
+        ))
       .toJSArray
 
-  @JSExportTopLevel("contractLimits")
-  def contractLimits(): js.Dynamic = js.Dynamic.literal(
-    "MaxExprComplexity"                -> ContractLimits.MaxExprComplexity,
-    "MaxExprSizeInBytes"               -> ContractLimits.MaxExprSizeInBytes,
-    "MaxContractComplexity"            -> ContractLimits.MaxContractComplexity,
-    "MaxContractSizeInBytes"           -> ContractLimits.MaxContractSizeInBytes,
-    "MaxContractInvocationArgs"        -> ContractLimits.MaxContractInvocationArgs,
-    "MaxContractInvocationSizeInBytes" -> ContractLimits.MaxContractInvocationSizeInBytes,
-    "MaxWriteSetSizeInBytes"           -> ContractLimits.MaxWriteSetSizeInBytes,
-    "MaxPaymentAmount"                 -> ContractLimits.MaxPaymentAmount
-  )
-
-  @JSExportTopLevel("scriptInfo")
-  def scriptInfo(input: String): js.Dynamic = {
-    val directives = DirectiveParser(input)
-    val info = for {
-      ver         <- extractStdLibVersion(directives)
-      contentType <- extractContentType(directives)
-      scriptType  <- extractScriptType(directives)
-    } yield js.Dynamic.literal("stdLibVersion" -> ver, "contentType" -> contentType, "scriptType" -> scriptType)
-
-    info.fold(
-      err => js.Dynamic.literal("error" -> err),
-      identity
-    )
-  }
+  @JSExportTopLevel("compilerContext")
+  val compilerContext = fullContext.compilerContext
 
   @JSExportTopLevel("compile")
-  def compile(input: String): js.Dynamic = {
+  def compile(input: String, isTokenScript: Boolean): js.Dynamic = {
     val directives = DirectiveParser(input)
+
+    val scriptWithoutDirectives =
+      input.linesIterator
+        .filter(str => !str.contains("{-#"))
+        .mkString("\n")
+
     val compiled = for {
-      ver         <- extractStdLibVersion(directives)
-      contentType <- extractContentType(directives)
-      scriptType  <- extractScriptType(directives)
+      ver <- extractStdLibVersion(directives)
+      tpe <- extractScriptType(directives)
     } yield {
-      contentType match {
-        case ContentType.Expression =>
-          val ctx = buildScriptContext(ver, scriptType == ScriptType.Asset)
+      tpe match {
+        case ScriptType.Expression =>
+          val ctx = buildScriptContext(ver, isTokenScript)
           Global
-            .compileScript(input, ctx.compilerContext)
+            .compileScript(scriptWithoutDirectives, ctx.compilerContext)
             .fold(
               err => {
                 js.Dynamic.literal("error" -> err)
@@ -159,10 +138,10 @@ object JsAPI {
                   js.Dynamic.literal("result" -> Global.toBuffer(bytes), "ast" -> toJs(ast))
               }
             )
-        case ContentType.Contract =>
+        case ScriptType.Contract =>
           // Just ignore stdlib version here
           Global
-            .compileContract(input, fullContractContext.compilerContext)
+            .compileContract(scriptWithoutDirectives, fullContractContext.compilerContext)
             .fold(
               err => {
                 js.Dynamic.literal("error" -> err)

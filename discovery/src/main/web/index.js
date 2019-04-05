@@ -87,5 +87,5 @@ for(var i = 1; i <= 5; i++) {
 
 print("Waiting for hosts...")
 
-Init("w");
+Init("z");
 Init("t");

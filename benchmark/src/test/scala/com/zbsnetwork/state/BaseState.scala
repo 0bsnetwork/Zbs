@@ -39,7 +39,7 @@ trait BaseState {
   private var _lastBlock: Block = _
   def lastBlock: Block          = _lastBlock
 
-  protected def zbs(n: Float): Long                = (n * 100000000L).toLong
+  protected def zbs(n: Float): Long              = (n * 100000000L).toLong
   protected val accountGen: Gen[PrivateKeyAccount] = Gen.containerOfN[Array, Byte](32, Arbitrary.arbitrary[Byte]).map(seed => PrivateKeyAccount(seed))
 
   protected def updateFunctionalitySettings(base: FunctionalitySettings): FunctionalitySettings = base

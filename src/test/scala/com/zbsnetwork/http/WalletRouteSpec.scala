@@ -1,10 +1,10 @@
 package com.zbsnetwork.http
 
 import com.zbsnetwork.TestWallet
-import com.zbsnetwork.http.ApiMarshallers._
-import play.api.libs.json.JsObject
 import com.zbsnetwork.api.http.{ApiKeyNotValid, WalletApiRoute}
 import com.zbsnetwork.common.utils.Base58
+import com.zbsnetwork.http.ApiMarshallers._
+import play.api.libs.json.JsObject
 
 class WalletRouteSpec extends RouteSpec("/wallet") with RestAPISettingsHelper with TestWallet {
   private val route = WalletApiRoute(restAPISettings, testWallet).route

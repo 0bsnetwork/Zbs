@@ -3,21 +3,20 @@ package com.zbsnetwork.state.diffs
 import cats.Monoid
 import cats.implicits._
 import cats.syntax.either.catsSyntaxEitherId
+import com.zbsnetwork.account.Address
+import com.zbsnetwork.block.{Block, MicroBlock}
 import com.zbsnetwork.features.BlockchainFeatures
 import com.zbsnetwork.features.FeatureProvider._
-import com.zbsnetwork.metrics.Instrumented
 import com.zbsnetwork.mining.MiningConstraint
 import com.zbsnetwork.settings.FunctionalitySettings
 import com.zbsnetwork.state._
 import com.zbsnetwork.state.patch.{CancelAllLeases, CancelInvalidLeaseIn, CancelLeaseOverflow}
 import com.zbsnetwork.state.reader.CompositeBlockchain.composite
-import com.zbsnetwork.account.Address
-import com.zbsnetwork.utils.ScorexLogging
-import com.zbsnetwork.block.{Block, MicroBlock}
 import com.zbsnetwork.transaction.ValidationError.ActivationError
 import com.zbsnetwork.transaction.{Transaction, ValidationError}
+import com.zbsnetwork.utils.ScorexLogging
 
-object BlockDiffer extends ScorexLogging with Instrumented {
+object BlockDiffer extends ScorexLogging {
 
   def fromBlock[Constraint <: MiningConstraint](settings: FunctionalitySettings,
                                                 blockchain: Blockchain,

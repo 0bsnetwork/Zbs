@@ -11,8 +11,7 @@ import com.zbsnetwork.it.sync.{someAssetAmount, _}
 import com.zbsnetwork.it.transactions.BaseTransactionSuite
 import com.zbsnetwork.it.util._
 import com.zbsnetwork.state._
-import com.zbsnetwork.transaction.assets.exchange.AssetPair.extractAssetId
-import com.zbsnetwork.transaction._
+import com.zbsnetwork.transaction.{CreateAliasTransaction, DataTransaction, GenesisTransaction, PaymentTransaction}
 import com.zbsnetwork.transaction.assets.{BurnTransaction, IssueTransaction, ReissueTransaction, SponsorFeeTransaction}
 import com.zbsnetwork.transaction.assets.exchange.{AssetPair, Order, _}
 import com.zbsnetwork.transaction.lease.{LeaseCancelTransaction, LeaseTransaction}
@@ -286,7 +285,7 @@ class SignAndBroadcastApiSuite extends BaseTransactionSuite with NTPTime {
           "version"              -> 1,
           "sender"               -> firstAddress,
           "assetId"              -> assetId,
-          "minSponsoredAssetFee" -> 500
+          "minSponsoredAssetFee" -> 100
         ),
         usesProofs = true,
         version = 1
@@ -344,25 +343,13 @@ class SignAndBroadcastApiSuite extends BaseTransactionSuite with NTPTime {
       version = 1
     )
 
-    val assetId = extractAssetId(issueTx).get
-
-    val transactionV1versions = (1: Byte, 1: Byte, 1: Byte) // in ExchangeTransactionV1 only orders V1 are supported
-    val transactionV2versions = for {
-      o1ver <- 1 to 3
-      o2ver <- 1 to 3
-    } yield (o1ver.toByte, o2ver.toByte, 2.toByte)
-
-    val versionsWithZbsFee =
-      (transactionV1versions +: transactionV2versions)
-        .map { case (o1ver, o2ver, tver) => (o1ver, o2ver, tver, Option.empty[AssetId], Option.empty[AssetId]) }
-
-    val versionsWithAssetFee = for {
-      o2ver <- 1 to 3
-      buyMatcherFeeAssetId  = assetId
-      sellMatcherFeeAssetId = Option.empty[AssetId]
-    } yield (3.toByte, o2ver.toByte, 2.toByte, buyMatcherFeeAssetId, sellMatcherFeeAssetId)
-
-    for ((o1ver, o2ver, tver, matcherFeeOrder1, matcherFeeOrder2) <- versionsWithZbsFee ++ versionsWithAssetFee) {
+    for ((o1ver, o2ver, tver) <- Seq(
+           (1: Byte, 1: Byte, 1: Byte),
+           (1: Byte, 1: Byte, 2: Byte),
+           (1: Byte, 2: Byte, 2: Byte),
+           (2: Byte, 1: Byte, 2: Byte),
+           (2: Byte, 2: Byte, 2: Byte)
+         )) {
       val buyer               = pkByAddress(firstAddress)
       val seller              = pkByAddress(secondAddress)
       val matcher             = pkByAddress(thirdAddress)
@@ -374,8 +361,8 @@ class SignAndBroadcastApiSuite extends BaseTransactionSuite with NTPTime {
       val buyAmount           = 2
       val sellAmount          = 3
       val assetPair           = AssetPair.createAssetPair("ZBS", issueTx).get
-      val buy                 = Order.buy(buyer, matcher, assetPair, buyAmount, buyPrice, ts, expirationTimestamp, mf, o1ver, matcherFeeOrder1)
-      val sell                = Order.sell(seller, matcher, assetPair, sellAmount, sellPrice, ts, expirationTimestamp, mf, o2ver, matcherFeeOrder2)
+      val buy                 = Order.buy(buyer, matcher, assetPair, buyAmount, buyPrice, ts, expirationTimestamp, mf, o1ver)
+      val sell                = Order.sell(seller, matcher, assetPair, sellAmount, sellPrice, ts, expirationTimestamp, mf, o2ver)
 
       val amount = math.min(buy.amount, sell.amount)
       val tx =
@@ -410,9 +397,6 @@ class SignAndBroadcastApiSuite extends BaseTransactionSuite with NTPTime {
             .explicitGet()
             .json()
         }
-      val s = sell.getReceiveAmount(amount, sellPrice).right.get
-      log.info(s"SELLER: ${s}")
-      log.info(s"BUYER: ${buy.getReceiveAmount(amount, sellPrice).right.get}")
 
       val txId = sender.signedBroadcast(tx).id
       sender.waitForTransaction(txId)

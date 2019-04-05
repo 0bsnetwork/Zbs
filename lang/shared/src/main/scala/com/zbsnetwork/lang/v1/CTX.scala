@@ -30,10 +30,7 @@ case class CTX(@(JSExport @field) types: Seq[DefinedType],
   )
 
   val opsNames = BinaryOperation.opsByPriority
-    .flatMap({
-      case Left(l)  => l
-      case Right(l) => l
-    })
+    .flatten
     .map(x => BinaryOperation.opsToFunctions(x))
     .toSet
 

@@ -18,15 +18,15 @@ object StdLibVersion extends TaggedType[Int] {
   }
 }
 
-object ContentType extends TaggedType[Int] {
-  type ContentType = ContentType.Type
+object ScriptType extends TaggedType[Int] {
+  type ScriptType = ScriptType.Type
 
-  val Expression: ContentType = 1 @@ ContentType
-  val Contract: ContentType = 2 @@ ContentType
+  val Expression: ScriptType = 1 @@ ScriptType
+  val Contract: ScriptType = 2 @@ ScriptType
 
-  val SupportedTypes: Set[ContentType] = Set(Expression, Contract)
+  val SupportedVersions: Set[ScriptType] = Set(Expression, Contract)
 
-  def parseId(i: Int) = i match {
+  def parseVersion(i: Int) = i match {
     case 1 => Expression
     case 2 => Contract
   }
@@ -36,23 +36,3 @@ object ContentType extends TaggedType[Int] {
     case "CONTRACT" => Contract
   }
 }
-
-object ScriptType extends TaggedType[Int] {
-  type ScriptType = ScriptType.Type
-
-  val Account: ScriptType = 1 @@ ScriptType
-  val Asset: ScriptType = 2 @@ ScriptType
-
-  val SupportedTypes: Set[ScriptType] = Set(Account, Asset)
-
-  def parseId(i: Int) = i match {
-    case 1 => Account
-    case 2 => Asset
-  }
-
-  def parseString(s: String) = s match {
-    case "ACCOUNT" => Account
-    case "ASSET" => Asset
-  }
-}
-

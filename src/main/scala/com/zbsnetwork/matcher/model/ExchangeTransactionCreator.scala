@@ -26,7 +26,7 @@ class ExchangeTransactionCreator(blockchain: Blockchain, matcherPrivateKey: Priv
     val (buy, sell)       = Order.splitByType(submitted.order, counter.order)
     val (buyFee, sellFee) = calculateMatcherFee(buy, sell, executedAmount)
 
-    val txFee = minFee(blockchain, settings.orderMatchTxFee, matcherPrivateKey, counter.order.assetPair)
+    val txFee = minFee(blockchain, settings.orderMatchTxFee, matcherPrivateKey, counter.order.assetPair, disableExtraFeeForScript = false)
     if (blockchain.isFeatureActivated(BlockchainFeatures.SmartAccountTrading, blockchain.height))
       ExchangeTransactionV2.create(matcherPrivateKey, buy, sell, executedAmount, price, buyFee, sellFee, txFee, timestamp)
     else
@@ -50,13 +50,20 @@ object ExchangeTransactionCreator {
   /**
     * @see [[com.zbsnetwork.transaction.smart.Verifier#verifyExchange verifyExchange]]
     */
-  def minFee(blockchain: Blockchain, orderMatchTxFee: Long, matcherAddress: Address, assetPair: AssetPair): Long = {
-    def assetFee(assetId: AssetId): Long   = if (blockchain.hasAssetScript(assetId)) CommonValidation.ScriptExtraFee else 0L
-    def accountFee(address: Address): Long = if (blockchain.hasScript(address)) CommonValidation.ScriptExtraFee else 0L
+  def minFee(blockchain: Blockchain, baseFee: Long, matcherAddress: Address, assetPair: AssetPair, disableExtraFeeForScript: Boolean): Long = {
 
-    orderMatchTxFee +
-      accountFee(matcherAddress) +
-      assetPair.amountAsset.fold(0L)(assetFee) +
-      assetPair.priceAsset.fold(0L)(assetFee)
+    def assetFee(assetId: AssetId): Long = if (blockchain.hasAssetScript(assetId)) CommonValidation.ScriptExtraFee else 0L
+
+    if (disableExtraFeeForScript) baseFee
+    else {
+      baseFee +
+        minAccountFee(blockchain, matcherAddress) +
+        assetPair.amountAsset.fold(0L)(assetFee) +
+        assetPair.priceAsset.fold(0L)(assetFee)
+    }
+  }
+
+  def minAccountFee(blockchain: Blockchain, address: Address): Long = {
+    if (blockchain hasScript address) CommonValidation.ScriptExtraFee else 0L
   }
 }

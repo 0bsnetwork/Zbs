@@ -57,8 +57,11 @@ class ExchangeTransactionCreatorSpecification
         val submitted = sell(pair, 100000, 0.0007, matcherFee = Some(1000L), version = 2)
 
         val bc = stub[Blockchain]
+
         (bc.activatedFeatures _).when().returns(Map(BlockchainFeatures.SmartAccountTrading.id -> 0)).anyNumberOfTimes()
+
         val tc = new ExchangeTransactionCreator(bc, MatcherAccount, matcherSettings)
+
         tc.createTransaction(LimitOrder(submitted), LimitOrder(counter), System.currentTimeMillis()).explicitGet() shouldBe a[ExchangeTransactionV2]
       }
     }

@@ -80,13 +80,13 @@ object OrderValidator {
                        s"Invalid price, last $insignificantDecimals digits must be 0")
     } yield o
 
-  def blockchainAware(
-      blockchain: Blockchain,
-      transactionCreator: (LimitOrder, LimitOrder, Long) => Either[ValidationError, ExchangeTransaction],
-      orderMatchTxFee: Long,
-      matcherAddress: Address,
-      time: Time,
-  )(order: Order): ValidationResult = timer.measure {
+  def blockchainAware(blockchain: Blockchain,
+                      transactionCreator: (LimitOrder, LimitOrder, Long) => Either[ValidationError, ExchangeTransaction],
+                      minOrderFee: Long,
+                      matcherAddress: Address,
+                      time: Time,
+                      disableExtraFeeForScript: Boolean)(order: Order): ValidationResult = timer.measure {
+
     lazy val exchangeTx = {
       val fakeOrder: Order = order match {
         case x: OrderV1 => x.copy(orderType = x.orderType.opposite)
@@ -104,7 +104,7 @@ object OrderValidator {
         .ensure("Orders of version 1 are only accepted, because SmartAccountTrading has not been activated yet")(
           _.version == 1 || blockchain.isFeatureActivated(BlockchainFeatures.SmartAccountTrading, blockchain.height))
         .ensure("Order expiration should be > 1 min")(_.expiration > time.correctedTime() + MinExpiration)
-      mof = ExchangeTransactionCreator.minFee(blockchain, orderMatchTxFee, matcherAddress, order.assetPair)
+      mof = ExchangeTransactionCreator.minFee(blockchain, minOrderFee, matcherAddress, order.assetPair, disableExtraFeeForScript)
       _ <- (Right(order): ValidationResult).ensure(s"Order matcherFee should be >= $mof")(_.matcherFee >= mof)
       _ <- validateDecimals(blockchain, order)
       _ <- verifyOrderByAccountScript(blockchain, order.sender, order)
@@ -137,6 +137,7 @@ object OrderValidator {
       matcherPublicKey: PublicKeyAccount,
       blacklistedAddresses: Set[Address],
       blacklistedAssets: Set[Option[AssetId]],
+      allowedAssetPairs: Set[AssetPair]
   )(order: Order): ValidationResult = {
     for {
       _ <- (Right(order): ValidationResult)
@@ -144,6 +145,7 @@ object OrderValidator {
         .ensure("Invalid address")(_ => !blacklistedAddresses.contains(order.sender.toAddress))
         .ensure(s"Invalid amount asset ${order.assetPair.amountAsset}")(_ => !blacklistedAssets(order.assetPair.amountAsset))
         .ensure(s"Invalid price asset ${order.assetPair.priceAsset}")(_ => !blacklistedAssets(order.assetPair.priceAsset))
+        .ensure(s"Trading is not allowed for the pair: ${order.assetPair}")(_ => allowedAssetPairs.isEmpty || allowedAssetPairs(order.assetPair))
     } yield order
   }
 

@@ -9,6 +9,7 @@ import com.zbsnetwork.metrics.Metrics
 import com.zbsnetwork.network.MessageObserver.Messages
 import com.zbsnetwork.settings._
 import com.zbsnetwork.state.NG
+import com.zbsnetwork.transaction._
 import com.zbsnetwork.utils.ScorexLogging
 import com.zbsnetwork.utx.UtxPool
 import io.netty.bootstrap.{Bootstrap, ServerBootstrap}
@@ -21,7 +22,6 @@ import io.netty.handler.codec.{LengthFieldBasedFrameDecoder, LengthFieldPrepende
 import io.netty.util.concurrent.DefaultThreadFactory
 import monix.reactive.Observable
 import org.influxdb.dto.Point
-import com.zbsnetwork.transaction._
 
 import scala.collection.JavaConverters._
 import scala.concurrent.duration._

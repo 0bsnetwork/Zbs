@@ -20,7 +20,6 @@ import com.zbsnetwork.wallet.Wallet
 import io.netty.channel.group.ChannelGroup
 import io.swagger.annotations._
 import javax.ws.rs.Path
-
 import play.api.libs.json._
 
 import scala.util.{Failure, Success, Try}
@@ -350,13 +349,13 @@ case class AddressApiRoute(settings: RestAPISettings,
             Balance(
               acc.address,
               0,
-              blockchain.balance(acc)
+              blockchain.portfolio(acc).balance
             )))
       .getOrElse(InvalidAddress)
   }
 
   private def balancesDetailsJson(account: Address): BalanceDetails = {
-    val portfolio = blockchain.zbsPortfolio(account)
+    val portfolio = blockchain.portfolio(account)
     BalanceDetails(
       account.address,
       portfolio.balance,

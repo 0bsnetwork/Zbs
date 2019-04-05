@@ -14,7 +14,8 @@ import com.zbsnetwork.transaction.transfer._
 import com.zbsnetwork.transaction.{Proofs, Transaction}
 import com.zbsnetwork.utx.UtxPool
 import com.zbsnetwork.wallet.Wallet
-import io.netty.channel.group.{ChannelGroup, ChannelGroupFuture, ChannelMatcher}
+import io.netty.channel.group.ChannelGroup
+import org.scalacheck.Gen._
 import org.scalacheck.{Gen => G}
 import org.scalamock.scalatest.PathMockFactory
 import org.scalatest.prop.PropertyChecks
@@ -22,7 +23,7 @@ import play.api.libs.json.{JsObject, JsValue, Json, Writes}
 import shapeless.Coproduct
 
 class AssetsBroadcastRouteSpec extends RouteSpec("/assets/broadcast/") with RequestGen with PathMockFactory with PropertyChecks {
-  private val settings    = RestAPISettings.fromConfig(ConfigFactory.load())
+  private val settings    = RestAPISettings.fromRootConfig(ConfigFactory.load())
   private val utx         = stub[UtxPool]
   private val allChannels = stub[ChannelGroup]
 
@@ -126,7 +127,7 @@ class AssetsBroadcastRouteSpec extends RouteSpec("/assets/broadcast/") with Requ
         def posting[A: Writes](v: A): RouteTestResult = Post(routePath("transfer"), v) ~> route
 
         forAll(nonPositiveLong) { q =>
-          posting(tr.copy(amount = q)) should produce(NegativeAmount(s"$q of ${tr.assetId.getOrElse("zbs")}"))
+          posting(tr.copy(amount = q)) should produce(NegativeAmount(s"$q of zbs"))
         }
         forAll(invalidBase58) { pk =>
           posting(tr.copy(senderPublicKey = pk)) should produce(InvalidAddress)
@@ -143,6 +144,9 @@ class AssetsBroadcastRouteSpec extends RouteSpec("/assets/broadcast/") with Requ
         forAll(longAttachment) { a =>
           posting(tr.copy(attachment = Some(a))) should produce(CustomValidationError("invalid.attachment"))
         }
+        forAll(posNum[Long]) { quantity =>
+          posting(tr.copy(amount = quantity, fee = Long.MaxValue)) should produce(OverflowError)
+        }
         forAll(nonPositiveLong) { fee =>
           posting(tr.copy(fee = fee)) should produce(InsufficientFee())
         }
@@ -155,11 +159,7 @@ class AssetsBroadcastRouteSpec extends RouteSpec("/assets/broadcast/") with Requ
     (alwaysApproveUtx.putIfNew _).when(*).onCall((_: Transaction) => Right((true, Diff.empty))).anyNumberOfTimes()
 
     val alwaysSendAllChannels = stub[ChannelGroup]
-    (alwaysSendAllChannels
-      .writeAndFlush(_: Any, _: ChannelMatcher))
-      .when(*, *)
-      .onCall((_: Any, _: ChannelMatcher) => stub[ChannelGroupFuture])
-      .anyNumberOfTimes()
+    (alwaysSendAllChannels.writeAndFlush(_: Any)).when(*).onCall((_: Any) => null).anyNumberOfTimes()
 
     val route = AssetsBroadcastApiRoute(settings, alwaysApproveUtx, alwaysSendAllChannels).route
 
@@ -213,7 +213,7 @@ class AssetsBroadcastRouteSpec extends RouteSpec("/assets/broadcast/") with Requ
       }
 
       "returns a error if it is not a transfer request" in posting(issueReq.sample.get) ~> check {
-        status shouldBe StatusCodes.BadRequest
+        status shouldNot be(StatusCodes.OK)
       }
     }
 
@@ -250,7 +250,7 @@ class AssetsBroadcastRouteSpec extends RouteSpec("/assets/broadcast/") with Requ
       }
 
       "returns a error if it is not a transfer request" in posting(List(issueReq.sample.get)) ~> check {
-        status shouldBe StatusCodes.BadRequest
+        status shouldNot be(StatusCodes.OK)
       }
     }
 

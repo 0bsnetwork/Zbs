@@ -19,13 +19,13 @@ import com.zbsnetwork.transaction.Transaction
 import com.zbsnetwork.transaction.lease.{LeaseCancelTransactionV1, LeaseTransactionV1}
 
 class LeaseBroadcastRouteSpec extends RouteSpec("/leasing/broadcast/") with RequestGen with PathMockFactory with PropertyChecks {
-  private val settings    = RestAPISettings.fromConfig(ConfigFactory.load())
+  private val settings    = RestAPISettings.fromRootConfig(ConfigFactory.load())
   private val utx         = stub[UtxPool]
   private val allChannels = stub[ChannelGroup]
 
   (utx.putIfNew _).when(*).onCall((t: Transaction) => Left(TransactionValidationError(GenericError("foo"), t))).anyNumberOfTimes()
 
-  "returns StateCheckFailed" - {
+  "returns StateCheckFiled" - {
     val route = LeaseBroadcastApiRoute(settings, utx, allChannels).route
 
     val vt = Table[String, G[_ <: Transaction], (JsValue) => JsValue](

@@ -5,6 +5,7 @@ import org.scalatest.{FreeSpec, Matchers}
 import Common._
 import com.zbsnetwork.lang.v1.compiler.TypeInferrer
 import com.zbsnetwork.lang.v1.evaluator.ctx.CaseType
+import com.zbsnetwork.lang.v1.evaluator.ctx.impl._
 
 class TypeInferrerTest extends FreeSpec with Matchers {
 
@@ -123,11 +124,6 @@ class TypeInferrerTest extends FreeSpec with Matchers {
         "ambiguous inference" in {
           TypeInferrer(Seq((LONG, PARAMETERIZEDUNION(List(typeparamT, typeparamG))))) should produce("Can't resolve correct type")
         }
-      }
-
-      "Lists" in {
-        TypeInferrer(Seq( /*(LONG, typeparamT),*/ (LIST(NOTHING), PARAMETERIZEDLIST(typeparamG)))) shouldBe Right(
-          Map( /*typeparamT -> LONG,*/ typeparamG -> NOTHING))
       }
     }
   }

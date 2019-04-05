@@ -103,7 +103,7 @@ class AssetTransactionsDiffTest extends PropSpec with PropertyChecks with Matche
       genesis: GenesisTransaction = GenesisTransaction.create(issuer, ENOUGH_AMT, timestamp).explicitGet()
       (issue, _, _) <- issueReissueBurnGeneratorP(ENOUGH_AMT, issuer)
       assetTransfer <- transferGeneratorP(issuer, burner, Some(issue.assetId()), None)
-      zbsTransfer   <- zbsTransferGeneratorP(issuer, burner)
+      zbsTransfer <- zbsTransferGeneratorP(issuer, burner)
       burn = BurnTransactionV1.selfSigned(burner, issue.assetId(), assetTransfer.amount, zbsTransfer.amount, timestamp).explicitGet()
     } yield (genesis, issue, assetTransfer, zbsTransfer, burn)
 
@@ -225,12 +225,12 @@ class AssetTransactionsDiffTest extends PropSpec with PropertyChecks with Matche
 
   def genesisIssueTransferReissue(code: String): Gen[(Seq[GenesisTransaction], IssueTransactionV2, TransferTransactionV1, ReissueTransactionV1)] =
     for {
-      version          <- Gen.oneOf(IssueTransactionV2.supportedVersions.toSeq)
-      timestamp        <- timestampGen
+      version            <- Gen.oneOf(IssueTransactionV2.supportedVersions.toSeq)
+      timestamp          <- timestampGen
       initialZbsAmount <- Gen.choose(Long.MaxValue / 1000, Long.MaxValue / 100)
-      accountA         <- accountGen
-      accountB         <- accountGen
-      smallFee         <- Gen.choose(1l, 10l)
+      accountA           <- accountGen
+      accountB           <- accountGen
+      smallFee           <- Gen.choose(1l, 10l)
       genesisTx1 = GenesisTransaction.create(accountA, initialZbsAmount, timestamp).explicitGet()
       genesisTx2 = GenesisTransaction.create(accountB, initialZbsAmount, timestamp).explicitGet()
       reissuable = true
@@ -286,7 +286,7 @@ class AssetTransactionsDiffTest extends PropSpec with PropertyChecks with Matche
           case (blockDiff, newState) =>
             val totalPortfolioDiff = Monoid.combineAll(blockDiff.portfolios.values)
             totalPortfolioDiff.assets(issue.id()) shouldEqual issue.quantity
-            newState.balance(newState.resolveAlias(transfer.recipient).explicitGet(), Some(issue.id())) shouldEqual transfer.amount
+            newState.portfolio(newState.resolveAlias(transfer.recipient).explicitGet()).assets(issue.id()) shouldEqual transfer.amount
         }
     }
   }

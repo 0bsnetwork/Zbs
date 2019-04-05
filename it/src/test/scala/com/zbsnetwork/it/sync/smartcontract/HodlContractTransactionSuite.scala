@@ -11,9 +11,10 @@ import com.zbsnetwork.state._
 import com.zbsnetwork.transaction.smart.script.ScriptCompiler
 import com.zbsnetwork.transaction.smart.{ContractInvocationTransaction, SetScriptTransaction}
 import com.zbsnetwork.transaction.transfer._
-import org.scalatest.CancelAfterFailure
+import org.scalatest.{CancelAfterFailure, Ignore}
 import play.api.libs.json.{JsNumber, Json}
 
+@Ignore // ignored in v0.16
 class HodlContractTransactionSuite extends BaseTransactionSuite with CancelAfterFailure {
 
   private val contract = pkByAddress(firstAddress)
@@ -64,8 +65,6 @@ class HodlContractTransactionSuite extends BaseTransactionSuite with CancelAfter
   test("set contract to contract account") {
     val scriptText =
       """
-        |{-# STDLIB_VERSION 3 #-}
-        |{-# CONTENT_TYPE CONTRACT #-}
         |
         |	@Callable(i)
         |	func deposit() = {
@@ -78,7 +77,7 @@ class HodlContractTransactionSuite extends BaseTransactionSuite with CancelAfter
         |	  		case _ => 0
         |	  	}
         |	  	let newAmount = currentAmount + pmt.amount
-        |	  	WriteSet([DataEntry(currentKey, newAmount)])
+        |	  	WriteSet(List(DataEntry(currentKey, newAmount)))
         |
         |   }
         |	}
@@ -96,8 +95,8 @@ class HodlContractTransactionSuite extends BaseTransactionSuite with CancelAfter
         |  else if (newAmount < 0)
         |			then throw("Not enough balance")
         |			else ContractResult(
-        |					WriteSet([DataEntry(currentKey, newAmount)]),
-        |					TransferSet([ContractTransfer(i.caller, amount, unit)])
+        |					WriteSet(List(DataEntry(currentKey, newAmount))),
+        |					TransferSet(List(ContractTransfer(i.caller, amount, unit)))
         |				)
         |	}
         |
@@ -105,7 +104,7 @@ class HodlContractTransactionSuite extends BaseTransactionSuite with CancelAfter
         |
         """.stripMargin
 
-    val script = ScriptCompiler.compile(scriptText).explicitGet()._1
+    val script = ScriptCompiler.contract(scriptText).explicitGet()
     val setScriptTransaction = SetScriptTransaction
       .selfSigned(contract, Some(script), setScriptFee, System.currentTimeMillis())
       .explicitGet()

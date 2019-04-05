@@ -20,8 +20,8 @@ import org.scalatest.{Matchers, PropSpec}
 class ContractCompilerTest extends PropSpec with PropertyChecks with Matchers with ScriptGen with NoShrink {
 
   property("contract compiles when uses annotation bindings and correct return type") {
-    val ctx =
-      Monoid.combine(compilerContext, ZbsContext.build(StdLibVersion.V3, Common.emptyBlockchainEnvironment(), isTokenContext = false).compilerContext)
+    val ctx = Monoid.combine(compilerContext,
+                             ZbsContext.build(StdLibVersion.V3, Common.emptyBlockchainEnvironment(), isTokenContext = false).compilerContext)
     val expr = {
       val script =
         """
@@ -29,7 +29,7 @@ class ContractCompilerTest extends PropSpec with PropertyChecks with Matchers wi
           | @Callable(invocation)
           | func foo(a:ByteVector) = {
           |  let sender0 = invocation.caller.bytes
-          |  WriteSet([DataEntry("a", a), DataEntry("sender", sender0)])
+          |  WriteSet(List(DataEntry("a", a), DataEntry("sender", sender0)))
           | }
           |
           | @Verifier(t)
@@ -54,11 +54,9 @@ class ContractCompilerTest extends PropSpec with PropertyChecks with Matchers wi
               FUNCTION_CALL(
                 User(FieldNames.WriteSet),
                 List(FUNCTION_CALL(
-                  Native(1100),
-                  List(
-                    FUNCTION_CALL(User("DataEntry"), List(CONST_STRING("a"), REF("a"))),
-                    FUNCTION_CALL(Native(1100), List(FUNCTION_CALL(User("DataEntry"), List(CONST_STRING("sender"), REF("sender0"))), REF("nil")))
-                  )
+                  Native(1102),
+                  List(FUNCTION_CALL(User("DataEntry"), List(CONST_STRING("a"), REF("a"))),
+                       FUNCTION_CALL(User("DataEntry"), List(CONST_STRING("sender"), REF("sender0"))))
                 ))
               )
             )
@@ -82,7 +80,7 @@ class ContractCompilerTest extends PropSpec with PropertyChecks with Matchers wi
           | @Callable(invocation)
           | func foo(a:ByteVector) = {
           |  let sender0 = invocation.caller.bytes
-          |  WriteSet([DataEntry("a", a), DataEntry("sender", sender0)])
+          |  WriteSet(List(DataEntry("a", a), DataEntry("sender", sender0)))
           | }
           |
           | @Callable(invocation)
@@ -112,7 +110,7 @@ class ContractCompilerTest extends PropSpec with PropertyChecks with Matchers wi
           | func foo(a:ByteVector) = {
           |  let aux = bar()
           |  let sender0 = invocation.caller.bytes
-          |  WriteSet([DataEntry("a", a), DataEntry("sender", sender0)])
+          |  WriteSet(List(DataEntry("a", a), DataEntry("sender", sender0)))
           | }
           |
           |
@@ -138,24 +136,6 @@ class ContractCompilerTest extends PropSpec with PropertyChecks with Matchers wi
       Parser.parseContract(script).get.value
     }
     compiler.ContractCompiler(ctx, expr) should produce(FieldNames.Error)
-  }
-
-  property("annotation binding can have the same name as annotated function") {
-    val ctx = compilerContext
-    val expr = {
-      val script =
-        """
-          |
-          |@Callable(sameName)
-          |func sameName() = {
-          |   throw()
-          |}
-          |
-          |
-        """.stripMargin
-      Parser.parseContract(script).get.value
-    }
-    compiler.ContractCompiler(ctx, expr) shouldBe 'right
   }
 
   property("contract compiles fails if has more than one verifier function") {
@@ -235,7 +215,7 @@ class ContractCompilerTest extends PropSpec with PropertyChecks with Matchers wi
           |	  		case _ => 0
           |	  	}
           |	  	let newAmount = currentAmount + pmt.amount
-          |	  	WriteSet([DataEntry(currentKey, newAmount)])
+          |	  	WriteSet(List(DataEntry(currentKey, newAmount)))
           |
           |   }
           |	}
@@ -253,8 +233,8 @@ class ContractCompilerTest extends PropSpec with PropertyChecks with Matchers wi
           |  else if (newAmount < 0)
           |			then throw("Not enough balance")
           |			else ContractResult(
-          |					WriteSet([DataEntry(currentKey, newAmount)]),
-          |					TransferSet([ContractTransfer(i.caller, amount, unit)])
+          |					WriteSet(List(DataEntry(currentKey, newAmount))),
+          |					TransferSet(List(ContractTransfer(i.caller, amount, unit)))
           |				)
           |	}
           |
@@ -279,8 +259,8 @@ class ContractCompilerTest extends PropSpec with PropertyChecks with Matchers wi
           |
           | @Callable(i)
           | func bar() = {
-          |   if (true) then WriteSet([DataEntry("entr1","entr2")])
-          |   else TransferSet([ContractTransfer(i.caller, zbsBalance(i.contractAddress), base58'somestr')])
+          |   if (true) then WriteSet(List(DataEntry("entr1","entr2")))
+          |   else TransferSet(List(ContractTransfer(i.caller, zbsBalance(i.contractAddress), base58'somestr')))
           | }
           |
           | @Verifier(t)
@@ -302,12 +282,12 @@ class ContractCompilerTest extends PropSpec with PropertyChecks with Matchers wi
           |
           |@Callable(i)
           |func sameName() = {
-          |   WriteSet([DataEntry("a", "a")])
+          |   WriteSet(List(DataEntry("a", "a")))
           |}
           |
           |@Callable(i)
           |func sameName() = {
-          |   WriteSet([DataEntry("b", "b")])
+          |   WriteSet(List(DataEntry("b", "b")))
           |}
           |
           |@Verifier(i)
@@ -318,7 +298,7 @@ class ContractCompilerTest extends PropSpec with PropertyChecks with Matchers wi
         """.stripMargin
       Parser.parseContract(script).get.value
     }
-    compiler.ContractCompiler(ctx, expr) should produce("is already defined")
+    compiler.ContractCompiler(ctx, expr) should produce("Contract functions must have unique names")
   }
 
   property("contract compilation fails if declaration and annotation bindings has the same name") {
@@ -331,7 +311,7 @@ class ContractCompilerTest extends PropSpec with PropertyChecks with Matchers wi
           |
           |@Callable(x)
           |func some(i: Int) = {
-          |    WriteSet([DataEntry("a", "a")])
+          |    WriteSet(List(DataEntry("a", "a")))
           |}
           |
         """.stripMargin
@@ -349,9 +329,9 @@ class ContractCompilerTest extends PropSpec with PropertyChecks with Matchers wi
           |@Callable(i)
           |func some(i: Int) = {
           |   if (i.contractAddress == "abc") then
-          |      WriteSet([DataEntry("a", "a")])
+          |      WriteSet(List(DataEntry("a", "a")))
           |   else
-          |      WriteSet([DataEntry("a", "b")])
+          |      WriteSet(List(DataEntry("a", "b")))
           |}
           |
         """.stripMargin
@@ -368,12 +348,12 @@ class ContractCompilerTest extends PropSpec with PropertyChecks with Matchers wi
           |
           |@Callable(x)
           |func foo(i: Int) = {
-          |    WriteSet([DataEntry("a", "a")])
+          |    WriteSet(List(DataEntry("a", "a")))
           |}
           |
           |@Callable(i)
           |func bar(x: Int) = {
-          |    WriteSet([DataEntry("a", "a")])
+          |    WriteSet(List(DataEntry("a", "a")))
           |}
           |
         """.stripMargin
@@ -392,7 +372,7 @@ class ContractCompilerTest extends PropSpec with PropertyChecks with Matchers wi
           |
           |@Callable(i)
           |func some(x: Int) = {
-          |    WriteSet([DataEntry("a", "a")])
+          |    WriteSet(List(DataEntry("a", "a")))
           |}
           |
         """.stripMargin
@@ -400,5 +380,4 @@ class ContractCompilerTest extends PropSpec with PropertyChecks with Matchers wi
     }
     compiler.ContractCompiler(ctx, expr) shouldBe 'right
   }
-
 }

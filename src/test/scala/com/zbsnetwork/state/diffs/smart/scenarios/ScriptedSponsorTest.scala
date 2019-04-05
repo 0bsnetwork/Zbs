@@ -53,11 +53,14 @@ class ScriptedSponsorTest extends PropSpec with PropertyChecks with Matchers wit
         val sponsor = setupTxs.flatten.collectFirst { case t: SponsorFeeTransaction => t.sender }.get
 
         assertDiffAndState(setupBlocks :+ TestBlock.create(Nil), transferBlock, fs) { (diff, blck) =>
-          blck.balance(contract, Some(assetId)) shouldEqual ENOUGH_FEE * 2
-          blck.balance(contract) shouldEqual ENOUGH_AMT - contractSpent
+          val contractPortfolio = blck.portfolio(contract)
+          val sponsorPortfolio  = blck.portfolio(sponsor)
 
-          blck.balance(sponsor, Some(assetId)) shouldEqual Long.MaxValue - ENOUGH_FEE * 2
-          blck.balance(sponsor) shouldEqual ENOUGH_AMT - sponsorSpent
+          contractPortfolio.balanceOf(Some(assetId)) shouldEqual ENOUGH_FEE * 2
+          contractPortfolio.balanceOf(None) shouldEqual ENOUGH_AMT - contractSpent
+
+          sponsorPortfolio.balanceOf(Some(assetId)) shouldEqual Long.MaxValue - ENOUGH_FEE * 2
+          sponsorPortfolio.balanceOf(None) shouldEqual ENOUGH_AMT - sponsorSpent
         }
     }
   }
@@ -76,11 +79,14 @@ class ScriptedSponsorTest extends PropSpec with PropertyChecks with Matchers wit
         val recipientSpent: Long = 1
 
         assertDiffAndState(setupBlocks :+ TestBlock.create(Nil), transferBlock, fs) { (diff, blck) =>
-          blck.balance(contract, Some(assetId)) shouldEqual Long.MaxValue - ENOUGH_FEE * 2
-          blck.balance(contract) shouldEqual ENOUGH_AMT - contractSpent
+          val contractPortfolio  = blck.portfolio(contract)
+          val recipientPortfolio = blck.portfolio(recipient)
 
-          blck.balance(recipient, Some(assetId)) shouldEqual ENOUGH_FEE * 2
-          blck.balance(recipient) shouldEqual ENOUGH_AMT - recipientSpent
+          contractPortfolio.balanceOf(Some(assetId)) shouldEqual Long.MaxValue - ENOUGH_FEE * 2
+          contractPortfolio.balanceOf(None) shouldEqual ENOUGH_AMT - contractSpent
+
+          recipientPortfolio.balanceOf(Some(assetId)) shouldEqual ENOUGH_FEE * 2
+          recipientPortfolio.balanceOf(None) shouldEqual ENOUGH_AMT - recipientSpent
         }
     }
   }

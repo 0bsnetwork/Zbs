@@ -1,9 +1,9 @@
 package com.zbsnetwork.account
 
 import com.zbsnetwork.common.utils.Base58
-import com.zbsnetwork.crypto._
-import com.zbsnetwork.transaction.ValidationError.InvalidAddress
 import com.zbsnetwork.utils.base58Length
+import com.zbsnetwork.transaction.ValidationError.InvalidAddress
+import com.zbsnetwork.crypto._
 
 trait PublicKeyAccount {
   def publicKey: Array[Byte]
@@ -19,7 +19,6 @@ trait PublicKeyAccount {
 }
 
 object PublicKeyAccount {
-  val empty = apply(Array.emptyByteArray)
 
   val KeyStringLength: Int = base58Length(KeyLength)
 

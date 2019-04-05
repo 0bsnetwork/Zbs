@@ -9,7 +9,7 @@ class DirectiveParserTest extends PropSpec with PropertyChecks with Matchers {
 
   def parse(s: String): List[Directive] = DirectiveParser(s)
 
-  property("parse directives") {
+  property("parse STDLIB_VERSION directive") {
     parse("{-# STDLIB_VERSION 10 #-}") shouldBe List(Directive(STDLIB_VERSION, "10"))
     parse("""
         |
@@ -18,13 +18,8 @@ class DirectiveParserTest extends PropSpec with PropertyChecks with Matchers {
       """.stripMargin) shouldBe List(Directive(STDLIB_VERSION, "10"))
     parse("""
             |
-            |{-# CONTENT_TYPE FOO #-}
+            |{-# SCRIPT_TYPE FOO #-}
             |
-      """.stripMargin) shouldBe List(Directive(CONTENT_TYPE, "FOO"))
-    parse("""
-            |
-            |{-# SCRIPT_TYPE BAR #-}
-            |
-      """.stripMargin) shouldBe List(Directive(SCRIPT_TYPE, "BAR"))
+      """.stripMargin) shouldBe List(Directive(SCRIPT_TYPE, "FOO"))
   }
 }

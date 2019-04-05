@@ -28,9 +28,6 @@ object Parser {
   val notEndOfString   = CharPred(_ != '\"')
   val specialSymbols   = P("\\" ~~ AnyChar)
   val comment: P[Unit] = P("#" ~~ CharPred(_ != '\n').repX).rep.map(_ => ())
-  val directive: P[Unit] = P("{-#" ~ CharPred(el => el != '\n' &&  el != '#').rep ~ "#-}").rep.map(_ => ())
-
-  val unusedText = comment ~ directive ~ comment
 
   val escapedUnicodeSymbolP: P[(Int, String, Int)] = P(Index ~~ (NoCut(unicodeSymbolP) | specialSymbols).! ~~ Index)
   val stringP: P[EXPR] = P(Index ~~ "\"" ~/ Pass ~~ (escapedUnicodeSymbolP | notEndOfString).!.repX ~~ "\"" ~~ Index)
@@ -162,17 +159,9 @@ object Parser {
     case (_, id, None, _)                                     => id
   }
 
-  val list: P[EXPR] = (Index ~~ P("[") ~ functionCallArgs ~ P("]") ~~ Index).map { case (s,e,f) =>
-    val pos = Pos(s, f)
-    e.foldRight(REF(pos, PART.VALID(pos,"nil")):EXPR) { (v,l) => FUNCTION_CALL(pos, PART.VALID(pos, "cons"), List(v,l)) }
-  }
-
-  val extractableAtom: P[EXPR] = P(curlyBracesP | bracesP |
-    byteVectorP | stringP | numberP | trueP | falseP | list |
-    maybeFunctionCallP)
+  val extractableAtom: P[EXPR] = P(curlyBracesP | bracesP | maybeFunctionCallP)
 
   abstract class Accessor
-  case class Method(name: PART[String], args: Seq[EXPR]) extends Accessor
   case class Getter(name: PART[String]) extends Accessor
   case class ListIndex(index: EXPR)     extends Accessor
   val typesP: P[Seq[PART[String]]] = anyVarName.rep(min = 1, sep = comment ~ "|" ~ comment)
@@ -236,9 +225,8 @@ object Parser {
       }
 
   val accessP: P[(Int, Accessor, Int)] = P(
-    (("" ~ comment ~ Index ~ "." ~/ comment ~ (anyVarName.map(Getter) ~/ comment ~~ ("(" ~/ comment ~  functionCallArgs ~/ comment ~ ")").?).map {
-      case ((g@Getter(name)), args) => args.fold(g:Accessor)(a => Method(name, a))
-      }) ~~ Index) | (Index ~~ "[" ~/ baseExpr.map(ListIndex) ~ "]" ~~ Index)
+    ("" ~ comment ~ Index ~ "." ~/ comment ~ anyVarName.map(Getter) ~~ Index) |
+      (Index ~~ "[" ~/ baseExpr.map(ListIndex) ~ "]" ~~ Index)
   )
 
   val maybeAccessP: P[EXPR] =
@@ -249,7 +237,6 @@ object Parser {
             case (e, (accessStart, a, accessEnd)) =>
               a match {
                 case Getter(n)        => GETTER(Pos(start, accessEnd), e, n)
-                case Method(n, args)  => FUNCTION_CALL(Pos(start, accessEnd), n, (e :: args.toList))
                 case ListIndex(index) => FUNCTION_CALL(Pos(start, accessEnd), PART.VALID(Pos(accessStart, accessEnd), "getElement"), List(e, index))
               }
           }
@@ -318,41 +305,29 @@ object Parser {
   }
 
   val baseAtom = comment ~
-    P(ifP | matchP | block | maybeAccessP) ~
+    P(ifP | matchP | byteVectorP | stringP | numberP | trueP | falseP | block | maybeAccessP) ~
     comment
 
-  lazy val baseExpr = P(binaryOp(baseAtom, opsByPriority))
+  lazy val baseExpr = P(binaryOp(baseAtom, opsByPriority) | baseAtom)
 
 
   val singleBaseAtom = comment ~
-    P(ifP | matchP | maybeAccessP) ~
+    P(ifP | matchP | byteVectorP | stringP | numberP | trueP | falseP | maybeAccessP) ~
     comment
 
-  val singleBaseExpr = P(binaryOp(singleBaseAtom, opsByPriority))
+  lazy val singleBaseExpr = P(binaryOp(singleBaseAtom, opsByPriority) | singleBaseAtom)
 
 
-  val declaration = P(letP | funcP)
+  lazy val declaration = P(letP | funcP)
 
-  def revp[A,B](l:A, s:Seq[(B,A)], o:Seq[(A,B)]=Seq.empty) : (Seq[(A,B)], A) = {
-    s.foldLeft((o,l)) { (acc, op) => (acc, op) match { case ((o,l),(b,a)) => ((l,b) +: o) -> a } }
-  }
-
-  def binaryOp(atom: P[EXPR], rest: List[Either[List[BinaryOperation], List[BinaryOperation]]]): P[EXPR] = rest match {
+  def binaryOp(atom: P[EXPR], rest: List[List[BinaryOperation]]): P[EXPR] = rest match {
     case Nil => unaryOp(atom, unaryOps)
-    case Left(kinds) :: restOps =>
+    case kinds :: restOps =>
       val operand = binaryOp(atom, restOps)
       val kind    = kinds.map(_.parser).reduce((pl, pr) => P(pl | pr))
       P(Index ~~ operand ~ P(kind ~ (NoCut(operand) | Index.map(i => INVALID(Pos(i, i), "expected a second operator")))).rep).map {
         case (start, left: EXPR, r: Seq[(BinaryOperation, EXPR)]) =>
           r.foldLeft(left) { case (acc, (currKind, currOperand)) => currKind.expr(start, currOperand.position.end, acc, currOperand) }
-      }
-    case Right(kinds) :: restOps =>
-      val operand = binaryOp(atom, restOps)
-      val kind    = kinds.map(_.parser).reduce((pl, pr) => P(pl | pr))
-      P(Index ~~ operand ~ P(kind ~ (NoCut(operand) | Index.map(i => INVALID(Pos(i, i), "expected a second operator")))).rep).map {
-        case (start, left: EXPR, r: Seq[(BinaryOperation, EXPR)]) =>
-          val (ops,s) = revp(left, r)
-          ops.foldLeft(s) { case (acc, (currOperand, currKind)) => currKind.expr(start, currOperand.position.end, currOperand, acc) }
       }
   }
 
@@ -363,10 +338,10 @@ object Parser {
       } | acc
   }
 
-  def parseExpr(str: String): core.Parsed[EXPR, Char, String] = P(Start ~ unusedText ~ (baseExpr | invalid) ~ End).parse(str)
+  def parseExpr(str: String): core.Parsed[EXPR, Char, String] = P(Start ~ (baseExpr | invalid) ~ End).parse(str)
 
   def parseContract(str: String): core.Parsed[CONTRACT, Char, String] =
-    P(Start ~ unusedText ~ (declaration.rep) ~ comment ~ (annotatedFunc.rep) ~ End ~~ Index)
+    P(Start ~ comment.? ~ (declaration.rep) ~ comment.? ~ (annotatedFunc.rep) ~ End ~~ Index)
       .map {
         case (ds, fs, end) => CONTRACT(Pos(0, end), ds.toList, fs.toList)
       }

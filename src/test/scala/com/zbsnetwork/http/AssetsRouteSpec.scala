@@ -7,7 +7,7 @@ import com.zbsnetwork.settings.RestAPISettings
 import com.zbsnetwork.state.{Blockchain, Diff}
 import com.zbsnetwork.utx.UtxPool
 import com.zbsnetwork.{RequestGen, TestTime}
-import io.netty.channel.group.{ChannelGroup, ChannelGroupFuture, ChannelMatcher}
+import io.netty.channel.group.ChannelGroup
 import org.scalamock.scalatest.PathMockFactory
 import org.scalatest.concurrent.Eventually
 import play.api.libs.json.Writes
@@ -19,7 +19,7 @@ import com.zbsnetwork.wallet.Wallet
 
 class AssetsRouteSpec extends RouteSpec("/assets") with RequestGen with PathMockFactory with Eventually {
 
-  private val settings    = RestAPISettings.fromConfig(ConfigFactory.load())
+  private val settings    = RestAPISettings.fromRootConfig(ConfigFactory.load())
   private val wallet      = stub[Wallet]
   private val utx         = stub[UtxPool]
   private val allChannels = stub[ChannelGroup]
@@ -31,7 +31,7 @@ class AssetsRouteSpec extends RouteSpec("/assets") with RequestGen with PathMock
 
   (wallet.privateKeyAccount _).when(senderPrivateKey.toAddress).onCall((_: Address) => Right(senderPrivateKey)).anyNumberOfTimes()
   (utx.putIfNew _).when(*).onCall((_: Transaction) => Right((true, Diff.empty))).anyNumberOfTimes()
-  (allChannels.writeAndFlush(_: Any, _: ChannelMatcher)).when(*, *).onCall((_: Any, _: ChannelMatcher) => stub[ChannelGroupFuture]).anyNumberOfTimes()
+  (allChannels.writeAndFlush(_: Any)).when(*).onCall((_: Any) => null).anyNumberOfTimes()
 
   "/transfer" - {
     val route = AssetsApiRoute(settings, wallet, utx, allChannels, state, new TestTime()).route

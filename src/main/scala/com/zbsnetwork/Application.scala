@@ -179,17 +179,16 @@ class Application(val actorSystem: ActorSystem, val settings: ZbsSettings, confi
 
     rxExtensionLoaderShutdown = Some(sh)
 
-    UtxPoolSynchronizer.start(utxStorage, settings.synchronizationSettings.utxSynchronizerSettings, allChannels, transactions)
-
-    val microBlockSink = microblockDatas
-      .mapTask(scala.Function.tupled(processMicroBlock))
-
-    val blockSink = newBlocks
-      .mapTask(scala.Function.tupled(processBlock))
+    UtxPoolSynchronizer.start(utxStorage,
+                              settings.synchronizationSettings.utxSynchronizerSettings,
+                              allChannels,
+                              transactions,
+                              blockchainUpdater.lastBlockInfo)
+    val microBlockSink = microblockDatas.mapTask(scala.Function.tupled(processMicroBlock))
+    val blockSink      = newBlocks.mapTask(scala.Function.tupled(processBlock))
 
     Observable.merge(microBlockSink, blockSink).subscribe()
     miner.scheduleMining()
-    utxStorage.cleanup.runCleanupOn(blockSink)
 
     for (addr <- settings.networkSettings.declaredAddress if settings.networkSettings.uPnPSettings.enable) {
       upnp.addPort(addr.getPort)

@@ -853,7 +853,7 @@ class LevelDBWriter(writableDB: DB,
 
   override def blockIdsAfter(parentSignature: ByteStr, howMany: Int): Option[Seq[ByteStr]] = readOnly { db =>
     db.get(Keys.heightOf(parentSignature)).map { parentHeight =>
-      (parentHeight until (parentHeight + howMany))
+      (parentHeight + 1 to (parentHeight + howMany))
         .map { h =>
           val height = Height(h)
           db.get(Keys.blockHeaderAndSizeAt(height))
@@ -954,24 +954,15 @@ class LevelDBWriter(writableDB: DB,
       )
   }
 
-  override def zbsDistribution(height: Int): Either[ValidationError, Map[Address, Long]] = readOnly { db =>
-    val canGetAfterHeight = db.get(Keys.safeRollbackHeight)
-
-    def createMap() =
-      (for {
-        seqNr     <- (1 to db.get(Keys.addressesForZbsSeqNr)).par
-        addressId <- db.get(Keys.addressesForZbs(seqNr)).par
-        history = db.get(Keys.zbsBalanceHistory(addressId))
-        actualHeight <- history.partition(_ > height)._2.headOption
-        balance = db.get(Keys.zbsBalance(addressId)(actualHeight))
-        if balance > 0
-      } yield db.get(Keys.idToAddress(addressId)) -> balance).toMap.seq
-
-    Either.cond(
-      height > canGetAfterHeight,
-      createMap(),
-      GenericError(s"Cannot get zbs distribution at height less than ${canGetAfterHeight + 1}")
-    )
+  override def zbsDistribution(height: Int): Map[Address, Long] = readOnly { db =>
+    (for {
+      seqNr     <- (1 to db.get(Keys.addressesForZbsSeqNr)).par
+      addressId <- db.get(Keys.addressesForZbs(seqNr)).par
+      history = db.get(Keys.zbsBalanceHistory(addressId))
+      actualHeight <- history.partition(_ > height)._2.headOption
+      balance = db.get(Keys.zbsBalance(addressId)(actualHeight))
+      if balance > 0
+    } yield db.get(Keys.idToAddress(addressId)) -> balance).toMap.seq
   }
 
   private[database] def loadBlock(height: Height): Option[Block] = readOnly { db =>

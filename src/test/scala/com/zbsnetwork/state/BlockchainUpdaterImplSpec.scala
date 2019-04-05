@@ -22,7 +22,6 @@ class BlockchainUpdaterImplSpec extends FreeSpec with Matchers with WithDB with 
     val defaultWriter = new LevelDBWriter(db, ignoreSpendableBalanceChanged, TestFunctionalitySettings.Stub, maxCacheSize, 2000, 120 * 60 * 1000)
     val settings      = ZbsSettings.fromConfig(loadConfig(ConfigFactory.load()))
     val bcu           = new BlockchainUpdaterImpl(defaultWriter, ignoreSpendableBalanceChanged, settings, ntpTime)
-
     try {
       val (account, blocks) = gen(ntpTime).sample.get
 

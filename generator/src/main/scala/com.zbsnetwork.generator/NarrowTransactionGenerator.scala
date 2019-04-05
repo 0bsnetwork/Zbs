@@ -43,8 +43,6 @@ class NarrowTransactionGenerator(settings: Settings, val accounts: Seq[PrivateKe
 
   def generate(n: Int): Seq[Transaction] = {
     val issueTransactionSender = randomFrom(accounts).get
-
-    val now = System.currentTimeMillis()
     val tradeAssetIssue = IssueTransactionV1
       .selfSigned(
         issueTransactionSender,
@@ -54,7 +52,7 @@ class NarrowTransactionGenerator(settings: Settings, val accounts: Seq[PrivateKe
         2,
         reissuable = false,
         100000000L + r.nextInt(100000000),
-        now
+        System.currentTimeMillis()
       )
       .right
       .get
@@ -83,10 +81,10 @@ class NarrowTransactionGenerator(settings: Settings, val accounts: Seq[PrivateKe
         Seq.empty[LeaseTransactionV1],
         Seq.empty[CreateAliasTransaction]
       )) {
-      case ((allTxsWithValid, validIssueTxs, reissuableIssueTxs, activeLeaseTransactions, aliases), i) =>
+      case ((allTxsWithValid, validIssueTxs, reissuableIssueTxs, activeLeaseTransactions, aliases), _) =>
         def moreThatStandartFee = 100000L + r.nextInt(100000)
 
-        val ts = now + i
+        def ts = System.currentTimeMillis()
 
         val tx = typeGen.getRandom match {
           case IssueTransactionV1 =>

@@ -12,7 +12,7 @@ import com.zbsnetwork.transaction.smart.{ContractInvocationTransaction, SetScrip
 import com.zbsnetwork.transaction.transfer._
 import com.zbsnetwork.utils.ScorexLogging
 
-object TransactionDiffer extends Instrumented with ScorexLogging {
+object TransactionDiffer extends ScorexLogging {
 
   private val stats = TxProcessingStats
 

@@ -22,7 +22,7 @@ class BlockchainUpdaterBurnTest extends PropSpec with PropertyChecks with Domain
   val preconditions: Gen[Setup] = for {
     master                                                   <- accountGen
     ts                                                       <- timestampGen
-    transferAssetZbsFee                                      <- smallFeeGen
+    transferAssetZbsFee                                    <- smallFeeGen
     alice                                                    <- accountGen
     (_, assetName, description, quantity, decimals, _, _, _) <- issueParamGen
     genesis: GenesisTransaction = GenesisTransaction.create(master, ENOUGH_AMT, ts).explicitGet()

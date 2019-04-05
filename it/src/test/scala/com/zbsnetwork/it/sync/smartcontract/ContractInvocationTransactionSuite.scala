@@ -13,9 +13,10 @@ import com.zbsnetwork.transaction.smart.script.ScriptCompiler
 import com.zbsnetwork.transaction.smart.{ContractInvocationTransaction, SetScriptTransaction}
 import com.zbsnetwork.transaction.transfer._
 import com.zbsnetwork.transaction.{DataTransaction, Proofs}
-import org.scalatest.CancelAfterFailure
+import org.scalatest.{CancelAfterFailure, Ignore}
 import play.api.libs.json.{JsNumber, Json}
 
+@Ignore // ignored in v0.16
 class ContractInvocationTransactionSuite extends BaseTransactionSuite with CancelAfterFailure {
 
   private val contract = pkByAddress(firstAddress)
@@ -66,12 +67,10 @@ class ContractInvocationTransactionSuite extends BaseTransactionSuite with Cance
   test("set contract to contract account") {
     val scriptText =
       """
-        |{-# STDLIB_VERSION 3 #-}
-        |{-# CONTENT_TYPE CONTRACT #-}
         |
         | @Callable(inv)
         | func foo(a:ByteVector) = {
-        |  WriteSet([DataEntry("a", a), DataEntry("sender", inv.caller.bytes)])
+        |  WriteSet(List(DataEntry("a", a), DataEntry("sender", inv.caller.bytes)))
         | }
         |
         | @Verifier(t)
@@ -82,7 +81,7 @@ class ContractInvocationTransactionSuite extends BaseTransactionSuite with Cance
         |
         """.stripMargin
 
-    val script = ScriptCompiler.compile(scriptText).explicitGet()._1
+    val script = ScriptCompiler.contract(scriptText).explicitGet()
     val setScriptTransaction = SetScriptTransaction
       .selfSigned(contract, Some(script), setScriptFee, System.currentTimeMillis())
       .explicitGet()

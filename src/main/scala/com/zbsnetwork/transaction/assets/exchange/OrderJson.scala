@@ -4,7 +4,7 @@ import com.zbsnetwork.account.PublicKeyAccount
 import com.zbsnetwork.common.state.ByteStr
 import com.zbsnetwork.common.utils.Base58
 import com.zbsnetwork.crypto.SignatureLength
-import com.zbsnetwork.transaction.{AssetId, Proofs}
+import com.zbsnetwork.transaction.Proofs
 import play.api.libs.json._
 
 import scala.util.{Failure, Success}
@@ -42,36 +42,19 @@ object OrderJson {
     case _ => JsError(Seq(JsPath() -> Seq(JsonValidationError("error.expected.jsstring"))))
   }
 
-  implicit val assetIdReads: Reads[AssetId] = {
-    case JsString(s) =>
-      Base58.decode(s) match {
-        case Success(bytes) => JsSuccess(ByteStr(bytes))
-        case _              => JsError(Seq(JsPath() -> Seq(JsonValidationError("error.incorrect.assetId"))))
-      }
-    case _ => JsError(Seq(JsPath() -> Seq(JsonValidationError("error.expected.jsstring"))))
-  }
-
-  def readOrderV1V2(sender: PublicKeyAccount,
-                    matcher: PublicKeyAccount,
-                    assetPair: AssetPair,
-                    orderType: OrderType,
-                    amount: Long,
-                    price: Long,
-                    timestamp: Long,
-                    expiration: Long,
-                    matcherFee: Long,
-                    signature: Option[Array[Byte]],
-                    proofs: Option[Array[Array[Byte]]],
-                    version: Option[Byte]): Order = {
-
-    val eproofs =
-      proofs
-        .map(p => Proofs(p.map(ByteStr.apply)))
-        .orElse(signature.map(s => Proofs(Seq(ByteStr(s)))))
-        .getOrElse(Proofs.empty)
-
-    val vrsn: Byte = version.getOrElse(if (eproofs.proofs.size == 1 && eproofs.proofs.head.arr.length == SignatureLength) 1 else 2)
-
+  def readOrder(sender: PublicKeyAccount,
+                matcher: PublicKeyAccount,
+                assetPair: AssetPair,
+                orderType: OrderType,
+                amount: Long,
+                price: Long,
+                timestamp: Long,
+                expiration: Long,
+                matcherFee: Long,
+                signature: Option[Array[Byte]],
+                proofs: Option[Array[Array[Byte]]],
+                version: Option[Byte]): Order = {
+    val eproofs = proofs.map(p => Proofs(p.map(ByteStr.apply))).orElse(signature.map(s => Proofs(Seq(ByteStr(s))))).getOrElse(Proofs.empty)
     Order(
       sender,
       matcher,
@@ -83,43 +66,7 @@ object OrderJson {
       expiration,
       matcherFee,
       eproofs,
-      vrsn
-    )
-  }
-
-  def readOrderV3(sender: PublicKeyAccount,
-                  matcher: PublicKeyAccount,
-                  assetPair: AssetPair,
-                  orderType: OrderType,
-                  amount: Long,
-                  price: Long,
-                  timestamp: Long,
-                  expiration: Long,
-                  matcherFee: Long,
-                  signature: Option[Array[Byte]],
-                  proofs: Option[Array[Array[Byte]]],
-                  version: Byte,
-                  matcherFeeAssetId: Option[AssetId]): Order = {
-
-    val eproofs =
-      proofs
-        .map(p => Proofs(p.map(ByteStr.apply)))
-        .orElse(signature.map(s => Proofs(Seq(ByteStr(s)))))
-        .getOrElse(Proofs.empty)
-
-    Order(
-      sender,
-      matcher,
-      assetPair,
-      orderType,
-      amount,
-      price,
-      timestamp,
-      expiration,
-      matcherFee,
-      eproofs,
-      version,
-      matcherFeeAssetId
+      version.getOrElse(if (eproofs.proofs.size == 1 && eproofs.proofs.head.arr.length == SignatureLength) 1 else 2)
     )
   }
 
@@ -136,7 +83,7 @@ object OrderJson {
   implicit val orderTypeReads: Reads[OrderType] =
     JsPath.read[String].map(OrderType.apply)
 
-  private val orderV1V2Reads: Reads[Order] = {
+  implicit val orderReads: Reads[Order] = {
     val r = (JsPath \ "senderPublicKey").read[PublicKeyAccount] and
       (JsPath \ "matcherPublicKey").read[PublicKeyAccount] and
       (JsPath \ "assetPair").read[AssetPair] and
@@ -149,33 +96,7 @@ object OrderJson {
       (JsPath \ "signature").readNullable[Array[Byte]] and
       (JsPath \ "proofs").readNullable[Array[Array[Byte]]] and
       (JsPath \ "version").readNullable[Byte]
-    r(readOrderV1V2 _)
-  }
-
-  private val orderV3Reads: Reads[Order] = {
-    val r = (JsPath \ "senderPublicKey").read[PublicKeyAccount] and
-      (JsPath \ "matcherPublicKey").read[PublicKeyAccount] and
-      (JsPath \ "assetPair").read[AssetPair] and
-      (JsPath \ "orderType").read[OrderType] and
-      (JsPath \ "amount").read[Long] and
-      (JsPath \ "price").read[Long] and
-      (JsPath \ "timestamp").read[Long] and
-      (JsPath \ "expiration").read[Long] and
-      (JsPath \ "matcherFee").read[Long] and
-      (JsPath \ "signature").readNullable[Array[Byte]] and
-      (JsPath \ "proofs").readNullable[Array[Array[Byte]]] and
-      (JsPath \ "version").read[Byte] and
-      (JsPath \ "matcherFeeAssetId").readNullable[AssetId]
-    r(readOrderV3 _)
-  }
-
-  implicit val orderReads: Reads[Order] = {
-    case jsOrder @ JsObject(map) =>
-      map.getOrElse("version", JsNumber(1)) match {
-        case JsNumber(x) if x.byteValue() == 3 => orderV3Reads.reads(jsOrder)
-        case _                                 => orderV1V2Reads.reads(jsOrder)
-      }
-    case invalidOrder => JsError(s"Can't parse invalid order $invalidOrder")
+    r(readOrder _)
   }
 
   implicit val orderFormat: Format[Order] = Format(orderReads, Writes[Order](_.json()))

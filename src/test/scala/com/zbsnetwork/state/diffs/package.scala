@@ -13,7 +13,7 @@ import com.zbsnetwork.transaction.{Transaction, ValidationError}
 import org.scalatest.Matchers
 
 package object diffs extends WithState with Matchers {
-  val ENOUGH_AMT: Long = Long.MaxValue / 2
+  val ENOUGH_AMT: Long = Long.MaxValue / 3
 
   def assertDiffEi(preconditions: Seq[Block], block: Block, fs: FunctionalitySettings = TFS.Enabled)(
       assertion: Either[ValidationError, Diff] => Unit): Unit = withStateAndHistory(fs) { state =>
@@ -29,7 +29,7 @@ package object diffs extends WithState with Matchers {
 
   private def assertDiffAndState(preconditions: Seq[Block], block: Block, fs: FunctionalitySettings, withNg: Boolean)(
       assertion: (Diff, Blockchain) => Unit): Unit = withStateAndHistory(fs) { state =>
-    def differ(blockchain: Blockchain, prevBlock: Option[Block], b: Block): Either[ValidationError, (Diff, Long, MiningConstraint)] =
+    def differ(blockchain: Blockchain, prevBlock: Option[Block], b: Block) =
       BlockDiffer.fromBlock(fs, blockchain, if (withNg) prevBlock else None, b, MiningConstraint.Unlimited)
 
     preconditions.foldLeft[Option[Block]](None) { (prevBlock, curBlock) =>

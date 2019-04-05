@@ -14,5 +14,4 @@ case class Ord(id: ByteStr,
                expiration: Long,
                matcherFee: Long,
                bodyBytes: ByteStr,
-               proofs: IndexedSeq[ByteStr],
-               matcherFeeAssetId: Option[ByteStr] = None)
+               proofs: IndexedSeq[ByteStr])
