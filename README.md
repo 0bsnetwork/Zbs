@@ -14,6 +14,13 @@ If you are running any other OS, or want to run the node only temporarily, downl
 
 Option 1: Install as a service on Ubuntu / Debian:
 
+Install Java (OpenJDK):
+
+```
+sudo apt-get install openjdk-8-jdk
+```
+Then install the node software:
+
 ```
 sudo dpkg -i zbs_0.*_all.deb
 ```
